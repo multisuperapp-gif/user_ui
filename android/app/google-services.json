@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "626634144935",
+    "project_id": "multisuperapp-e1fcb",
+    "storage_bucket": "multisuperapp-e1fcb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626634144935:android:c8ebb6130112da3b78af82",
+        "android_client_info": {
+          "package_name": "com.example.msa_business_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBizkUzT2PZoJrYeJBWufe5IZsON3nWrow"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626634144935:android:d778ed7d4595b5ad78af82",
+        "android_client_info": {
+          "package_name": "com.example.msa_user_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBizkUzT2PZoJrYeJBWufe5IZsON3nWrow"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
