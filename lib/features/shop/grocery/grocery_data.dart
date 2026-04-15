@@ -246,38 +246,3 @@ Alignment _groceryCampaignTitleAlignment(String category) {
       return Alignment.center;
   }
 }
-
-List<_DiscoveryItem> get _groceryShopWiseSeeds => const [
-      _DiscoveryItem(
-        title: 'Chai Time Store',
-        subtitle: 'Groceries',
-        accent: Color(0xFFE7B95B),
-        icon: Icons.storefront_rounded,
-        rating: '4.6',
-        distance: '1.1 km',
-      ),
-      _DiscoveryItem(
-        title: 'Quick Basket',
-        subtitle: 'Groceries',
-        accent: Color(0xFFE97E3A),
-        icon: Icons.storefront_rounded,
-        rating: '4.4',
-        distance: '1.4 km',
-      ),
-      _DiscoveryItem(
-        title: 'Staples Mart',
-        subtitle: 'Groceries',
-        accent: Color(0xFFD8BF6A),
-        icon: Icons.storefront_rounded,
-        rating: '4.5',
-        distance: '1.8 km',
-      ),
-      _DiscoveryItem(
-        title: 'Home Essentials',
-        subtitle: 'Groceries',
-        accent: Color(0xFF67A3D3),
-        icon: Icons.storefront_rounded,
-        rating: '4.3',
-        distance: '2.0 km',
-      ),
-    ];

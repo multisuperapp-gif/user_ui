@@ -186,7 +186,7 @@ class _AddressesPageState extends State<_AddressesPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Text(
-                'Set the default address here. Checkout, labour, and service bookings will use it automatically until map pin selection is added.',
+                'Set the default address here. Checkout, labour, and service bookings will use the saved location tied to each address.',
                 style: TextStyle(
                   color: const Color(0xFF22314D).withValues(alpha: 0.68),
                   fontWeight: FontWeight.w600,
@@ -381,10 +381,11 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
   late final TextEditingController _stateController;
   late final TextEditingController _countryController;
   late final TextEditingController _postalController;
-  late final TextEditingController _latitudeController;
-  late final TextEditingController _longitudeController;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isDefault = false;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
+  String? _selectedMapLabel;
 
   @override
   void initState() {
@@ -398,9 +399,10 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
     _stateController = TextEditingController(text: existing?.state ?? '');
     _countryController = TextEditingController(text: existing?.country.isNotEmpty == true ? existing!.country : 'India');
     _postalController = TextEditingController(text: existing?.postalCode ?? '');
-    _latitudeController = TextEditingController(text: existing?.latitudeLabel ?? '');
-    _longitudeController = TextEditingController(text: existing?.longitudeLabel ?? '');
     _isDefault = existing?.isDefault ?? false;
+    _selectedLatitude = existing?.latitude;
+    _selectedLongitude = existing?.longitude;
+    _selectedMapLabel = existing?.fullAddress;
   }
 
   @override
@@ -413,13 +415,54 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
     _stateController.dispose();
     _countryController.dispose();
     _postalController.dispose();
-    _latitudeController.dispose();
-    _longitudeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFromMap() async {
+    final selected = await _openUserAddressMapPicker(
+      context,
+      title: widget.existing == null ? 'Pick address location' : 'Update address location',
+      accentColor: const Color(0xFFCB6E5B),
+      subtitle: 'Move the pin to the exact delivery point for this address.',
+      initialLatitude: _selectedLatitude,
+      initialLongitude: _selectedLongitude,
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _selectedLatitude = selected.latitude;
+      _selectedLongitude = selected.longitude;
+      _selectedMapLabel = selected.addressLabel;
+    });
+    if (selected.addressLine1?.isNotEmpty == true) {
+      _line1Controller.text = selected.addressLine1!;
+    }
+    if (selected.landmark?.isNotEmpty == true && _landmarkController.text.trim().isEmpty) {
+      _landmarkController.text = selected.landmark!;
+    }
+    if (selected.city?.isNotEmpty == true) {
+      _cityController.text = selected.city!;
+    }
+    if (selected.state?.isNotEmpty == true) {
+      _stateController.text = selected.state!;
+    }
+    if (selected.country?.isNotEmpty == true) {
+      _countryController.text = selected.country!;
+    }
+    if (selected.postalCode?.isNotEmpty == true) {
+      _postalController.text = selected.postalCode!;
+    }
   }
 
   void _submit() {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedLatitude == null || _selectedLongitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select the address location from the map first.')),
+      );
       return;
     }
     Navigator.of(context).pop(
@@ -432,8 +475,8 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
         state: _stateController.text.trim(),
         country: _countryController.text.trim(),
         postalCode: _postalController.text.trim(),
-        latitude: double.parse(_latitudeController.text.trim()),
-        longitude: double.parse(_longitudeController.text.trim()),
+        latitude: _selectedLatitude!,
+        longitude: _selectedLongitude!,
         isDefault: _isDefault,
       ),
     );
@@ -477,7 +520,7 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'For now, enter latitude and longitude manually here. We’ll swap this to a map pin flow later without changing the backend contract.',
+                    'Pick the address from the map. We’ll save the exact latitude and longitude automatically for delivery and booking.',
                     style: TextStyle(
                       color: Color(0xFF6E7B91),
                       fontWeight: FontWeight.w600,
@@ -516,26 +559,65 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
                       ),
                     ],
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _AddressInputField(
-                          controller: _latitudeController,
-                          label: 'Latitude',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                          validator: _latitudeValidator,
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Pinned location',
+                          style: TextStyle(
+                            color: Color(0xFF22314D),
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _AddressInputField(
-                          controller: _longitudeController,
-                          label: 'Longitude',
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                          validator: _longitudeValidator,
+                        const SizedBox(height: 8),
+                        Text(
+                          _selectedMapLabel ?? 'No map pin selected yet.',
+                          style: TextStyle(
+                            color: _selectedLatitude != null && _selectedLongitude != null
+                                ? const Color(0xFF5A6477)
+                                : const Color(0xFFB94F4F),
+                            fontWeight: FontWeight.w700,
+                            height: 1.35,
+                          ),
                         ),
-                      ),
-                    ],
+                        if (_selectedLatitude != null && _selectedLongitude != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Lat ${_formatMapCoordinate(_selectedLatitude!)} · Lng ${_formatMapCoordinate(_selectedLongitude!)}',
+                            style: const TextStyle(
+                              color: Color(0xFF9A8E84),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _pickFromMap,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFCB6E5B),
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.map_outlined),
+                            label: Text(
+                              _selectedLatitude == null || _selectedLongitude == null
+                                  ? 'Select from map'
+                                  : 'Update map pin',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   SwitchListTile.adaptive(
@@ -582,27 +664,6 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
     return null;
   }
 
-  String? _latitudeValidator(String? value) {
-    final number = double.tryParse((value ?? '').trim());
-    if (number == null) {
-      return 'Enter valid latitude';
-    }
-    if (number < -90 || number > 90) {
-      return 'Use -90 to 90';
-    }
-    return null;
-  }
-
-  String? _longitudeValidator(String? value) {
-    final number = double.tryParse((value ?? '').trim());
-    if (number == null) {
-      return 'Enter valid longitude';
-    }
-    if (number < -180 || number > 180) {
-      return 'Use -180 to 180';
-    }
-    return null;
-  }
 }
 
 class _AddressInputField extends StatelessWidget {
@@ -633,6 +694,329 @@ class _AddressInputField extends StatelessWidget {
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddressMapSelection {
+  const _AddressMapSelection({
+    required this.latitude,
+    required this.longitude,
+    this.addressLabel,
+    this.addressLine1,
+    this.landmark,
+    this.city,
+    this.state,
+    this.country,
+    this.postalCode,
+  });
+
+  final double latitude;
+  final double longitude;
+  final String? addressLabel;
+  final String? addressLine1;
+  final String? landmark;
+  final String? city;
+  final String? state;
+  final String? country;
+  final String? postalCode;
+}
+
+Future<_AddressMapSelection?> _openUserAddressMapPicker(
+  BuildContext context, {
+  required String title,
+  required Color accentColor,
+  String? subtitle,
+  double? initialLatitude,
+  double? initialLongitude,
+}) {
+  return Navigator.of(context).push<_AddressMapSelection>(
+    MaterialPageRoute(
+      builder: (_) => _UserAddressMapPickerPage(
+        title: title,
+        accentColor: accentColor,
+        subtitle: subtitle,
+        initialLatitude: initialLatitude,
+        initialLongitude: initialLongitude,
+      ),
+      fullscreenDialog: true,
+    ),
+  );
+}
+
+class _UserAddressMapPickerPage extends StatefulWidget {
+  const _UserAddressMapPickerPage({
+    required this.title,
+    required this.accentColor,
+    this.subtitle,
+    this.initialLatitude,
+    this.initialLongitude,
+  });
+
+  final String title;
+  final Color accentColor;
+  final String? subtitle;
+  final double? initialLatitude;
+  final double? initialLongitude;
+
+  @override
+  State<_UserAddressMapPickerPage> createState() => _UserAddressMapPickerPageState();
+}
+
+class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
+  late LatLng _selectedPosition;
+  bool _isResolvingCurrentLocation = false;
+  bool _isResolvingAddress = false;
+  String? _locationHint;
+  Placemark? _selectedPlacemark;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialLatitude != null && widget.initialLongitude != null) {
+      _selectedPosition = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+      unawaited(_resolveSelectedAddress());
+    } else {
+      _selectedPosition = LatLng(
+        double.parse(_defaultMapLatitude),
+        double.parse(_defaultMapLongitude),
+      );
+      unawaited(_loadCurrentLocation());
+    }
+  }
+
+  void _setSelectedPosition(LatLng position) {
+    setState(() {
+      _selectedPosition = position;
+      _selectedPlacemark = null;
+    });
+    unawaited(_resolveSelectedAddress());
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    setState(() {
+      _isResolvingCurrentLocation = true;
+      _locationHint = null;
+    });
+    try {
+      final position = await Geolocator.getCurrentPosition();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedPosition = LatLng(position.latitude, position.longitude);
+        _isResolvingCurrentLocation = false;
+      });
+      unawaited(_resolveSelectedAddress());
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isResolvingCurrentLocation = false;
+        _locationHint = '$error'.replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _resolveSelectedAddress() async {
+    setState(() {
+      _isResolvingAddress = true;
+    });
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        _selectedPosition.latitude,
+        _selectedPosition.longitude,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedPlacemark = placemarks.isEmpty ? null : placemarks.first;
+        _isResolvingAddress = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedPlacemark = null;
+        _isResolvingAddress = false;
+      });
+    }
+  }
+
+  String? get _addressLabel {
+    final placemark = _selectedPlacemark;
+    if (placemark == null) {
+      return null;
+    }
+    final parts = <String>[
+      if ((placemark.name ?? '').trim().isNotEmpty) placemark.name!.trim(),
+      if ((placemark.subLocality ?? '').trim().isNotEmpty) placemark.subLocality!.trim(),
+      if ((placemark.locality ?? '').trim().isNotEmpty) placemark.locality!.trim(),
+      if ((placemark.administrativeArea ?? '').trim().isNotEmpty) placemark.administrativeArea!.trim(),
+      if ((placemark.postalCode ?? '').trim().isNotEmpty) placemark.postalCode!.trim(),
+    ];
+    return parts.isEmpty ? null : parts.join(', ');
+  }
+
+  String? get _addressLine1 {
+    final placemark = _selectedPlacemark;
+    if (placemark == null) {
+      return null;
+    }
+    final parts = <String>[
+      if ((placemark.name ?? '').trim().isNotEmpty) placemark.name!.trim(),
+      if ((placemark.thoroughfare ?? '').trim().isNotEmpty) placemark.thoroughfare!.trim(),
+    ];
+    return parts.isEmpty ? null : parts.join(', ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F2EC),
+      appBar: AppBar(
+        title: Text(widget.title),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF22314D),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: widget.accentColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: widget.accentColor.withValues(alpha: 0.20)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.subtitle ?? 'Tap the map or drag the pin to the exact delivery spot.',
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontWeight: FontWeight.w700,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _addressLabel ??
+                          'Lat ${_formatMapCoordinate(_selectedPosition.latitude)} · Lng ${_formatMapCoordinate(_selectedPosition.longitude)}',
+                      style: TextStyle(
+                        color: widget.accentColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (_isResolvingAddress) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Finding address details...',
+                        style: TextStyle(
+                          color: Color(0xFF6E7B91),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                    if (_isResolvingCurrentLocation) ...[
+                      const SizedBox(height: 10),
+                      const Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Finding your current location...',
+                              style: TextStyle(
+                                color: Color(0xFF6E7B91),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (_locationHint != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _locationHint!,
+                        style: const TextStyle(
+                          color: Color(0xFFB94F4F),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: _selectedPosition,
+                      zoom: 16,
+                    ),
+                    zoomControlsEnabled: false,
+                    mapToolbarEnabled: false,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    onTap: _setSelectedPosition,
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('selected-address'),
+                        position: _selectedPosition,
+                        draggable: true,
+                        onDragEnd: _setSelectedPosition,
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+                      ),
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _AddressMapSelection(
+                        latitude: _selectedPosition.latitude,
+                        longitude: _selectedPosition.longitude,
+                        addressLabel: _addressLabel,
+                        addressLine1: _addressLine1,
+                        landmark: _selectedPlacemark?.subLocality?.trim(),
+                        city: (_selectedPlacemark?.locality ?? _selectedPlacemark?.subAdministrativeArea ?? '').trim(),
+                        state: _selectedPlacemark?.administrativeArea?.trim(),
+                        country: _selectedPlacemark?.country?.trim(),
+                        postalCode: _selectedPlacemark?.postalCode?.trim(),
+                      ),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: widget.accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  label: const Text('Use this location'),
+                ),
+              ),
+            ],
           ),
         ),
       ),

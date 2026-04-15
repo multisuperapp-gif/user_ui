@@ -10,7 +10,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -79,6 +83,11 @@ part 'features/shop/pharmacy/pharmacy_data.dart';
 void main() {
   runApp(const MsaUserApp());
 }
+
+const String _defaultMapLatitude = '22.7196';
+const String _defaultMapLongitude = '75.8577';
+
+String _formatMapCoordinate(double value) => value.toStringAsFixed(6);
 
 
 class MsaUserApp extends StatelessWidget {

@@ -13,29 +13,6 @@ class _AllServiceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const panelTitles = [
-      'Automobile',
-      'Home repair',
-      'Appliance care',
-      'Quick service',
-      'Water & power',
-      'More services',
-    ];
-    const panelColors = [
-      (Color(0xFF8FD0FF), Color(0xFF74BFF6)),
-      (Color(0xFFC20C38), Color(0xFFA20830)),
-      (Color(0xFF7E3AF2), Color(0xFF6930D4)),
-      (Color(0xFFFF9F6E), Color(0xFFE87142)),
-      (Color(0xFF3CC9B6), Color(0xFF189886)),
-      (Color(0xFF4756D8), Color(0xFF2939B6)),
-    ];
-    final panelItems = List.generate(
-      panelTitles.length,
-      (panelIndex) => List.generate(
-        4,
-        (itemIndex) => items[(panelIndex * 2 + itemIndex) % items.length],
-      ),
-    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
       child: Container(
@@ -108,20 +85,20 @@ class _AllServiceSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 14, 0, 0),
               child: SizedBox(
-                height: 296,
+                height: 182,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: panelItems.length,
+                  itemCount: items.length,
                   padding: const EdgeInsets.only(right: 18),
                   separatorBuilder: (_, _) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
-                    final colors = panelColors[index % panelColors.length];
-                    return _ServiceDealsPanel(
-                      title: panelTitles[index % panelTitles.length],
-                      startColor: colors.$1,
-                      endColor: colors.$2,
-                      items: panelItems[index],
-                      onTap: onTap,
+                    final item = items[index];
+                    return SizedBox(
+                      width: 146,
+                      child: _ServiceDealMiniTile(
+                        item: item,
+                        onTap: () => onTap(item),
+                      ),
                     );
                   },
                 ),
@@ -129,105 +106,6 @@ class _AllServiceSection extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ServiceDealsPanel extends StatelessWidget {
-  const _ServiceDealsPanel({
-    required this.title,
-    required this.startColor,
-    required this.endColor,
-    required this.items,
-    required this.onTap,
-  });
-
-  final String title;
-  final Color startColor;
-  final Color endColor;
-  final List<_DiscoveryItem> items;
-  final ValueChanged<_DiscoveryItem> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 226,
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [startColor, endColor],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: endColor.withValues(alpha: 0.16),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              height: 1.05,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _ServiceDealMiniTile(
-                          item: items[0],
-                          onTap: () => onTap(items[0]),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: _ServiceDealMiniTile(
-                          item: items[1],
-                          onTap: () => onTap(items[1]),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _ServiceDealMiniTile(
-                          item: items[2],
-                          onTap: () => onTap(items[2]),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: _ServiceDealMiniTile(
-                          item: items[3],
-                          onTap: () => onTap(items[3]),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -245,7 +123,7 @@ class _ServiceDealMiniTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: item.isDisabled ? null : onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Stack(
@@ -357,6 +235,15 @@ class _ServiceDealMiniTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
+              Positioned(
+                left: 6,
+                top: 6,
+                child: _AvailabilityBadge(
+                  label: item.disabledLabel,
+                  compact: true,
+                ),
+              ),
           ],
         ),
       ),
@@ -501,82 +388,6 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
   }
 }
 
-List<String> _serviceSubcategoriesFor(String category) {
-  switch (category) {
-    case 'Automobile':
-      return const ['All', '2 Wheeler', '3 Wheeler', '4 Wheeler'];
-    case 'Plumber':
-      return const ['All', 'Leak repair', 'Fitting', 'Drainage'];
-    case 'AC Repair':
-      return const ['All', 'Window AC', 'Split AC', 'Gas refill'];
-    case 'Appliance':
-    case 'Home Appliance':
-      return const ['All', 'Fridge', 'Washing', 'Kitchen'];
-    case 'Electrician':
-      return const ['All', 'Wiring', 'Fan', 'Switchboard'];
-    default:
-      return const ['All'];
-  }
-}
-
-String _serviceCategoryFor(_DiscoveryItem item) {
-  final text = '${item.title} ${item.subtitle} ${item.extra}'.toLowerCase();
-  if (text.contains('2 wheeler') ||
-      text.contains('3 wheeler') ||
-      text.contains('4 wheeler') ||
-      text.contains('auto') ||
-      text.contains('bike') ||
-      text.contains('car') ||
-      text.contains('rickshaw')) {
-    return 'Automobile';
-  }
-  if (text.contains('plumb') || text.contains('pipe')) {
-    return 'Plumber';
-  }
-  if (text.contains('ac')) {
-    return 'AC Repair';
-  }
-  if (text.contains('appliance') || text.contains('home restore')) {
-    return 'Appliance';
-  }
-  if (text.contains('electric') || text.contains('volt')) {
-    return 'Electrician';
-  }
-  return 'Automobile';
-}
-
-String _serviceSubcategoryFor(_DiscoveryItem item, String category) {
-  final text = '${item.title} ${item.subtitle} ${item.extra}'.toLowerCase();
-  switch (category) {
-    case 'Automobile':
-      if (text.contains('3 wheeler') || text.contains('rickshaw')) {
-        return '3 Wheeler';
-      }
-      if (text.contains('4 wheeler') || text.contains('car')) {
-        return '4 Wheeler';
-      }
-      return '2 Wheeler';
-    case 'Plumber':
-      if (text.contains('drain')) return 'Drainage';
-      if (text.contains('fit')) return 'Fitting';
-      return 'Leak repair';
-    case 'AC Repair':
-      if (text.contains('gas')) return 'Gas refill';
-      if (text.contains('window')) return 'Window AC';
-      return 'Split AC';
-    case 'Appliance':
-    case 'Home Appliance':
-      if (text.contains('washing')) return 'Washing';
-      if (text.contains('kitchen')) return 'Kitchen';
-      return 'Fridge';
-    case 'Electrician':
-      if (text.contains('fan')) return 'Fan';
-      if (text.contains('switch')) return 'Switchboard';
-      return 'Wiring';
-    default:
-      return 'All';
-  }
-}
 
 (IconData, Color) _serviceSubcategoryVisual(String label) {
   switch (label) {

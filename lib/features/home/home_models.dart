@@ -24,6 +24,8 @@ class _DiscoveryItem {
     this.backendServiceProviderId,
     this.backendCategoryId,
     this.backendSubcategoryId,
+    this.isDisabled = false,
+    this.disabledLabel = '',
   });
 
   final String title;
@@ -43,56 +45,6 @@ class _DiscoveryItem {
   final int? backendServiceProviderId;
   final int? backendCategoryId;
   final int? backendSubcategoryId;
-}
-
-class _DiscoverySection {
-  const _DiscoverySection({
-    required this.title,
-    required this.caption,
-    required this.items,
-  });
-
-  final String title;
-  final String caption;
-  final List<_DiscoveryItem> items;
-}
-
-class _AllQuickCategoryItem {
-  const _AllQuickCategoryItem({
-    required this.label,
-    required this.accent,
-    required this.icon,
-  });
-
-  final String label;
-  final Color accent;
-  final IconData icon;
-}
-
-class _GiftOccasionItem {
-  const _GiftOccasionItem({
-    required this.label,
-    required this.imageKey,
-    required this.accent,
-    required this.icon,
-  });
-
-  final String label;
-  final String imageKey;
-  final Color accent;
-  final IconData icon;
-}
-
-class _GiftFavouriteTileItem {
-  const _GiftFavouriteTileItem({
-    required this.label,
-    required this.imageKey,
-    required this.accent,
-    required this.icon,
-  });
-
-  final String label;
-  final String imageKey;
-  final Color accent;
-  final IconData icon;
+  final bool isDisabled;
+  final String disabledLabel;
 }

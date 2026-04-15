@@ -1,5 +1,25 @@
 part of '../../main.dart';
 
+class _HomeLocationChoice {
+  const _HomeLocationChoice({
+    required this.title,
+    required this.subtitle,
+    required this.city,
+    required this.latitude,
+    required this.longitude,
+    this.addressId,
+    this.isCurrentLocation = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final String city;
+  final double latitude;
+  final double longitude;
+  final int? addressId;
+  final bool isCurrentLocation;
+}
+
 class UserHomePage extends StatefulWidget {
   const UserHomePage({
     super.key,
@@ -43,13 +63,17 @@ class _UserHomePageState extends State<UserHomePage> {
   String _selectedShopCategory = 'All';
   String _selectedShopSubCategory = 'All';
   String _selectedRestaurantCuisine = 'All';
-  String _selectedAllQuickCategory = 'Kitchen';
   String _selectedLabourCategory = 'All labour';
   String _selectedLabourPrice = '40';
   String _selectedLabourPricePeriod = 'Full Day';
   int _selectedLabourCount = 4;
   String? _cartShopName;
   int _notificationUnreadCount = 0;
+  List<_UserAddressData> _savedAddresses = const <_UserAddressData>[];
+  _HomeLocationChoice? _currentLocationChoice;
+  _HomeLocationChoice? _selectedLocationChoice;
+  bool _homeLocationLoading = true;
+  String? _homeLocationError;
   bool _showScrollToTop = false;
   bool _remoteSyncInFlight = false;
   String? _homeBootstrapError;
@@ -99,6 +123,7 @@ class _UserHomePageState extends State<UserHomePage> {
   int _pharmacyRemotePage = 0;
   bool _fashionLoadMoreQueued = false;
   bool _footwearLoadMoreQueued = false;
+  bool _initialHomeSetupRunning = false;
   StreamSubscription<_NotificationEvent>? _notificationEventSubscription;
 
   static const int _fashionProductBatchSize = 20;
@@ -110,13 +135,10 @@ class _UserHomePageState extends State<UserHomePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
-    unawaited(_NotificationBootstrap.ensureRegistered());
     _notificationEventSubscription = _NotificationBootstrap.events.listen(_handleNotificationEvent);
     unawaited(_hydrateRemoteState());
-    unawaited(_loadLabourLanding());
-    unawaited(_loadServiceLanding());
-    unawaited(_loadRestaurantLanding());
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initializeHomeRequirements());
       final pendingEvent = _NotificationBootstrap.takePendingOpenEvent();
       if (pendingEvent != null) {
         unawaited(_handleNotificationEvent(pendingEvent));
@@ -283,6 +305,291 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
+  String get _selectedLocationCity => _selectedLocationChoice?.city ?? '';
+  double? get _selectedLatitude => _selectedLocationChoice?.latitude;
+  double? get _selectedLongitude => _selectedLocationChoice?.longitude;
+
+  Future<void> _initializeHomeRequirements() async {
+    if (_initialHomeSetupRunning) {
+      return;
+    }
+    _initialHomeSetupRunning = true;
+    try {
+      await _enforceHomePermissions();
+      await _loadHomeLocationOptions();
+      await _NotificationBootstrap.ensureRegistered();
+      await _reloadAddressAwareDiscovery();
+    } finally {
+      _initialHomeSetupRunning = false;
+    }
+  }
+
+  Future<void> _enforceHomePermissions() async {
+    while (mounted) {
+      final locationServiceEnabled = await Geolocator.isLocationServiceEnabled();
+      final locationPermission = await Permission.locationWhenInUse.status;
+      final notificationPermission = Platform.isAndroid || Platform.isIOS
+          ? await Permission.notification.status
+          : PermissionStatus.granted;
+      final locationGranted = locationServiceEnabled && locationPermission.isGranted;
+      final notificationsGranted = notificationPermission.isGranted;
+      if (locationGranted && notificationsGranted) {
+        return;
+      }
+      if (!mounted) {
+        return;
+      }
+
+      final action = await showDialog<_HomePermissionAction>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Allow location and notifications'),
+            content: Text(
+              !locationServiceEnabled
+                  ? 'Turn on location services to continue. We use it to choose the right nearby shops and place orders on the correct address.'
+                  : 'Allow location and notification access to continue. We use them to show nearby shops, save your exact address, and keep order alerts working.',
+            ),
+            actions: [
+              if (!locationServiceEnabled)
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(_HomePermissionAction.locationSettings),
+                  child: const Text('Location settings'),
+                )
+              else
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(_HomePermissionAction.requestAgain),
+                  child: const Text('Allow now'),
+                ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(_HomePermissionAction.appSettings),
+                child: const Text('Open settings'),
+              ),
+            ],
+          );
+        },
+      );
+      if (!mounted) {
+        return;
+      }
+      if (action == _HomePermissionAction.locationSettings) {
+        await Geolocator.openLocationSettings();
+      } else if (action == _HomePermissionAction.appSettings) {
+        await openAppSettings();
+      } else {
+        if (!locationServiceEnabled) {
+          await Geolocator.openLocationSettings();
+        } else {
+          await Permission.locationWhenInUse.request();
+          if (Platform.isAndroid || Platform.isIOS) {
+            await Permission.notification.request();
+          }
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+  }
+
+  Future<void> _loadHomeLocationOptions() async {
+    if (mounted) {
+      setState(() {
+        _homeLocationLoading = true;
+        _homeLocationError = null;
+      });
+    } else {
+      _homeLocationLoading = true;
+      _homeLocationError = null;
+    }
+    try {
+      final addresses = await _UserAppApi.fetchAddresses();
+      final currentLocation = await _resolveCurrentLocationChoice();
+      if (!mounted) {
+        return;
+      }
+      final previousSelection = _selectedLocationChoice;
+      _HomeLocationChoice? selectedLocation = previousSelection;
+      if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
+        final selectedAddress = addresses.where((item) => item.id == selectedLocation!.addressId).firstOrNull;
+        if (selectedAddress != null) {
+          selectedLocation = _locationChoiceFromAddress(selectedAddress);
+        } else {
+          selectedLocation = null;
+        }
+      } else if (selectedLocation?.isCurrentLocation == true) {
+        selectedLocation = currentLocation;
+      }
+      selectedLocation ??= currentLocation;
+      selectedLocation ??= addresses.where((item) => item.isDefault).map(_locationChoiceFromAddress).firstOrNull;
+      selectedLocation ??= addresses.map(_locationChoiceFromAddress).firstOrNull;
+      setState(() {
+        _savedAddresses = addresses;
+        _currentLocationChoice = currentLocation;
+        _selectedLocationChoice = selectedLocation;
+        _homeLocationLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _savedAddresses = const <_UserAddressData>[];
+        _currentLocationChoice = null;
+        _selectedLocationChoice = null;
+        _homeLocationError = '$error';
+        _homeLocationLoading = false;
+      });
+    }
+  }
+
+  Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
+    final position = await Geolocator.getCurrentPosition();
+    final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+    final placemark = placemarks.isEmpty ? null : placemarks.first;
+    final city = (placemark?.locality ?? placemark?.subAdministrativeArea ?? '').trim();
+    final subtitleParts = <String>[
+      if ((placemark?.subLocality ?? '').trim().isNotEmpty) placemark!.subLocality!.trim(),
+      if ((placemark?.locality ?? '').trim().isNotEmpty) placemark!.locality!.trim(),
+      if ((placemark?.administrativeArea ?? '').trim().isNotEmpty) placemark!.administrativeArea!.trim(),
+      if ((placemark?.postalCode ?? '').trim().isNotEmpty) placemark!.postalCode!.trim(),
+    ];
+    return _HomeLocationChoice(
+      title: 'Current location',
+      subtitle: subtitleParts.isEmpty
+          ? 'Live device location'
+          : subtitleParts.join(', '),
+      city: city,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      isCurrentLocation: true,
+    );
+  }
+
+  _HomeLocationChoice _locationChoiceFromAddress(_UserAddressData address) {
+    return _HomeLocationChoice(
+      title: address.label,
+      subtitle: address.fullAddress,
+      city: address.city,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      addressId: address.id,
+    );
+  }
+
+  Future<void> _openHomeLocationSelector() async {
+    final result = await showModalBottomSheet<Object?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final options = <_HomeLocationChoice>[
+          ...?_currentLocationChoice == null ? null : <_HomeLocationChoice>[_currentLocationChoice!],
+          ..._savedAddresses.map(_locationChoiceFromAddress),
+        ];
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0D7D0),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Choose delivery location',
+                  style: TextStyle(
+                    color: Color(0xFF202435),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Nearby shops will refresh from the location you choose here.',
+                  style: TextStyle(
+                    color: const Color(0xFF202435).withValues(alpha: 0.65),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (final option in options)
+                          _HomeLocationOptionTile(
+                            option: option,
+                            selected: option.addressId == _selectedLocationChoice?.addressId &&
+                                option.isCurrentLocation == _selectedLocationChoice?.isCurrentLocation,
+                            onTap: () => Navigator.of(context).pop(option),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).pop('manage'),
+                    icon: const Icon(Icons.edit_location_alt_rounded),
+                    label: const Text('Manage saved addresses'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    if (result == 'manage') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const _AddressesPage(),
+        ),
+      );
+      await _loadHomeLocationOptions();
+      await _reloadAddressAwareDiscovery(silent: false);
+      return;
+    }
+    if (result is _HomeLocationChoice) {
+      setState(() {
+        _selectedLocationChoice = result;
+      });
+      await _reloadAddressAwareDiscovery(silent: false);
+    }
+  }
+
+  Future<void> _reloadAddressAwareDiscovery({bool silent = true}) async {
+    await Future.wait<void>([
+      _loadLabourLanding(silent: silent),
+      _loadServiceLanding(silent: silent),
+      _loadRestaurantLanding(silent: silent),
+      _loadFashionLanding(silent: silent),
+      _loadFootwearLanding(silent: silent),
+      _loadGiftLanding(silent: silent),
+      _loadGroceryLanding(silent: silent),
+      _loadPharmacyLanding(silent: silent),
+    ]);
+  }
+
   Future<void> _loadLabourLanding({bool silent = true}) async {
     if (_labourRemoteLoading) {
       return;
@@ -294,6 +601,9 @@ class _UserHomePageState extends State<UserHomePage> {
     try {
       final landing = await _UserAppApi.fetchLabourLanding(
         categoryId: _labourCategoryIdForLabel(_selectedLabourCategory),
+        city: _selectedLocationCity,
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
       );
       if (!mounted) {
         return;
@@ -356,6 +666,9 @@ class _UserHomePageState extends State<UserHomePage> {
           _selectedServiceCategory,
           _selectedServiceSubCategory,
         ),
+        city: _selectedLocationCity,
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
       );
       if (!mounted) {
         return;
@@ -421,7 +734,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _restaurantRemoteError = null;
     }
     try {
-      final landing = await _UserAppApi.fetchRestaurantLanding();
+      final landing = await _UserAppApi.fetchRestaurantLanding(
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
       if (!mounted) {
         return;
       }
@@ -480,7 +796,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _fashionRemoteError = null;
     }
     try {
-      final landing = await _UserAppApi.fetchFashionLanding();
+      final landing = await _UserAppApi.fetchFashionLanding(
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
       var productPage = landing.products;
       final selectedCategoryId = _fashionCategoryIdForLabel(
         _selectedShopSubCategory,
@@ -550,7 +869,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _footwearRemoteError = null;
     }
     try {
-      final landing = await _UserAppApi.fetchFootwearLanding();
+      final landing = await _UserAppApi.fetchFootwearLanding(
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
       var productPage = landing.products;
       final selectedCategoryId = _footwearCategoryIdForLabel(
         _selectedShopSubCategory,
@@ -618,7 +940,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _giftRemoteError = null;
     }
     try {
-      final landing = await _UserAppApi.fetchGiftLanding();
+      final landing = await _UserAppApi.fetchGiftLanding(
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
       var productPage = landing.products;
       final selectedCategoryId = _giftCategoryIdForLabel(_selectedShopSubCategory, categories: landing.categories);
       if (_selectedShopSubCategory != 'All' && selectedCategoryId != null) {
@@ -681,7 +1006,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _groceryRemoteError = null;
     }
     try {
-      final landing = await _UserAppApi.fetchGroceryLanding();
+      final landing = await _UserAppApi.fetchGroceryLanding(
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
       var productPage = landing.products;
       final selectedCategoryId =
           _groceryCategoryIdForLabel(_selectedShopSubCategory, categories: landing.categories);
@@ -745,7 +1073,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _pharmacyRemoteError = null;
     }
     try {
-      final landing = await _UserAppApi.fetchPharmacyLanding();
+      final landing = await _UserAppApi.fetchPharmacyLanding(
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
       var productPage = landing.products;
       final selectedCategoryId =
           _pharmacyCategoryIdForLabel(_selectedShopSubCategory, categories: landing.categories);
@@ -870,7 +1201,10 @@ class _UserHomePageState extends State<UserHomePage> {
     final categoryId = _fashionCategoryIdForLabel(value);
     try {
       final page = value == 'All' && !_fashionRemoteReady
-          ? (await _UserAppApi.fetchFashionLanding()).products
+          ? (await _UserAppApi.fetchFashionLanding(
+              latitude: _selectedLatitude,
+              longitude: _selectedLongitude,
+            )).products
           : await _UserAppApi.fetchFashionProducts(categoryId: categoryId);
       if (!mounted) {
         return;
@@ -929,7 +1263,10 @@ class _UserHomePageState extends State<UserHomePage> {
     final categoryId = _footwearCategoryIdForLabel(value);
     try {
       final page = value == 'All' && !_footwearRemoteReady
-          ? (await _UserAppApi.fetchFootwearLanding()).products
+          ? (await _UserAppApi.fetchFootwearLanding(
+              latitude: _selectedLatitude,
+              longitude: _selectedLongitude,
+            )).products
           : await _UserAppApi.fetchFootwearProducts(categoryId: categoryId);
       if (!mounted) {
         return;
@@ -1360,6 +1697,82 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
+  SliverToBoxAdapter _buildAreaComingSoonSliver({
+    required IconData icon,
+    String title = 'Coming soon in your area....!',
+    String message = 'We are opening this around your selected location. Please check again soon.',
+  }) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFF5E8),
+                Color(0xFFFDF1F8),
+                Color(0xFFEFF7FF),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: const Color(0xFFF0D7B0),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1A2030).withValues(alpha: 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: const Color(0xFFCB6E5B),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF22314D),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: const Color(0xFF22314D).withValues(alpha: 0.74),
+                  fontSize: 13.2,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget? _buildLabourStateSliver() {
     if (_labourRemoteLoading && _labourRemoteProfiles.isEmpty) {
       return _buildRemoteStateSliver(
@@ -1379,12 +1792,9 @@ class _UserHomePageState extends State<UserHomePage> {
       );
     }
     if (_labourRemoteReady && _labourRemoteProfiles.isEmpty) {
-      return _buildRemoteStateSliver(
-        icon: Icons.person_search_rounded,
-        title: 'No labour available right now',
-        message: 'Try another labour category or check again in a little while.',
-        actionLabel: 'Refresh',
-        onAction: () => unawaited(_loadLabourLanding(silent: false)),
+      return _buildAreaComingSoonSliver(
+        icon: Icons.engineering_rounded,
+        message: 'No labour profile is registered within your selected range yet.',
       );
     }
     return null;
@@ -1409,12 +1819,9 @@ class _UserHomePageState extends State<UserHomePage> {
       );
     }
     if (_serviceRemoteReady && _serviceRemoteProviders.isEmpty) {
-      return _buildRemoteStateSliver(
-        icon: Icons.search_off_rounded,
-        title: 'No providers found',
-        message: 'Try another service category or remove a narrow filter.',
-        actionLabel: 'Refresh',
-        onAction: () => unawaited(_loadServiceLanding(silent: false)),
+      return _buildAreaComingSoonSliver(
+        icon: Icons.handyman_rounded,
+        message: 'No service provider is registered within your selected range yet.',
       );
     }
     return null;
@@ -1422,6 +1829,23 @@ class _UserHomePageState extends State<UserHomePage> {
 
   Widget? _buildShopRemoteStateSliver() {
     if (_showShopAllLanding) {
+      final hasAnyShopData = _restaurantRemoteProducts.isNotEmpty ||
+          _restaurantRemoteShops.isNotEmpty ||
+          (_fashionRemoteReady &&
+              (_fashionRemoteProducts.isNotEmpty || _fashionRemoteShops.isNotEmpty)) ||
+          (_footwearRemoteReady &&
+              (_footwearRemoteProducts.isNotEmpty || _footwearRemoteShops.isNotEmpty)) ||
+          (_giftRemoteReady && (_giftRemoteProducts.isNotEmpty || _giftRemoteShops.isNotEmpty)) ||
+          (_groceryRemoteReady &&
+              (_groceryRemoteProducts.isNotEmpty || _groceryRemoteShops.isNotEmpty)) ||
+          (_pharmacyRemoteReady &&
+              (_pharmacyRemoteProducts.isNotEmpty || _pharmacyRemoteShops.isNotEmpty));
+      if (!hasAnyShopData) {
+        return _buildAreaComingSoonSliver(
+          icon: Icons.storefront_rounded,
+          message: 'No shop is registered within your selected range yet.',
+        );
+      }
       return null;
     }
     if (_showShopRestaurantLanding) {
@@ -1446,21 +1870,17 @@ class _UserHomePageState extends State<UserHomePage> {
         );
       }
       if (!hasData) {
-        return _buildRemoteStateSliver(
-          icon: Icons.no_meals_rounded,
-          title: 'No restaurants found',
-          message: 'There are no restaurant results to show right now for this area.',
-          actionLabel: 'Refresh',
-          onAction: () => unawaited(_loadRestaurantLanding(silent: false)),
+        return _buildAreaComingSoonSliver(
+          icon: Icons.restaurant_menu_rounded,
+          message: 'No restaurant is registered within your selected range yet.',
         );
       }
       return null;
     }
 
-    final itemWise = _shopBrowseMode == _ShopBrowseMode.itemWise;
     switch (_selectedShopCategory) {
       case 'Fashion':
-        final hasData = itemWise ? _fashionRemoteProducts.isNotEmpty : _fashionRemoteShops.isNotEmpty;
+        final hasData = _fashionRemoteProducts.isNotEmpty || _fashionRemoteShops.isNotEmpty;
         if (_fashionRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.checkroom_rounded,
@@ -1479,17 +1899,14 @@ class _UserHomePageState extends State<UserHomePage> {
           );
         }
         if (_fashionRemoteReady && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.search_off_rounded,
-            title: 'No fashion results found',
-            message: 'Try another filter, subcategory, or sort option.',
-            actionLabel: 'Refresh',
-            onAction: () => unawaited(_loadFashionLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.checkroom_rounded,
+            message: 'No fashion shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Footwear':
-        final hasData = itemWise ? _footwearRemoteProducts.isNotEmpty : _footwearRemoteShops.isNotEmpty;
+        final hasData = _footwearRemoteProducts.isNotEmpty || _footwearRemoteShops.isNotEmpty;
         if (_footwearRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.shopping_bag_outlined,
@@ -1508,17 +1925,14 @@ class _UserHomePageState extends State<UserHomePage> {
           );
         }
         if (_footwearRemoteReady && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.search_off_rounded,
-            title: 'No footwear results found',
-            message: 'Try another footwear category or remove a narrow filter.',
-            actionLabel: 'Refresh',
-            onAction: () => unawaited(_loadFootwearLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.shopping_bag_outlined,
+            message: 'No footwear shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Gift':
-        final hasData = itemWise ? _giftRemoteProducts.isNotEmpty : _giftRemoteShops.isNotEmpty;
+        final hasData = _giftRemoteProducts.isNotEmpty || _giftRemoteShops.isNotEmpty;
         if (_giftRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.redeem_rounded,
@@ -1537,17 +1951,14 @@ class _UserHomePageState extends State<UserHomePage> {
           );
         }
         if (_giftRemoteReady && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.search_off_rounded,
-            title: 'No gift results found',
-            message: 'Try another occasion or refresh to see the latest gift inventory.',
-            actionLabel: 'Refresh',
-            onAction: () => unawaited(_loadGiftLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.redeem_rounded,
+            message: 'No gift shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Groceries':
-        final hasData = itemWise ? _groceryRemoteProducts.isNotEmpty : _groceryRemoteShops.isNotEmpty;
+        final hasData = _groceryRemoteProducts.isNotEmpty || _groceryRemoteShops.isNotEmpty;
         if (_groceryRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.local_grocery_store_rounded,
@@ -1566,17 +1977,14 @@ class _UserHomePageState extends State<UserHomePage> {
           );
         }
         if (_groceryRemoteReady && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.search_off_rounded,
-            title: 'No grocery results found',
-            message: 'Try another grocery category or refresh to load the latest items.',
-            actionLabel: 'Refresh',
-            onAction: () => unawaited(_loadGroceryLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.local_grocery_store_rounded,
+            message: 'No grocery shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Pharmacy':
-        final hasData = itemWise ? _pharmacyRemoteProducts.isNotEmpty : _pharmacyRemoteShops.isNotEmpty;
+        final hasData = _pharmacyRemoteProducts.isNotEmpty || _pharmacyRemoteShops.isNotEmpty;
         if (_pharmacyRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.local_pharmacy_rounded,
@@ -1595,12 +2003,9 @@ class _UserHomePageState extends State<UserHomePage> {
           );
         }
         if (_pharmacyRemoteReady && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.search_off_rounded,
-            title: 'No pharmacy results found',
-            message: 'Try another pharmacy category or refresh to load current stock.',
-            actionLabel: 'Refresh',
-            onAction: () => unawaited(_loadPharmacyLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.local_pharmacy_rounded,
+            message: 'No pharmacy shop is registered within your selected range yet.',
           );
         }
         return null;
@@ -1625,15 +2030,15 @@ class _UserHomePageState extends State<UserHomePage> {
   List<String> get _modeFilters {
     switch (_mode) {
       case _HomeMode.all:
-        return ['All', 'Fresh', 'Repair', 'Groceries', 'Dining', 'Pharmacy'];
+        return const <String>[];
       case _HomeMode.labour:
         return _labourRemoteCategories.isNotEmpty
             ? _labourRemoteCategories.map((item) => item.label).toList(growable: false)
-            : ['All labour', 'Helpers', 'Loaders', 'Cleaners', 'Drivers'];
+            : const <String>[];
       case _HomeMode.service:
         return _serviceRemoteCategories.isNotEmpty
             ? _serviceRemoteCategories.map((item) => item.label).toList(growable: false)
-            : ['Automobile', 'Plumber', 'AC Repair', 'Appliance', 'Electrician'];
+            : const <String>[];
       case _HomeMode.shop:
         return [
           ..._shopCategorySortOrder.where(_shopComingSoonCategories.contains),
@@ -1645,350 +2050,6 @@ class _UserHomePageState extends State<UserHomePage> {
   List<String> get _shopCategorySortOrder =>
       const ['All', 'Restaurant', 'Fashion', 'Footwear', 'Groceries', 'Pharmacy', 'Gift'];
 
-  List<_DiscoverySection> get _allSections => [
-        _DiscoverySection(
-          title: 'Most shopped',
-          caption: 'Sorted by range, promotion, rating and stock',
-          items: [
-            _DiscoveryItem(
-              title: 'Farm Fresh Veg Box',
-              subtitle: 'Green Basket',
-              accent: Color(0xFF4DAF50),
-              icon: Icons.local_grocery_store_rounded,
-              price: '₹149',
-              rating: '4.9',
-              distance: '1.1 km',
-              extra: 'Groceries',
-              maskedPhone: '93xxxxxx40',
-            ),
-            _DiscoveryItem(
-              title: 'Premium Fruit Mix',
-              subtitle: 'Daily Mart',
-              accent: Color(0xFFFF954A),
-              icon: Icons.shopping_basket_rounded,
-              price: '₹189',
-              extra: 'Groceries',
-            ),
-            _DiscoveryItem(
-              title: 'Pharmacy Essentials',
-              subtitle: 'Wellness Hub',
-              accent: Color(0xFF1FB8A4),
-              icon: Icons.local_pharmacy_rounded,
-              price: '₹99',
-              extra: 'Pharmacy',
-            ),
-            _DiscoveryItem(
-              title: 'Gift Combo',
-              subtitle: 'Happy Hands',
-              accent: Color(0xFFB45DE8),
-              icon: Icons.redeem_rounded,
-              price: '₹249',
-              extra: 'Gift',
-            ),
-            _DiscoveryItem(
-              title: 'Bakery Picks',
-              subtitle: 'Oven Street',
-              accent: Color(0xFFD88A43),
-              icon: Icons.bakery_dining_rounded,
-              price: '₹119',
-              extra: 'Bakery',
-            ),
-            _DiscoveryItem(
-              title: 'Kitchen Staples',
-              subtitle: 'Neighbour Shop',
-              accent: Color(0xFF5C8FD8),
-              icon: Icons.storefront_rounded,
-              price: '₹210',
-              extra: 'Shop',
-            ),
-            _DiscoveryItem(
-              title: 'Dinner Combo',
-              subtitle: 'Urban Spoon',
-              accent: Color(0xFFFF6E5A),
-              icon: Icons.restaurant_rounded,
-              price: '₹299',
-              extra: 'Dining',
-            ),
-            _DiscoveryItem(
-              title: 'Milk & Bread',
-              subtitle: 'Morning Mart',
-              accent: Color(0xFF6AB76D),
-              icon: Icons.breakfast_dining_rounded,
-              price: '₹79',
-              extra: 'Essentials',
-            ),
-          ],
-        ),
-        _DiscoverySection(
-          title: 'Available labour',
-          caption: 'Sorted by availability, range, promotion and rating',
-          items: _allLabourSectionItems,
-        ),
-        _DiscoverySection(
-          title: 'Repair picks',
-          caption: 'Visible only inside service range and sorted by promotion + rating',
-          items: _allServiceSectionItems,
-        ),
-      ];
-
-  List<_DiscoveryItem> get _allLabourSectionItems => _labourRemoteReady && _labourRemoteProfiles.isNotEmpty
-      ? _labourRemoteProfiles
-      : const [
-          _DiscoveryItem(
-            title: 'Rakesh Yadav',
-            subtitle: 'Loading & shifting',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.engineering_rounded,
-            price: '₹25/hr',
-            rating: '4.9',
-            distance: '1.2 km',
-            extra: '124 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Imran Khan',
-            subtitle: 'General helper',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.construction_rounded,
-            price: '₹25/hr',
-            rating: '4.8',
-            distance: '1.5 km',
-            extra: '98 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Sanjay Mali',
-            subtitle: 'Warehouse helper',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.inventory_2_rounded,
-            price: '₹30/hr',
-            rating: '4.7',
-            distance: '2.1 km',
-            extra: '134 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Deepak',
-            subtitle: 'Delivery support',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.local_shipping_rounded,
-            price: '₹28/hr',
-            rating: '4.8',
-            distance: '1.7 km',
-            extra: '89 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Sonu',
-            subtitle: 'Cleaner helper',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.cleaning_services_rounded,
-            price: '₹26/hr',
-            rating: '4.6',
-            distance: '2.4 km',
-            extra: '74 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Amit',
-            subtitle: 'Shift helper',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.handyman_rounded,
-            price: '₹25/hr',
-            rating: '4.7',
-            distance: '1.9 km',
-            extra: '101 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Harish',
-            subtitle: 'Packing support',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.work_rounded,
-            price: '₹27/hr',
-            rating: '4.8',
-            distance: '2.0 km',
-            extra: '81 jobs done',
-          ),
-          _DiscoveryItem(
-            title: 'Javed',
-            subtitle: 'Loader team',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.groups_rounded,
-            price: '₹29/hr',
-            rating: '4.9',
-            distance: '1.4 km',
-            extra: '165 jobs done',
-          ),
-        ];
-
-  List<_DiscoveryItem> get _labourItems => _labourRemoteReady && _labourRemoteProfiles.isNotEmpty
-      ? _labourRemoteProfiles
-      : _allSections[1].items;
-
-  List<_AllQuickCategoryItem> get _allQuickCategories {
-    final items = <_AllQuickCategoryItem>[];
-    final seen = <String>{};
-    for (final item in _allSections.first.items) {
-      final raw = _allQuickCategoryChipLabelForItem(item);
-      if (raw.isEmpty || seen.contains(raw)) {
-        continue;
-      }
-      seen.add(raw);
-      items.add(
-        _AllQuickCategoryItem(
-          label: raw,
-          accent: item.accent,
-          icon: item.icon,
-        ),
-      );
-    }
-    return items.take(6).toList();
-  }
-
-  List<_DiscoverySection> get _filteredAllSections {
-    final selected = _selectedAllQuickCategory;
-    return _allSections.asMap().entries.map((entry) {
-      if (entry.key != 0) {
-        return entry.value;
-      }
-      final openItems = entry.value.items
-          .where((item) => _shopTimingFor(item.subtitle, _shopCategoryForItem(item)).isOpen)
-          .toList();
-      final sourceItems = openItems.isEmpty ? entry.value.items : openItems;
-      final matchedItems = sourceItems
-          .where((item) => _allQuickCategoryLabelForItem(item) == selected)
-          .toList();
-      final fallbackItems = sourceItems
-          .where((item) => _allQuickCategoryLabelForItem(item) != selected)
-          .toList();
-      final filteredItems = <_DiscoveryItem>[
-        ...matchedItems,
-        ...fallbackItems,
-      ].take(sourceItems.length).toList();
-      return _DiscoverySection(
-        title: entry.value.title,
-        caption: entry.value.caption,
-        items: filteredItems.isEmpty ? sourceItems : filteredItems,
-      );
-    }).toList();
-  }
-
-  List<_DiscoveryItem> get _allServiceSectionItems => _serviceRemoteReady && _serviceRemoteProviders.isNotEmpty
-      ? _serviceRemoteProviders
-      : const [
-          _DiscoveryItem(
-            title: 'AC Repair',
-            subtitle: 'Coolfix Services',
-            accent: Color(0xFF5C8FD8),
-            icon: Icons.ac_unit_rounded,
-            price: '₹199 visit',
-            extra: 'Service',
-          ),
-          _DiscoveryItem(
-            title: 'Car Repair',
-            subtitle: 'Auto Assist',
-            accent: Color(0xFFE55A57),
-            icon: Icons.car_repair_rounded,
-            price: '₹249 visit',
-            extra: 'Automobile',
-          ),
-          _DiscoveryItem(
-            title: 'Plumber Visit',
-            subtitle: 'Pipe Point',
-            accent: Color(0xFF3F7FE7),
-            icon: Icons.plumbing_rounded,
-            price: '₹179 visit',
-            extra: 'Home repair',
-          ),
-          _DiscoveryItem(
-            title: 'Bike Service',
-            subtitle: 'Moto Care',
-            accent: Color(0xFF5C8FD8),
-            icon: Icons.two_wheeler_rounded,
-            price: '₹149 visit',
-            extra: 'Automobile',
-          ),
-          _DiscoveryItem(
-            title: 'Appliance Check',
-            subtitle: 'Home Works',
-            accent: Color(0xFFDF7DA0),
-            icon: Icons.kitchen_rounded,
-            price: '₹199 visit',
-            extra: 'Appliance',
-          ),
-          _DiscoveryItem(
-            title: 'Electrician',
-            subtitle: 'Volt Team',
-            accent: Color(0xFFF2A13D),
-            icon: Icons.electrical_services_rounded,
-            price: '₹189 visit',
-            extra: 'Electrical',
-          ),
-          _DiscoveryItem(
-            title: 'Water Filter',
-            subtitle: 'Pure Flow',
-            accent: Color(0xFF1FB8A4),
-            icon: Icons.water_drop_rounded,
-            price: '₹159 visit',
-            extra: 'Service',
-          ),
-          _DiscoveryItem(
-            title: 'Generator Fix',
-            subtitle: 'Power Care',
-            accent: Color(0xFFCB6E5B),
-            icon: Icons.build_circle_rounded,
-            price: '₹299 visit',
-            extra: 'Repair',
-          ),
-        ];
-
-  List<_DiscoveryItem> get _serviceProviders => _serviceRemoteReady && _serviceRemoteProviders.isNotEmpty
-      ? _serviceRemoteProviders
-      : const [
-        _DiscoveryItem(
-          title: 'Auto Assist',
-          subtitle: '2 Wheeler specialist',
-          accent: Color(0xFF5C8FD8),
-          icon: Icons.two_wheeler_rounded,
-          price: '₹149 visit',
-          extra: '214 bookings done',
-        ),
-        _DiscoveryItem(
-          title: 'Rickshaw Ready',
-          subtitle: '3 Wheeler garage',
-          accent: Color(0xFFF2A13D),
-          icon: Icons.electric_rickshaw_rounded,
-          price: '₹179 visit',
-          extra: '148 bookings done',
-        ),
-        _DiscoveryItem(
-          title: 'Car Clinic',
-          subtitle: '4 Wheeler service',
-          accent: Color(0xFFE55A57),
-          icon: Icons.car_repair_rounded,
-          price: '₹249 visit',
-          extra: '196 bookings done',
-        ),
-        _DiscoveryItem(
-          title: 'Home Restore',
-          subtitle: 'Appliance service',
-          accent: Color(0xFFDF7DA0),
-          icon: Icons.home_repair_service_rounded,
-          price: '₹199 visit',
-          extra: '182 bookings done',
-        ),
-        _DiscoveryItem(
-          title: 'Pipe Point',
-          subtitle: 'Plumbing service',
-          accent: Color(0xFF3F7FE7),
-          icon: Icons.plumbing_rounded,
-          price: '₹179 visit',
-          extra: '166 bookings done',
-        ),
-        _DiscoveryItem(
-          title: 'Volt Team',
-          subtitle: 'Electric service',
-          accent: Color(0xFFF2A13D),
-          icon: Icons.electrical_services_rounded,
-          price: '₹189 visit',
-          extra: '204 bookings done',
-        ),
-      ];
 
   List<String> get _selectedServiceSubcategories =>
       _serviceRemoteCategories.isNotEmpty
@@ -1997,193 +2058,12 @@ class _UserHomePageState extends State<UserHomePage> {
               .expand((category) => category.subcategories)
               .map((subcategory) => subcategory.label)
               .toList(growable: false)
-          : _serviceSubcategoriesFor(_selectedServiceCategory);
+          : const <String>['All'];
 
   List<_DiscoveryItem> get _filteredServiceProviders {
-    if (_serviceRemoteReady && _serviceRemoteProviders.isNotEmpty) {
-      return _serviceRemoteProviders;
-    }
-    final subcategories = _selectedServiceSubcategories;
-    final selectedSubcategory =
-        subcategories.contains(_selectedServiceSubCategory) ? _selectedServiceSubCategory : 'All';
-    return _serviceProviders.where((item) {
-      if (_serviceCategoryFor(item) != _selectedServiceCategory) {
-        return false;
-      }
-      if (selectedSubcategory == 'All') {
-        return true;
-      }
-      return _serviceSubcategoryFor(item, _selectedServiceCategory) == selectedSubcategory;
-    }).toList();
+    return _serviceRemoteProviders;
   }
 
-  List<_DiscoverySection> get _shopSections => const [
-        _DiscoverySection(
-          title: 'Gift items',
-          caption: 'Best rated and promoted picks from 8 different shops',
-          items: [
-            _DiscoveryItem(title: 'Ceramic Mug Box', subtitle: 'Gift Aura', accent: Color(0xFFB45DE8), icon: Icons.redeem_rounded, price: '₹249'),
-            _DiscoveryItem(title: 'Soft Toy Combo', subtitle: 'Smile Gifts', accent: Color(0xFFDF7DA0), icon: Icons.toys_rounded, price: '₹399'),
-            _DiscoveryItem(title: 'Chocolate Pack', subtitle: 'Sweet Box', accent: Color(0xFFCB6E5B), icon: Icons.card_giftcard_rounded, price: '₹199'),
-            _DiscoveryItem(title: 'Mini Lamp Set', subtitle: 'Glow Gifts', accent: Color(0xFF5C8FD8), icon: Icons.light_rounded, price: '₹349'),
-            _DiscoveryItem(title: 'Photo Frame', subtitle: 'Craft Spot', accent: Color(0xFF4DAF50), icon: Icons.photo_rounded, price: '₹179'),
-            _DiscoveryItem(title: 'Dry Fruit Box', subtitle: 'Nourish Mart', accent: Color(0xFFF2A13D), icon: Icons.inventory_rounded, price: '₹329'),
-            _DiscoveryItem(title: 'Perfume Set', subtitle: 'Gift Aura', accent: Color(0xFF1FB8A4), icon: Icons.spa_rounded, price: '₹449'),
-            _DiscoveryItem(title: 'Decor Hamper', subtitle: 'House Gift', accent: Color(0xFFFF954A), icon: Icons.celebration_rounded, price: '₹299'),
-          ],
-        ),
-        _DiscoverySection(
-          title: 'Grocery items',
-          caption: 'Daily groceries from promoted shops',
-          items: [
-            _DiscoveryItem(title: 'Atta Pack', subtitle: 'Daily Mart', accent: Color(0xFFF2A13D), icon: Icons.inventory_2_rounded, price: '₹259'),
-            _DiscoveryItem(title: 'Dal Combo', subtitle: 'Fresh Basket', accent: Color(0xFF4DAF50), icon: Icons.grain_rounded, price: '₹189'),
-            _DiscoveryItem(title: 'Rice Bag', subtitle: 'Family Store', accent: Color(0xFFCB6E5B), icon: Icons.rice_bowl_rounded, price: '₹399'),
-            _DiscoveryItem(title: 'Milk & Bread', subtitle: 'Morning Mart', accent: Color(0xFF5C8FD8), icon: Icons.breakfast_dining_rounded, price: '₹79'),
-            _DiscoveryItem(title: 'Tea Pack', subtitle: 'Tea Corner', accent: Color(0xFF1FB8A4), icon: Icons.emoji_food_beverage_rounded, price: '₹149'),
-            _DiscoveryItem(title: 'Snacks Box', subtitle: 'Snack House', accent: Color(0xFFFF954A), icon: Icons.cookie_rounded, price: '₹119'),
-            _DiscoveryItem(title: 'Cold Drinks', subtitle: 'Quick Basket', accent: Color(0xFF5C8FD8), icon: Icons.local_drink_rounded, price: '₹99'),
-            _DiscoveryItem(title: 'Cooking Oil', subtitle: 'Kitchen Hub', accent: Color(0xFFF2A13D), icon: Icons.water_drop_rounded, price: '₹179'),
-          ],
-        ),
-        _DiscoverySection(
-          title: 'Pharmacy items',
-          caption: 'Wellness and care essentials from trusted pharmacies',
-          items: [
-            _DiscoveryItem(title: 'Paracetamol Kit', subtitle: 'Wellness Hub', accent: Color(0xFF1FB8A4), icon: Icons.medication_rounded, price: '₹59'),
-            _DiscoveryItem(title: 'Vitamin Pack', subtitle: 'Care Plus', accent: Color(0xFF5C8FD8), icon: Icons.health_and_safety_rounded, price: '₹249'),
-            _DiscoveryItem(title: 'Baby Lotion', subtitle: 'Tiny Care', accent: Color(0xFFDF7DA0), icon: Icons.child_friendly_rounded, price: '₹199'),
-            _DiscoveryItem(title: 'Face Wash', subtitle: 'Glow Pharmacy', accent: Color(0xFFF2A13D), icon: Icons.spa_rounded, price: '₹149'),
-            _DiscoveryItem(title: 'Sanitizer', subtitle: 'Medi Quick', accent: Color(0xFF4DAF50), icon: Icons.clean_hands_rounded, price: '₹99'),
-            _DiscoveryItem(title: 'Bandage Pack', subtitle: 'Wellness Hub', accent: Color(0xFFCB6E5B), icon: Icons.healing_rounded, price: '₹89'),
-            _DiscoveryItem(title: 'Baby Diapers', subtitle: 'Tiny Care', accent: Color(0xFF5C8FD8), icon: Icons.baby_changing_station_rounded, price: '₹349'),
-            _DiscoveryItem(title: 'Protein Drink', subtitle: 'Care Plus', accent: Color(0xFF1FB8A4), icon: Icons.local_drink_rounded, price: '₹399'),
-          ],
-        ),
-        _DiscoverySection(
-          title: 'Fashion items',
-          caption: 'Popular fashion picks from promoted shops',
-          items: [
-            _DiscoveryItem(title: 'Cotton Kurta', subtitle: 'Style Studio', accent: Color(0xFFDF7DA0), icon: Icons.checkroom_rounded, price: '₹699'),
-            _DiscoveryItem(title: 'Men Shirt', subtitle: 'Urban Wear', accent: Color(0xFF5C8FD8), icon: Icons.dry_cleaning_rounded, price: '₹599'),
-            _DiscoveryItem(title: 'Saree Set', subtitle: 'Grace House', accent: Color(0xFFE55A57), icon: Icons.style_rounded, price: '₹1,099'),
-            _DiscoveryItem(title: 'Kids Tee', subtitle: 'Tiny Trends', accent: Color(0xFF4DAF50), icon: Icons.child_care_rounded, price: '₹299'),
-            _DiscoveryItem(title: 'Handbag', subtitle: 'Carry Charm', accent: Color(0xFFF2A13D), icon: Icons.shopping_bag_rounded, price: '₹899'),
-            _DiscoveryItem(title: 'Women Dress', subtitle: 'Bloom Boutique', accent: Color(0xFFDF7DA0), icon: Icons.checkroom_rounded, price: '₹1,249'),
-            _DiscoveryItem(title: 'Sneakers', subtitle: 'Step Up', accent: Color(0xFF5C8FD8), icon: Icons.hiking_rounded, price: '₹1,499'),
-            _DiscoveryItem(title: 'Watch Combo', subtitle: 'Urban Wear', accent: Color(0xFFCB6E5B), icon: Icons.watch_rounded, price: '₹999'),
-          ],
-        ),
-      ];
-
-  List<String> get _selectedShopSubcategories =>
-      _selectedShopCategory == 'Fashion' && _fashionRemoteCategories.isNotEmpty
-          ? _fashionRemoteCategories.map((item) => item.label).toList(growable: false)
-          : _selectedShopCategory == 'Footwear' && _footwearRemoteCategories.isNotEmpty
-              ? _footwearRemoteCategories.map((item) => item.label).toList(growable: false)
-              : _selectedShopCategory == 'Gift' && _giftRemoteCategories.isNotEmpty
-                  ? _giftRemoteCategories.map((item) => item.label).toList(growable: false)
-                  : _selectedShopCategory == 'Groceries' && _groceryRemoteCategories.isNotEmpty
-                      ? _groceryRemoteCategories.map((item) => item.label).toList(growable: false)
-                      : _selectedShopCategory == 'Pharmacy' && _pharmacyRemoteCategories.isNotEmpty
-                          ? _pharmacyRemoteCategories.map((item) => item.label).toList(growable: false)
-              : _shopSubcategoriesFor(_selectedShopCategory);
-
-  List<_DiscoverySection> get _filteredShopSections {
-    final categorySections = _shopSections.where((section) {
-      return _selectedShopCategory == 'All' ||
-          _shopCategoryForSection(section) == _selectedShopCategory;
-    }).toList();
-
-    final effectiveSections = categorySections.isEmpty ? _shopSections : categorySections;
-    final selectedSubcategory = _selectedShopSubcategories.contains(_selectedShopSubCategory)
-        ? _selectedShopSubCategory
-        : 'All';
-
-    if (selectedSubcategory == 'All') {
-      return effectiveSections.map(_sortShopSection).toList();
-    }
-
-    final filtered = effectiveSections
-        .map(
-          (section) => _DiscoverySection(
-            title: section.title,
-            caption: section.caption,
-            items: section.items
-                .where(
-                  (item) => _shopTimingFor(item.subtitle, _shopCategoryForSection(section)).isOpen,
-                )
-                .where(
-                  (item) => _shopSubcategoryFor(item, _shopCategoryForSection(section)) ==
-                      selectedSubcategory,
-                )
-                .toList(),
-          ),
-        )
-        .where((section) => section.items.isNotEmpty)
-        .toList();
-
-    if (selectedSubcategory == 'All') {
-      final openSections = effectiveSections
-          .map(
-            (section) => _DiscoverySection(
-              title: section.title,
-              caption: section.caption,
-              items: section.items
-                  .where(
-                    (item) => _shopTimingFor(item.subtitle, _shopCategoryForSection(section)).isOpen,
-                  )
-                  .toList(),
-            ),
-          )
-          .where((section) => section.items.isNotEmpty)
-          .toList();
-      final sections = openSections.isEmpty ? effectiveSections : openSections;
-      return sections.map(_sortShopSection).toList();
-    }
-
-    final sections = filtered.isEmpty ? effectiveSections : filtered;
-    return sections.map(_sortShopSection).toList();
-  }
-
-  _DiscoverySection _sortShopSection(_DiscoverySection section) {
-    final sortedItems = _sortShopItems(section.items);
-    return _DiscoverySection(
-      title: section.title,
-      caption: section.caption,
-      items: sortedItems,
-    );
-  }
-
-  List<_DiscoveryItem> _sortShopItems(List<_DiscoveryItem> items) {
-    final sorted = [...items];
-    switch (_shopSortOption) {
-      case 'Low to High':
-        sorted.sort((left, right) => _extractAmount(left.price).compareTo(_extractAmount(right.price)));
-        break;
-      case 'High to Low':
-        sorted.sort((left, right) => _extractAmount(right.price).compareTo(_extractAmount(left.price)));
-        break;
-      case 'Newly Added':
-        return sorted.reversed.toList();
-      case 'Popular':
-      default:
-        sorted.sort((left, right) => _ratingScore(right.rating).compareTo(_ratingScore(left.rating)));
-        break;
-    }
-    return sorted;
-  }
-
-  double _ratingScore(String rating) =>
-      double.tryParse(rating.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-
-  List<_DiscoveryItem> get _filteredShopWiseItems {
-    final items = _filteredShopSections.expand((section) => section.items).toList();
-    final result = items.isEmpty
-        ? _shopSections.expand((section) => section.items).take(8).toList()
-        : items;
-    return _sortShopItems(result);
-  }
 
   bool get _showShopAllLanding =>
       _shopBrowseMode == _ShopBrowseMode.itemWise &&
@@ -2195,12 +2075,9 @@ class _UserHomePageState extends State<UserHomePage> {
   bool get _showShopFootwearLanding => _selectedShopCategory == 'Footwear';
 
   List<_RestaurantCuisineItem> get _effectiveRestaurantCuisines =>
-      _restaurantRemoteCuisines.isEmpty ? _restaurantCuisineItems : _restaurantRemoteCuisines;
+      _restaurantRemoteCuisines;
 
   List<_RestaurantListingItem> get _effectiveRestaurantListings {
-    if (_restaurantRemoteShops.isEmpty) {
-      return _restaurantListings;
-    }
     return _restaurantRemoteShops
         .map(
           (shop) => _RestaurantListingItem(
@@ -2213,6 +2090,8 @@ class _UserHomePageState extends State<UserHomePage> {
               distance: shop.city,
               shopCategory: 'Restaurant',
               backendShopId: shop.shopId,
+              isDisabled: !shop.acceptsOrders || shop.eta == 'Closed',
+              disabledLabel: (!shop.acceptsOrders || shop.eta == 'Closed') ? 'Closed' : '',
             ),
             offer: shop.offer,
             eta: shop.eta,
@@ -2225,7 +2104,7 @@ class _UserHomePageState extends State<UserHomePage> {
 
   List<_DiscoveryItem> get _effectiveFashionShopCards {
     if (!_fashionRemoteReady || _fashionRemoteShops.isEmpty) {
-      return _filteredShopWiseItems;
+      return const <_DiscoveryItem>[];
     }
     return _fashionRemoteShops
         .map(
@@ -2243,6 +2122,8 @@ class _UserHomePageState extends State<UserHomePage> {
             extra: 'Fashion shop',
             shopCategory: 'Fashion',
             backendShopId: shop.shopId,
+            isDisabled: !shop.openNow || !shop.acceptsOrders,
+            disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
           ),
         )
         .toList(growable: false);
@@ -2250,7 +2131,7 @@ class _UserHomePageState extends State<UserHomePage> {
 
   List<_DiscoveryItem> get _effectiveFootwearShopCards {
     if (!_footwearRemoteReady || _footwearRemoteShops.isEmpty) {
-      return _filteredShopWiseItems;
+      return const <_DiscoveryItem>[];
     }
     return _footwearRemoteShops
         .map(
@@ -2268,6 +2149,8 @@ class _UserHomePageState extends State<UserHomePage> {
             extra: 'Footwear shop',
             shopCategory: 'Footwear',
             backendShopId: shop.shopId,
+            isDisabled: !shop.openNow || !shop.acceptsOrders,
+            disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
           ),
         )
         .toList(growable: false);
@@ -2284,6 +2167,8 @@ class _UserHomePageState extends State<UserHomePage> {
           distance: shop.openNow ? 'Open now' : 'Closed',
           shopCategory: 'Gift',
           backendShopId: shop.shopId,
+          isDisabled: !shop.openNow || !shop.acceptsOrders,
+          disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
         ),
       )
       .toList(growable: false);
@@ -2299,6 +2184,8 @@ class _UserHomePageState extends State<UserHomePage> {
           distance: shop.openNow ? 'Open now' : 'Closed',
           shopCategory: 'Groceries',
           backendShopId: shop.shopId,
+          isDisabled: !shop.openNow || !shop.acceptsOrders,
+          disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
         ),
       )
       .toList(growable: false);
@@ -2314,388 +2201,24 @@ class _UserHomePageState extends State<UserHomePage> {
           distance: shop.openNow ? 'Open now' : 'Closed',
           shopCategory: 'Pharmacy',
           backendShopId: shop.shopId,
+          isDisabled: !shop.openNow || !shop.acceptsOrders,
+          disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
         ),
       )
       .toList(growable: false);
 
-  List<_DiscoveryItem> get _shopRestaurantItems => const [
-        _DiscoveryItem(
-          title: 'Paneer Combo',
-          subtitle: 'Urban Spoon',
-          accent: Color(0xFFE87142),
-          icon: Icons.restaurant_rounded,
-          price: '₹299',
-          rating: '4.8',
-          distance: '1.3 km',
-        ),
-        _DiscoveryItem(
-          title: 'Veg Thali',
-          subtitle: 'Tadka House',
-          accent: Color(0xFF4DAF50),
-          icon: Icons.dinner_dining_rounded,
-          price: '₹249',
-          rating: '4.7',
-          distance: '1.5 km',
-        ),
-        _DiscoveryItem(
-          title: 'Burger Box',
-          subtitle: 'Snack Street',
-          accent: Color(0xFFCB6E5B),
-          icon: Icons.lunch_dining_rounded,
-          price: '₹179',
-          rating: '4.6',
-          distance: '1.1 km',
-        ),
-        _DiscoveryItem(
-          title: 'South Meal',
-          subtitle: 'Dosa Point',
-          accent: Color(0xFFF2A13D),
-          icon: Icons.ramen_dining_rounded,
-          price: '₹219',
-          rating: '4.8',
-          distance: '1.9 km',
-        ),
-        _DiscoveryItem(
-          title: 'Pizza Slice',
-          subtitle: 'Cheese Town',
-          accent: Color(0xFFDF7DA0),
-          icon: Icons.local_pizza_rounded,
-          price: '₹199',
-          rating: '4.5',
-          distance: '2.0 km',
-        ),
-        _DiscoveryItem(
-          title: 'Family Pack',
-          subtitle: 'Food Court',
-          accent: Color(0xFF5C8FD8),
-          icon: Icons.takeout_dining_rounded,
-          price: '₹349',
-          rating: '4.9',
-          distance: '2.2 km',
-        ),
-      ];
-
-  List<_RestaurantCuisineItem> get _restaurantCuisineItems => const [
-        _RestaurantCuisineItem(
-          label: 'All',
-          imageKey: 'veg_thali',
-          accent: Color(0xFFF5E1A2),
-          icon: Icons.restaurant_menu_rounded,
-        ),
-        _RestaurantCuisineItem(
-          label: 'North Indian',
-          imageKey: 'paneer_combo',
-          accent: Color(0xFFF7C088),
-          icon: Icons.dinner_dining_rounded,
-        ),
-        _RestaurantCuisineItem(
-          label: 'Dessert',
-          imageKey: 'skincare_combo',
-          accent: Color(0xFFF5B7CC),
-          icon: Icons.icecream_rounded,
-        ),
-        _RestaurantCuisineItem(
-          label: 'Burgers',
-          imageKey: 'burger_box',
-          accent: Color(0xFFE9C07B),
-          icon: Icons.lunch_dining_rounded,
-        ),
-        _RestaurantCuisineItem(
-          label: 'Pizzas',
-          imageKey: 'pizza_slice',
-          accent: Color(0xFFEECF8B),
-          icon: Icons.local_pizza_rounded,
-        ),
-        _RestaurantCuisineItem(
-          label: 'South Indian',
-          imageKey: 'south_meal',
-          accent: Color(0xFFE4BE7D),
-          icon: Icons.ramen_dining_rounded,
-        ),
-        _RestaurantCuisineItem(
-          label: 'Meals',
-          imageKey: 'veg_thali',
-          accent: Color(0xFFD9E9B8),
-          icon: Icons.rice_bowl_rounded,
-        ),
-      ];
-
-  List<_RestaurantListingItem> get _restaurantListings => const [
-        _RestaurantListingItem(
-          item: _DiscoveryItem(
-            title: "Haldiram's",
-            subtitle: 'Popular sweets and meals',
-            accent: Color(0xFFE5A14B),
-            icon: Icons.icecream_rounded,
-            rating: '4.4',
-            distance: '3.0 km',
-          ),
-          offer: '₹65 off above ₹399',
-          eta: '25-30 mins',
-          location: 'Palam, 3.0 km',
-          cuisineLine: 'Sweets, South Indian · ₹450 for two',
-        ),
-        _RestaurantListingItem(
-          item: _DiscoveryItem(
-            title: 'Dangee Sandwich',
-            subtitle: 'Crisp snack combos',
-            accent: Color(0xFFCB8A53),
-            icon: Icons.breakfast_dining_rounded,
-            rating: '4.2',
-            distance: '2.1 km',
-          ),
-          offer: 'Items at ₹99',
-          eta: '30-35 mins',
-          location: 'Nawada Chowk, 2.1 km',
-          cuisineLine: 'Sandwiches, Snacks · ₹250 for two',
-        ),
-        _RestaurantListingItem(
-          item: _DiscoveryItem(
-            title: 'Cheese Town',
-            subtitle: 'Loaded pizza specials',
-            accent: Color(0xFFE46D5E),
-            icon: Icons.local_pizza_rounded,
-            rating: '4.5',
-            distance: '1.9 km',
-          ),
-          offer: 'Flat ₹120 off',
-          eta: '20-25 mins',
-          location: 'Pocket C, 1.9 km',
-          cuisineLine: 'Pizza, Fast food · ₹380 for two',
-        ),
-        _RestaurantListingItem(
-          item: _DiscoveryItem(
-            title: 'Tadka House',
-            subtitle: 'Veg thali and curry',
-            accent: Color(0xFF5CA86D),
-            icon: Icons.dinner_dining_rounded,
-            rating: '4.6',
-            distance: '1.6 km',
-          ),
-          offer: 'Free dessert on combos',
-          eta: '18-24 mins',
-          location: 'Block C, 1.6 km',
-          cuisineLine: 'North Indian, Meals · ₹320 for two',
-        ),
-        _RestaurantListingItem(
-          item: _DiscoveryItem(
-            title: 'Urban Spoon',
-            subtitle: 'Paneer and family platters',
-            accent: Color(0xFFE87142),
-            icon: Icons.restaurant_rounded,
-            rating: '4.3',
-            distance: '1.4 km',
-          ),
-          offer: '20% off above ₹499',
-          eta: '22-28 mins',
-          location: 'Raghunathpur, 1.4 km',
-          cuisineLine: 'North Indian, Chinese · ₹420 for two',
-        ),
-        _RestaurantListingItem(
-          item: _DiscoveryItem(
-            title: 'Mr. Shakes',
-            subtitle: 'Shakes and quick bites',
-            accent: Color(0xFFB96B59),
-            icon: Icons.local_cafe_rounded,
-            rating: '4.1',
-            distance: '2.4 km',
-          ),
-          offer: '50% off select items',
-          eta: '20-25 mins',
-          location: 'Salapur Road, 2.4 km',
-          cuisineLine: 'Beverages, Sandwiches · ₹280 for two',
-        ),
-      ];
-
-  List<(String, Color, Color, List<_DiscoveryItem>)> get _shopFashionPanels => const [
-        (
-          'Men style',
-          Color(0xFF8FD0FF),
-          Color(0xFF74BFF6),
-          [
-            _DiscoveryItem(title: 'Casual Shirt', subtitle: 'Men', accent: Color(0xFF5C8FD8), icon: Icons.checkroom_rounded, price: '₹599', rating: '4.7', distance: '1.2 km'),
-            _DiscoveryItem(title: 'Denim Jeans', subtitle: 'Men', accent: Color(0xFF5C8FD8), icon: Icons.dry_cleaning_rounded, price: '₹899', rating: '4.6', distance: '1.2 km'),
-            _DiscoveryItem(title: 'Classic Tee', subtitle: 'Men', accent: Color(0xFF5C8FD8), icon: Icons.checkroom_rounded, price: '₹399', rating: '4.8', distance: '1.3 km'),
-            _DiscoveryItem(title: 'Formal Shoes', subtitle: 'Footwear', accent: Color(0xFF5C8FD8), icon: Icons.hiking_rounded, price: '₹1,299', rating: '4.5', distance: '1.7 km'),
-          ],
-        ),
-        (
-          'Women picks',
-          Color(0xFFFFB8CE),
-          Color(0xFFF38AAA),
-          [
-            _DiscoveryItem(title: 'Printed Kurta', subtitle: 'Women', accent: Color(0xFFDF7DA0), icon: Icons.checkroom_rounded, price: '₹799', rating: '4.8', distance: '1.4 km'),
-            _DiscoveryItem(title: 'Floral Dress', subtitle: 'Women', accent: Color(0xFFDF7DA0), icon: Icons.style_rounded, price: '₹1,199', rating: '4.6', distance: '1.6 km'),
-            _DiscoveryItem(title: 'Handbag Set', subtitle: 'Women', accent: Color(0xFFDF7DA0), icon: Icons.shopping_bag_rounded, price: '₹999', rating: '4.7', distance: '1.8 km'),
-            _DiscoveryItem(title: 'Heels Pair', subtitle: 'Footwear', accent: Color(0xFFDF7DA0), icon: Icons.hiking_rounded, price: '₹1,149', rating: '4.5', distance: '1.9 km'),
-          ],
-        ),
-        (
-          'Kids corner',
-          Color(0xFFFFD48C),
-          Color(0xFFF2A13D),
-          [
-            _DiscoveryItem(title: 'Kids Tee', subtitle: 'Kids', accent: Color(0xFFF2A13D), icon: Icons.child_care_rounded, price: '₹299', rating: '4.8', distance: '1.2 km'),
-            _DiscoveryItem(title: 'Shorts Pack', subtitle: 'Kids', accent: Color(0xFFF2A13D), icon: Icons.checkroom_rounded, price: '₹349', rating: '4.6', distance: '1.4 km'),
-            _DiscoveryItem(title: 'School Shoes', subtitle: 'Footwear', accent: Color(0xFFF2A13D), icon: Icons.hiking_rounded, price: '₹699', rating: '4.7', distance: '1.6 km'),
-            _DiscoveryItem(title: 'Party Set', subtitle: 'Kids', accent: Color(0xFFF2A13D), icon: Icons.style_rounded, price: '₹899', rating: '4.5', distance: '1.8 km'),
-          ],
-        ),
-        (
-          'Footwear',
-          Color(0xFF9DE8D5),
-          Color(0xFF39C3A8),
-          [
-            _DiscoveryItem(title: 'Sneakers', subtitle: 'Footwear', accent: Color(0xFF1FB8A4), icon: Icons.hiking_rounded, price: '₹1,499', rating: '4.8', distance: '1.3 km'),
-            _DiscoveryItem(title: 'Sandals', subtitle: 'Footwear', accent: Color(0xFF1FB8A4), icon: Icons.hiking_rounded, price: '₹749', rating: '4.4', distance: '1.5 km'),
-            _DiscoveryItem(title: 'Slides', subtitle: 'Footwear', accent: Color(0xFF1FB8A4), icon: Icons.hiking_rounded, price: '₹499', rating: '4.6', distance: '1.8 km'),
-            _DiscoveryItem(title: 'Sport Shoes', subtitle: 'Footwear', accent: Color(0xFF1FB8A4), icon: Icons.hiking_rounded, price: '₹1,299', rating: '4.7', distance: '1.9 km'),
-          ],
-        ),
-      ];
-
-  List<(String, Color, Color, List<_DiscoveryItem>)> get _shopFootwearPanels => const [
-        (
-          'Men',
-          Color(0xFFEAF2FF),
-          Color(0xFFD5E6FF),
-          [
-            _DiscoveryItem(title: 'Formal Shoes', subtitle: 'Footwear', accent: Color(0xFF5C8FD8), icon: Icons.hiking_rounded, price: '₹1,299', rating: '4.5', distance: '1.7 km'),
-            _DiscoveryItem(title: 'Sneakers', subtitle: 'Footwear', accent: Color(0xFF5C8FD8), icon: Icons.directions_walk_rounded, price: '₹1,499', rating: '4.7', distance: '1.5 km'),
-            _DiscoveryItem(title: 'Slippers', subtitle: 'Footwear', accent: Color(0xFF5C8FD8), icon: Icons.airline_seat_legroom_normal_rounded, price: '₹499', rating: '4.3', distance: '1.8 km'),
-            _DiscoveryItem(title: 'Loafers', subtitle: 'Footwear', accent: Color(0xFF5C8FD8), icon: Icons.checkroom_rounded, price: '₹1,149', rating: '4.6', distance: '1.6 km'),
-          ],
-        ),
-        (
-          'Women',
-          Color(0xFFFFEFF5),
-          Color(0xFFFFDCE8),
-          [
-            _DiscoveryItem(title: 'Heels', subtitle: 'Footwear', accent: Color(0xFFDF7DA0), icon: Icons.woman_rounded, price: '₹1,149', rating: '4.5', distance: '1.9 km'),
-            _DiscoveryItem(title: 'Sandals', subtitle: 'Footwear', accent: Color(0xFFDF7DA0), icon: Icons.hiking_rounded, price: '₹799', rating: '4.4', distance: '1.5 km'),
-            _DiscoveryItem(title: 'Flats', subtitle: 'Footwear', accent: Color(0xFFDF7DA0), icon: Icons.checkroom_rounded, price: '₹649', rating: '4.6', distance: '1.4 km'),
-            _DiscoveryItem(title: 'Party Heels', subtitle: 'Footwear', accent: Color(0xFFDF7DA0), icon: Icons.auto_awesome_rounded, price: '₹1,499', rating: '4.7', distance: '1.8 km'),
-          ],
-        ),
-        (
-          'Boys',
-          Color(0xFFFFF3E1),
-          Color(0xFFFFE0AF),
-          [
-            _DiscoveryItem(title: 'School Shoes', subtitle: 'Footwear', accent: Color(0xFFF2A13D), icon: Icons.hiking_rounded, price: '₹699', rating: '4.7', distance: '1.6 km'),
-            _DiscoveryItem(title: 'Sports Shoes', subtitle: 'Footwear', accent: Color(0xFFF2A13D), icon: Icons.directions_run_rounded, price: '₹999', rating: '4.5', distance: '1.7 km'),
-            _DiscoveryItem(title: 'Kids Sandals', subtitle: 'Footwear', accent: Color(0xFFF2A13D), icon: Icons.child_friendly_rounded, price: '₹549', rating: '4.4', distance: '1.8 km'),
-            _DiscoveryItem(title: 'Slides', subtitle: 'Footwear', accent: Color(0xFFF2A13D), icon: Icons.airline_seat_legroom_normal_rounded, price: '₹399', rating: '4.6', distance: '1.5 km'),
-          ],
-        ),
-        (
-          'Girls',
-          Color(0xFFFFF0F7),
-          Color(0xFFFFDBEA),
-          [
-            _DiscoveryItem(title: 'Cute Sandals', subtitle: 'Footwear', accent: Color(0xFFE75D93), icon: Icons.girl_rounded, price: '₹699', rating: '4.7', distance: '1.3 km'),
-            _DiscoveryItem(title: 'Ballet Flats', subtitle: 'Footwear', accent: Color(0xFFE75D93), icon: Icons.auto_awesome_rounded, price: '₹799', rating: '4.6', distance: '1.4 km'),
-            _DiscoveryItem(title: 'School Shoes', subtitle: 'Footwear', accent: Color(0xFFE75D93), icon: Icons.hiking_rounded, price: '₹749', rating: '4.5', distance: '1.7 km'),
-            _DiscoveryItem(title: 'Party Sandals', subtitle: 'Footwear', accent: Color(0xFFE75D93), icon: Icons.star_rounded, price: '₹899', rating: '4.8', distance: '1.5 km'),
-          ],
-        ),
-      ];
-
-  List<_DiscoveryItem> get _shopBeautyItems => const [
-        _DiscoveryItem(title: 'Glow Face Kit', subtitle: 'Beauty Hub', accent: Color(0xFFDF7DA0), icon: Icons.spa_rounded, price: '₹699', rating: '4.8', distance: '1.1 km'),
-        _DiscoveryItem(title: 'Skincare Combo', subtitle: 'Pure Beauty', accent: Color(0xFFCB6E5B), icon: Icons.spa_rounded, price: '₹899', rating: '4.7', distance: '1.4 km'),
-        _DiscoveryItem(title: 'Hair Care Pack', subtitle: 'Salon Mart', accent: Color(0xFFF2A13D), icon: Icons.content_cut_rounded, price: '₹649', rating: '4.6', distance: '1.7 km'),
-        _DiscoveryItem(title: 'Makeup Edit', subtitle: 'Beauty Hub', accent: Color(0xFFB45DE8), icon: Icons.brush_rounded, price: '₹1,099', rating: '4.9', distance: '1.9 km'),
-      ];
-
-  List<_DiscoveryItem> get _shopMedicineItems => const [
-        _DiscoveryItem(title: 'Paracetamol', subtitle: 'Medi Quick', accent: Color(0xFF5C8FD8), icon: Icons.medication_rounded, price: '₹28', rating: '4.8', distance: '1.0 km'),
-        _DiscoveryItem(title: 'ORS Pack', subtitle: 'Wellness Hub', accent: Color(0xFF1FB8A4), icon: Icons.local_drink_rounded, price: '₹22', rating: '4.7', distance: '1.1 km'),
-        _DiscoveryItem(title: 'Cough Syrup', subtitle: 'Care Plus', accent: Color(0xFFCB6E5B), icon: Icons.medication_liquid_rounded, price: '₹76', rating: '4.6', distance: '1.3 km'),
-        _DiscoveryItem(title: 'Vitamin C', subtitle: 'Glow Pharmacy', accent: Color(0xFFF2A13D), icon: Icons.health_and_safety_rounded, price: '₹95', rating: '4.9', distance: '1.5 km'),
-        _DiscoveryItem(title: 'Pain Relief', subtitle: 'Medi Quick', accent: Color(0xFFDF7DA0), icon: Icons.healing_rounded, price: '₹54', rating: '4.7', distance: '1.2 km'),
-        _DiscoveryItem(title: 'Bandage', subtitle: 'Wellness Hub', accent: Color(0xFF4DAF50), icon: Icons.medical_services_rounded, price: '₹35', rating: '4.8', distance: '1.0 km'),
-        _DiscoveryItem(title: 'Vapor Rub', subtitle: 'Care Plus', accent: Color(0xFF5C8FD8), icon: Icons.spa_rounded, price: '₹68', rating: '4.5', distance: '1.6 km'),
-        _DiscoveryItem(title: 'Antacid', subtitle: 'Glow Pharmacy', accent: Color(0xFF1FB8A4), icon: Icons.medication_rounded, price: '₹48', rating: '4.6', distance: '1.4 km'),
-      ];
-
-  List<_GiftOccasionItem> get _giftOccasionItems => const [
-        _GiftOccasionItem(
-          label: 'Siblings\nDay',
-          imageKey: 'siblings_day',
-          accent: Color(0xFFFFE98F),
-          icon: Icons.card_giftcard_rounded,
-        ),
-        _GiftOccasionItem(
-          label: 'Birthday',
-          imageKey: 'birthday',
-          accent: Color(0xFFF8E3E6),
-          icon: Icons.cake_rounded,
-        ),
-        _GiftOccasionItem(
-          label: 'Anniversary',
-          imageKey: 'anniversary',
-          accent: Color(0xFFF6E6E8),
-          icon: Icons.watch_later_rounded,
-        ),
-        _GiftOccasionItem(
-          label: 'Visiting\nsomeone',
-          imageKey: 'visiting_someone',
-          accent: Color(0xFFF7E7E1),
-          icon: Icons.favorite_border_rounded,
-        ),
-      ];
-
-  List<_GiftFavouriteTileItem> get _giftFavouriteItems => const [
-        _GiftFavouriteTileItem(
-          label: 'Cakes\n& Sweets',
-          imageKey: 'cakes_sweets',
-          accent: Color(0xFFB5C8E5),
-          icon: Icons.cake_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Gadgets',
-          imageKey: 'gadgets',
-          accent: Color(0xFFD1D9F2),
-          icon: Icons.headphones_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Flowers &\nPlants',
-          imageKey: 'flowers_plants',
-          accent: Color(0xFFDCE6D8),
-          icon: Icons.local_florist_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Beauty',
-          imageKey: 'beauty',
-          accent: Color(0xFF8A8456),
-          icon: Icons.spa_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Games\n& Toys',
-          imageKey: 'games_toys',
-          accent: Color(0xFFD9D6D0),
-          icon: Icons.toys_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Home',
-          imageKey: 'home',
-          accent: Color(0xFFE7D2C1),
-          icon: Icons.chair_alt_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Fashion',
-          imageKey: 'fashion',
-          accent: Color(0xFFF1CCC6),
-          icon: Icons.checkroom_rounded,
-        ),
-        _GiftFavouriteTileItem(
-          label: 'Books',
-          imageKey: 'books',
-          accent: Color(0xFFE2D0BC),
-          icon: Icons.menu_book_rounded,
-        ),
-      ];
+  List<String> get _selectedShopSubcategories =>
+      _selectedShopCategory == 'Fashion' && _fashionRemoteCategories.isNotEmpty
+          ? _fashionRemoteCategories.map((item) => item.label).toList(growable: false)
+          : _selectedShopCategory == 'Footwear' && _footwearRemoteCategories.isNotEmpty
+              ? _footwearRemoteCategories.map((item) => item.label).toList(growable: false)
+              : _selectedShopCategory == 'Gift' && _giftRemoteCategories.isNotEmpty
+                  ? _giftRemoteCategories.map((item) => item.label).toList(growable: false)
+                  : _selectedShopCategory == 'Groceries' && _groceryRemoteCategories.isNotEmpty
+                      ? _groceryRemoteCategories.map((item) => item.label).toList(growable: false)
+                      : _selectedShopCategory == 'Pharmacy' && _pharmacyRemoteCategories.isNotEmpty
+                          ? _pharmacyRemoteCategories.map((item) => item.label).toList(growable: false)
+                          : const <String>['All'];
 
   @override
   Widget build(BuildContext context) {
@@ -2729,12 +2252,19 @@ class _UserHomePageState extends State<UserHomePage> {
                     SliverToBoxAdapter(
                       child: Container(
                         color: _headerGradient(_mode).first,
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.fromLTRB(18, 2, 18, 6),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _HomeHeader(),
+                              _HomeHeader(
+                                title: _selectedLocationChoice?.title ?? 'Choose location',
+                                subtitle: _selectedLocationChoice?.subtitle ??
+                                    _homeLocationError ??
+                                    'Allow location to see nearby shops',
+                                onTap: _openHomeLocationSelector,
+                                loading: _homeLocationLoading,
+                              ),
                             ],
                           ),
                         ),
@@ -2792,7 +2322,7 @@ class _UserHomePageState extends State<UserHomePage> {
                         ),
                       ),
                     ),
-                    if (_mode != _HomeMode.all)
+                    if (_mode != _HomeMode.all && _modeFilters.isNotEmpty)
                       SliverPersistentHeader(
                         pinned: true,
                         delegate: _PinnedHeaderDelegate(
@@ -2834,7 +2364,7 @@ class _UserHomePageState extends State<UserHomePage> {
                           ),
                         ),
                       ),
-                    if (_mode != _HomeMode.all)
+                    if (_mode != _HomeMode.all && _modeFilters.isNotEmpty)
                       SliverToBoxAdapter(
                         child: Container(
                           height: 14,
@@ -3030,68 +2560,6 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
-  void _openAllQuickCategoryDestination(String value) {
-    String targetCategory;
-    String targetSubcategory = 'All';
-    String targetCuisine = 'All';
-
-    switch (value) {
-      case 'Bakery':
-        targetCategory = 'Restaurant';
-        targetCuisine = 'Dessert';
-        break;
-      case 'Dining':
-        targetCategory = 'Restaurant';
-        break;
-      case 'Gifting':
-        targetCategory = 'Gift';
-        break;
-      case 'Pharmacy':
-        targetCategory = 'Pharmacy';
-        break;
-      case 'Essentials':
-        targetCategory = 'Pharmacy';
-        targetSubcategory = 'Essentials';
-        break;
-      case 'Kitchen':
-        targetCategory = 'Groceries';
-        break;
-      case 'Groceries':
-      default:
-        targetCategory = 'Groceries';
-        break;
-    }
-
-    if (_shopComingSoonCategories.contains(targetCategory)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$targetCategory is coming soon.')),
-      );
-      return;
-    }
-
-    setState(() {
-      _selectedAllQuickCategory = value;
-      _mode = _HomeMode.shop;
-      _shopBrowseMode = _ShopBrowseMode.itemWise;
-      _selectedShopCategory = targetCategory;
-      _selectedShopSubCategory = _shopSubcategoriesFor(targetCategory).contains(targetSubcategory)
-          ? targetSubcategory
-          : 'All';
-      _selectedRestaurantCuisine = targetCuisine;
-      _fashionVisibleProductCount = _fashionProductBatchSize;
-      _footwearVisibleProductCount = _footwearProductBatchSize;
-    });
-    if (targetCategory == 'Restaurant') {
-      unawaited(_loadRestaurantLanding(silent: false));
-    } else if (targetCategory == 'Gift') {
-      unawaited(_loadGiftLanding(silent: false));
-    } else if (targetCategory == 'Groceries') {
-      unawaited(_loadGroceryLanding(silent: false));
-    } else if (targetCategory == 'Pharmacy') {
-      unawaited(_loadPharmacyLanding(silent: false));
-    }
-  }
-
   List<Widget> _buildModeSlivers() {
     switch (_mode) {
       case _HomeMode.all:
@@ -3106,21 +2574,21 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   List<Widget> _buildAllMode() {
-    final sections = _filteredAllSections;
-    final slivers = <Widget>[
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-          child: _AllQuickCategoryStrip(
-            items: _allQuickCategories,
-            selected: _selectedAllQuickCategory,
-            onSelected: _openAllQuickCategoryDestination,
-          ),
-        ),
-      ),
+    final nearbyShopProfiles = <_DiscoveryItem>[
+      ..._effectiveFashionShopCards,
+      ..._effectiveFootwearShopCards,
+      ..._effectiveGiftShopCards,
+      ..._effectiveGroceryShopCards,
+      ..._effectivePharmacyShopCards,
     ];
+    final hasAnyLiveSection = _backendTopProducts.isNotEmpty ||
+        _labourRemoteProfiles.isNotEmpty ||
+        _serviceRemoteProviders.isNotEmpty ||
+        _restaurantRemoteProducts.isNotEmpty ||
+        nearbyShopProfiles.isNotEmpty;
+    final slivers = <Widget>[];
 
-    if (_remoteSyncInFlight && _backendTopProducts.isEmpty) {
+    if (_remoteSyncInFlight && _backendTopProducts.isEmpty && !hasAnyLiveSection) {
       slivers.add(
         _buildRemoteStateSliver(
           icon: Icons.storefront_rounded,
@@ -3129,7 +2597,7 @@ class _UserHomePageState extends State<UserHomePage> {
           loading: true,
         ),
       );
-    } else if (_homeBootstrapError != null && _backendTopProducts.isEmpty) {
+    } else if (_homeBootstrapError != null && _backendTopProducts.isEmpty && !hasAnyLiveSection) {
       slivers.add(
         _buildRemoteStateSliver(
           icon: Icons.cloud_off_rounded,
@@ -3139,24 +2607,14 @@ class _UserHomePageState extends State<UserHomePage> {
           onAction: () => unawaited(_hydrateRemoteState(silent: false)),
         ),
       );
-    } else if (!_remoteSyncInFlight && _backendTopProducts.isEmpty) {
-      slivers.add(
-        _buildRemoteStateSliver(
-          icon: Icons.inventory_2_outlined,
-          title: 'Live shop picks will appear here',
-          message: 'As soon as the live catalog returns products, we will show them in this section.',
-          actionLabel: 'Refresh',
-          onAction: () => unawaited(_hydrateRemoteState(silent: false)),
-        ),
-      );
     }
 
     if (_backendTopProducts.isNotEmpty) {
       slivers.add(
         SliverToBoxAdapter(
           child: _HorizontalDiscoverySection(
-            title: 'Live shop picks',
-            caption: 'Loaded from the new user app API',
+            title: 'Nearby shop picks',
+            caption: 'Live products available around your selected area',
             items: _backendTopProducts,
             onTap: _openShopItemFromHome,
             isWishlisted: _isWishlisted,
@@ -3169,60 +2627,96 @@ class _UserHomePageState extends State<UserHomePage> {
       );
     }
 
-    for (final section in sections) {
-      if (section.title == 'Available labour') {
-        slivers.add(
-          SliverToBoxAdapter(
-            child: _AllLabourSection(
-              title: section.title,
-              items: section.items,
-              isFavourited: _isFavourited,
-              onFavouriteToggle: _toggleFavourite,
-              onTap: (item) => _openCard(item, _HomeMode.labour),
-            ),
-          ),
-        );
-        continue;
-      }
-      if (section.title == 'Repair picks') {
-        slivers.add(
-          SliverToBoxAdapter(
-            child: _AllServiceSection(
-              title: section.title,
-              items: section.items,
-              onTap: (item) => _openCard(item, _HomeMode.service),
-            ),
-          ),
-        );
-        slivers.add(
-          SliverToBoxAdapter(
-            child: _ShopGiftSection(
-              occasions: _giftOccasionItems,
-              favourites: _giftFavouriteItems,
-              showOccasions: false,
-            ),
-          ),
-        );
-        slivers.add(
-          const SliverToBoxAdapter(
-            child: _AllHouseholdEssentialsSection(),
-          ),
-        );
-        continue;
-      }
+    if (_backendTopProducts.isEmpty && nearbyShopProfiles.isNotEmpty) {
       slivers.add(
         SliverToBoxAdapter(
-          child: _HorizontalDiscoverySection(
-            title: section.title,
-            caption: section.caption,
-            items: section.items,
-            onTap: _openShopItemFromHome,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+            child: const Text(
+              'Shops nearby',
+              style: TextStyle(
+                color: Color(0xFF22314D),
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ),
+      );
+      slivers.add(
+        SliverList.builder(
+          itemCount: nearbyShopProfiles.length > 4 ? 4 : nearbyShopProfiles.length,
+          itemBuilder: (context, index) => _VerticalShopCard(
+            item: nearbyShopProfiles[index],
+            isWishlisted: _isWishlisted(nearbyShopProfiles[index]),
+            onWishlistToggle: () => _toggleWishlist(nearbyShopProfiles[index]),
+            onTap: () => _openShopProfile(nearbyShopProfiles[index]),
+          ),
+        ),
+      );
+    }
+
+    if (_labourRemoteProfiles.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _AllLabourSection(
+            title: 'Labour nearby',
+            items: _labourRemoteProfiles,
+            isFavourited: _isFavourited,
+            onFavouriteToggle: _toggleFavourite,
+            onTap: (item) => _openCard(item, _HomeMode.labour),
+          ),
+        ),
+      );
+    }
+
+    if (_serviceRemoteProviders.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _AllServiceSection(
+            title: 'Service nearby',
+            items: _serviceRemoteProviders,
+            onTap: (item) => _openCard(item, _HomeMode.service),
+          ),
+        ),
+      );
+    }
+
+    if (_restaurantRemoteProducts.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _ShopSingleRowSection(
+            title: 'Top food',
+            items: _restaurantRemoteProducts,
+            onTap: _openShopProfile,
             isWishlisted: _isWishlisted,
             isFavourited: _isFavourited,
             onWishlistToggle: _toggleWishlist,
             onFavouriteToggle: _toggleFavourite,
             onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
           ),
+        ),
+      );
+    } else if (_effectiveRestaurantListings.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _RestaurantRecommendedSection(
+            items: _effectiveRestaurantListings.take(6).toList(),
+            onTap: (listing) => _openRestaurantListing(listing),
+          ),
+        ),
+      );
+    }
+
+    if (!hasAnyLiveSection &&
+        !_remoteSyncInFlight &&
+        !_labourRemoteLoading &&
+        !_serviceRemoteLoading &&
+        !_restaurantRemoteLoading) {
+      slivers.add(
+        _buildAreaComingSoonSliver(
+          icon: Icons.location_city_rounded,
+          message: 'No labour, service, or shop is registered within your selected range yet.',
         ),
       );
     }
@@ -3275,9 +2769,9 @@ class _UserHomePageState extends State<UserHomePage> {
               crossAxisSpacing: 12,
               mainAxisExtent: 246,
             ),
-            itemCount: _labourItems.length,
+            itemCount: _labourRemoteProfiles.length,
             itemBuilder: (context, index) {
-              final item = _labourItems[index];
+              final item = _labourRemoteProfiles[index];
               return _LabourPortraitTile(
                 item: item,
                 isFavourited: _isFavourited(item),
@@ -3293,7 +2787,7 @@ class _UserHomePageState extends State<UserHomePage> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
             child: _GroupBookingCard(
-              availableLabour: 10,
+              availableLabour: _labourRemoteProfiles.where((item) => !item.isDisabled).length,
               selectedMaxPrice: _selectedLabourPrice,
               selectedPricePeriod: _selectedLabourPricePeriod,
               selectedCount: _selectedLabourCount,
@@ -3372,17 +2866,15 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   List<Widget> _buildShopMode() {
-    final shopSections = _filteredShopSections;
-    final shopWiseItems = _filteredShopWiseItems;
     final shopRemoteStateSliver = _buildShopRemoteStateSliver();
-    final openTopFoodItems = _restaurantRemoteProducts.isEmpty
-        ? _shopRestaurantItems.where((item) => _shopTimingFor(item.subtitle, 'Restaurant').isOpen).toList()
-        : _restaurantRemoteProducts;
-    final visibleRestaurantListings = _restaurantRemoteShops.isEmpty
-        ? _restaurantListings
-            .where((listing) => _shopTimingFor(listing.item.subtitle, 'Restaurant').isOpen)
-            .toList()
-        : _effectiveRestaurantListings;
+    final visibleRestaurantListings = _effectiveRestaurantListings;
+    final allNearbyShopProfiles = <_DiscoveryItem>[
+      ..._effectiveFashionShopCards,
+      ..._effectiveFootwearShopCards,
+      ..._effectiveGiftShopCards,
+      ..._effectiveGroceryShopCards,
+      ..._effectivePharmacyShopCards,
+    ];
     return [
       if (!_showShopRestaurantLanding)
         SliverToBoxAdapter(
@@ -3402,9 +2894,7 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
         ),
       if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
-          _selectedShopSubcategories.length > 1 &&
-          _selectedShopCategory != 'Groceries' &&
-          _selectedShopCategory != 'Pharmacy')
+          _selectedShopSubcategories.length > 1)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
@@ -3446,44 +2936,36 @@ class _UserHomePageState extends State<UserHomePage> {
         shopRemoteStateSliver
       else
       if (_showShopAllLanding) ...[
-        SliverToBoxAdapter(
-          child: _ShopSingleRowSection(
-            title: 'Top food',
-            items: openTopFoodItems.isEmpty ? _shopRestaurantItems : openTopFoodItems,
-            onTap: _openShopProfile,
-            isWishlisted: _isWishlisted,
-            isFavourited: _isFavourited,
-            onWishlistToggle: _toggleWishlist,
-            onFavouriteToggle: _toggleFavourite,
-            onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
+        if (_restaurantRemoteProducts.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _ShopSingleRowSection(
+              title: 'Top food',
+              items: _restaurantRemoteProducts,
+              onTap: _openShopProfile,
+              isWishlisted: _isWishlisted,
+              isFavourited: _isFavourited,
+              onWishlistToggle: _toggleWishlist,
+              onFavouriteToggle: _toggleFavourite,
+              onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
+            ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: _ShopFashionPanelsSection(
-            panels: _shopFashionPanels,
-            onTap: _openShopProfile,
+        if (visibleRestaurantListings.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _RestaurantRecommendedSection(
+              items: visibleRestaurantListings.take(6).toList(),
+              onTap: (listing) => _openRestaurantListing(listing),
+            ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: _ShopFootwearPanelsSection(
-            panels: _shopFootwearPanels,
-            onTap: _openShopProfile,
+        if (allNearbyShopProfiles.isNotEmpty)
+          SliverList.builder(
+            itemCount: allNearbyShopProfiles.length > 6 ? 6 : allNearbyShopProfiles.length,
+            itemBuilder: (context, index) => _VerticalShopCard(
+              item: allNearbyShopProfiles[index],
+              isWishlisted: _isWishlisted(allNearbyShopProfiles[index]),
+              onWishlistToggle: () => _toggleWishlist(allNearbyShopProfiles[index]),
+              onTap: () => _openShopProfile(allNearbyShopProfiles[index]),
+            ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: _ShopBeautySection(
-            items: _shopBeautyItems,
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-            onTap: _openShopProfile,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: _ShopMedicineSection(
-            items: _shopMedicineItems,
-            onTap: _openShopProfile,
-          ),
-        ),
       ] else if (_showShopRestaurantLanding) ...[
         SliverToBoxAdapter(
           child: _RestaurantCuisineStrip(
@@ -3495,19 +2977,17 @@ class _UserHomePageState extends State<UserHomePage> {
         const SliverToBoxAdapter(
           child: _RestaurantFilterRow(),
         ),
-        SliverToBoxAdapter(
-          child: _RestaurantRecommendedSection(
-            items: (visibleRestaurantListings.isEmpty ? _effectiveRestaurantListings : visibleRestaurantListings)
-                .take(6)
-                .toList(),
-            onTap: (listing) => _openRestaurantListing(listing),
+        if (visibleRestaurantListings.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _RestaurantRecommendedSection(
+              items: visibleRestaurantListings.take(6).toList(),
+              onTap: (listing) => _openRestaurantListing(listing),
+            ),
           ),
-        ),
         SliverList.builder(
-          itemCount: (visibleRestaurantListings.isEmpty ? _effectiveRestaurantListings : visibleRestaurantListings).length,
+          itemCount: visibleRestaurantListings.length,
           itemBuilder: (context, index) {
-            final source = visibleRestaurantListings.isEmpty ? _effectiveRestaurantListings : visibleRestaurantListings;
-            final listing = source[index];
+            final listing = visibleRestaurantListings[index];
             return _RestaurantListingCard(
               listing: listing,
               isFavourited: _isFavourited(listing.item),
@@ -3518,161 +2998,147 @@ class _UserHomePageState extends State<UserHomePage> {
         ),
       ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Gift') ...[
         if (_giftRemoteReady)
-          SliverToBoxAdapter(
-            child: _RemoteGiftShowcase(
-              items: _giftRemoteProducts,
-              onItemTap: _openShopItemFromHome,
+          if (_giftRemoteProducts.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _RemoteGiftShowcase(
+                items: _giftRemoteProducts,
+                onItemTap: _openShopItemFromHome,
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: _effectiveGiftShopCards.length,
+              itemBuilder: (context, index) => _VerticalShopCard(
+                item: _effectiveGiftShopCards[index],
+                isWishlisted: _isWishlisted(_effectiveGiftShopCards[index]),
+                onWishlistToggle: () => _toggleWishlist(_effectiveGiftShopCards[index]),
+                onTap: () => _openShopProfile(_effectiveGiftShopCards[index]),
+              ),
             ),
-          )
-        else
-        SliverToBoxAdapter(
-          child: _GiftCategoryShowcase(
-            selectedCategory: _selectedShopSubCategory,
-            sortOption: _shopSortOption,
-            onItemTap: _openShopItemFromHome,
-            onShopTap: _openShopProfile,
-            onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-          ),
-        ),
       ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Groceries') ...[
         if (_groceryRemoteReady)
-          SliverToBoxAdapter(
-            child: _RemoteGroceryShowcase(
-              items: _groceryRemoteProducts,
-              selectedCategory: _selectedShopSubCategory,
-              onItemTap: _openShopItemFromHome,
-              onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-              isWishlisted: _isWishlisted,
-              onWishlistToggle: _toggleWishlist,
+          if (_groceryRemoteProducts.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _RemoteGroceryShowcase(
+                items: _groceryRemoteProducts,
+                selectedCategory: _selectedShopSubCategory,
+                onItemTap: _openShopItemFromHome,
+                onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
+                isWishlisted: _isWishlisted,
+                onWishlistToggle: _toggleWishlist,
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: _effectiveGroceryShopCards.length,
+              itemBuilder: (context, index) => _VerticalShopCard(
+                item: _effectiveGroceryShopCards[index],
+                isWishlisted: _isWishlisted(_effectiveGroceryShopCards[index]),
+                onWishlistToggle: () => _toggleWishlist(_effectiveGroceryShopCards[index]),
+                onTap: () => _openShopProfile(_effectiveGroceryShopCards[index]),
+              ),
             ),
-          )
-        else
-          SliverToBoxAdapter(
-            child: _GroceryCategoryShowcase(
-              selectedCategory: _selectedShopSubCategory,
-              sortOption: _shopSortOption,
-              onItemTap: _openShopItemFromHome,
-              onShopTap: _openShopProfile,
-              onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-              isWishlisted: _isWishlisted,
-              onWishlistToggle: _toggleWishlist,
-            ),
-          ),
       ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Pharmacy') ...[
         if (_pharmacyRemoteReady)
-          SliverToBoxAdapter(
-            child: _RemotePharmacyShowcase(
-              items: _pharmacyRemoteProducts,
-              selectedCategory: _selectedShopSubCategory,
-              onItemTap: _openShopItemFromHome,
-              onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-              isWishlisted: _isWishlisted,
-              onWishlistToggle: _toggleWishlist,
+          if (_pharmacyRemoteProducts.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _RemotePharmacyShowcase(
+                items: _pharmacyRemoteProducts,
+                selectedCategory: _selectedShopSubCategory,
+                onItemTap: _openShopItemFromHome,
+                onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
+                isWishlisted: _isWishlisted,
+                onWishlistToggle: _toggleWishlist,
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: _effectivePharmacyShopCards.length,
+              itemBuilder: (context, index) => _VerticalShopCard(
+                item: _effectivePharmacyShopCards[index],
+                isWishlisted: _isWishlisted(_effectivePharmacyShopCards[index]),
+                onWishlistToggle: () => _toggleWishlist(_effectivePharmacyShopCards[index]),
+                onTap: () => _openShopProfile(_effectivePharmacyShopCards[index]),
+              ),
             ),
-          )
-        else
-          SliverToBoxAdapter(
-            child: _PharmacyCategoryShowcase(
-              selectedCategory: _selectedShopSubCategory,
-              sortOption: _shopSortOption,
-              onItemTap: _openShopItemFromHome,
-              onShopTap: _openShopProfile,
-              onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-              isWishlisted: _isWishlisted,
-              onWishlistToggle: _toggleWishlist,
-            ),
-          ),
       ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
           _showShopFashionLanding &&
           _fashionRemoteReady) ...[
-        SliverToBoxAdapter(
-          child: _RemoteFashionShowcase(
-            items: _fashionRemoteProducts,
-            hasMore: _fashionRemoteHasMore,
-            onItemTap: _openShopItemFromHome,
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
+        if (_fashionRemoteProducts.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _RemoteFashionShowcase(
+              items: _fashionRemoteProducts,
+              hasMore: _fashionRemoteHasMore,
+              onItemTap: _openShopItemFromHome,
+              isWishlisted: _isWishlisted,
+              onWishlistToggle: _toggleWishlist,
+            ),
+          )
+        else
+          SliverList.builder(
+            itemCount: _effectiveFashionShopCards.length,
+            itemBuilder: (context, index) => _VerticalShopCard(
+              item: _effectiveFashionShopCards[index],
+              isWishlisted: _isWishlisted(_effectiveFashionShopCards[index]),
+              onWishlistToggle: () => _toggleWishlist(_effectiveFashionShopCards[index]),
+              onTap: () => _openShopProfile(_effectiveFashionShopCards[index]),
+            ),
           ),
-        ),
       ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
           _showShopFootwearLanding &&
           _footwearRemoteReady) ...[
-        SliverToBoxAdapter(
-          child: _RemoteFootwearShowcase(
-            items: _footwearRemoteProducts,
-            hasMore: _footwearRemoteHasMore,
-            onItemTap: _openShopItemFromHome,
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-          ),
-        ),
-      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Fashion') ...[
-        SliverToBoxAdapter(
-          child: _FashionCategoryShowcase(
-            selectedCategory: _selectedShopSubCategory,
-            onTap: _openShopProfile,
-            onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-            visibleFeedCount: _fashionVisibleProductCount,
-            sortOption: _shopSortOption,
-          ),
-        ),
-      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Footwear') ...[
-        SliverToBoxAdapter(
-          child: _FootwearCategoryShowcase(
-            selectedCategory: _selectedShopSubCategory,
-            onTap: _openShopProfile,
-            onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-            visibleFeedCount: _footwearVisibleProductCount,
-            sortOption: _shopSortOption,
-          ),
-        ),
-      ]
-      else if (_shopBrowseMode == _ShopBrowseMode.itemWise)
-        ...shopSections.map(
-          (section) => SliverToBoxAdapter(
-            child: _GridDiscoverySection(
-              title: section.title,
-              caption: section.caption,
-              items: section.items,
-              onTap: (item) => _openShopProfile(item),
+        if (_footwearRemoteProducts.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _RemoteFootwearShowcase(
+              items: _footwearRemoteProducts,
+              hasMore: _footwearRemoteHasMore,
+              onItemTap: _openShopItemFromHome,
               isWishlisted: _isWishlisted,
               onWishlistToggle: _toggleWishlist,
-              onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
-              hideHeader: _selectedShopCategory == 'Fashion',
+            ),
+          )
+        else
+          SliverList.builder(
+            itemCount: _effectiveFootwearShopCards.length,
+            itemBuilder: (context, index) => _VerticalShopCard(
+              item: _effectiveFootwearShopCards[index],
+              isWishlisted: _isWishlisted(_effectiveFootwearShopCards[index]),
+              onWishlistToggle: () => _toggleWishlist(_effectiveFootwearShopCards[index]),
+              onTap: () => _openShopProfile(_effectiveFootwearShopCards[index]),
             ),
           ),
-        ),
-      if (_shopBrowseMode == _ShopBrowseMode.shopWise && _selectedShopCategory == 'Groceries')
-        SliverToBoxAdapter(
-          child: _GroceryShopWiseSection(
-            items: _groceryRemoteReady ? _effectiveGroceryShopCards : _filteredShopWiseItems,
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-            onTap: _openShopProfile,
+      ],
+      if (_shopBrowseMode == _ShopBrowseMode.shopWise &&
+          _selectedShopCategory == 'Groceries')
+        SliverList.builder(
+          itemCount: _effectiveGroceryShopCards.length,
+          itemBuilder: (context, index) => _VerticalShopCard(
+            item: _effectiveGroceryShopCards[index],
+            isWishlisted: _isWishlisted(_effectiveGroceryShopCards[index]),
+            onWishlistToggle: () => _toggleWishlist(_effectiveGroceryShopCards[index]),
+            onTap: () => _openShopProfile(_effectiveGroceryShopCards[index]),
           ),
         ),
-      if (_shopBrowseMode == _ShopBrowseMode.shopWise && _selectedShopCategory == 'Pharmacy')
-        SliverToBoxAdapter(
-          child: _PharmacyShopWiseSection(
-            items: _pharmacyRemoteReady ? _effectivePharmacyShopCards : _filteredShopWiseItems,
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-            onTap: _openShopProfile,
+      if (_shopBrowseMode == _ShopBrowseMode.shopWise &&
+          _selectedShopCategory == 'Pharmacy')
+        SliverList.builder(
+          itemCount: _effectivePharmacyShopCards.length,
+          itemBuilder: (context, index) => _VerticalShopCard(
+            item: _effectivePharmacyShopCards[index],
+            isWishlisted: _isWishlisted(_effectivePharmacyShopCards[index]),
+            onWishlistToggle: () => _toggleWishlist(_effectivePharmacyShopCards[index]),
+            onTap: () => _openShopProfile(_effectivePharmacyShopCards[index]),
           ),
         ),
-      if (_shopBrowseMode == _ShopBrowseMode.shopWise && _selectedShopCategory == 'Gift')
-        SliverToBoxAdapter(
-          child: _GiftShopWiseSection(
-            items: _giftRemoteReady ? _effectiveGiftShopCards : _filteredShopWiseItems,
-            isWishlisted: _isWishlisted,
-            onWishlistToggle: _toggleWishlist,
-            onTap: _openShopProfile,
+      if (_shopBrowseMode == _ShopBrowseMode.shopWise &&
+          _selectedShopCategory == 'Gift')
+        SliverList.builder(
+          itemCount: _effectiveGiftShopCards.length,
+          itemBuilder: (context, index) => _VerticalShopCard(
+            item: _effectiveGiftShopCards[index],
+            isWishlisted: _isWishlisted(_effectiveGiftShopCards[index]),
+            onWishlistToggle: () => _toggleWishlist(_effectiveGiftShopCards[index]),
+            onTap: () => _openShopProfile(_effectiveGiftShopCards[index]),
           ),
         ),
       if (_shopBrowseMode == _ShopBrowseMode.shopWise &&
@@ -3699,26 +3165,18 @@ class _UserHomePageState extends State<UserHomePage> {
             onTap: () => _openShopProfile(_effectiveFootwearShopCards[index]),
           ),
         ),
-      if (_shopBrowseMode == _ShopBrowseMode.shopWise)
-        SliverList.builder(
-          itemCount: (_selectedShopCategory == 'Groceries' ||
-                  _selectedShopCategory == 'Fashion' ||
-                  _selectedShopCategory == 'Footwear' ||
-                  _selectedShopCategory == 'Pharmacy' ||
-                  _selectedShopCategory == 'Gift')
-              ? 0
-              : shopWiseItems.length,
-          itemBuilder: (context, index) => _VerticalShopCard(
-            item: shopWiseItems[index],
-            isWishlisted: _isWishlisted(shopWiseItems[index]),
-            onWishlistToggle: () => _toggleWishlist(shopWiseItems[index]),
-            onTap: () => _openShopProfile(shopWiseItems[index]),
-          ),
-        ),
     ];
   }
 
   void _openCard(_DiscoveryItem item, _HomeMode mode) {
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.title} is unavailable right now.'
+            : '${item.title} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
+      return;
+    }
     if (mode == _HomeMode.shop) {
       _openShopProfile(item);
       return;
@@ -3743,6 +3201,10 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   Future<void> _openRestaurantListing(_RestaurantListingItem listing) async {
+    if (listing.item.isDisabled) {
+      _showCartSnack('${listing.item.title} is closed right now.');
+      return;
+    }
     if (listing.item.backendProductId != null) {
       await _openShopItemFromHome(listing.item);
       return;
@@ -3783,9 +3245,12 @@ class _UserHomePageState extends State<UserHomePage> {
       );
       return;
     }
-    final shopTiming = _shopTimingFor(item.subtitle, itemCategory);
-    if (!shopTiming.isOpen) {
-      _showCartSnack('${item.subtitle} is closed right now.');
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.subtitle} is unavailable right now.'
+            : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
       return;
     }
     final isFashionItem = itemCategory == 'Fashion';
@@ -4042,9 +3507,12 @@ class _UserHomePageState extends State<UserHomePage> {
       );
       return;
     }
-    final shopTiming = _shopTimingFor(item.subtitle, inferredCategory);
-    if (!shopTiming.isOpen) {
-      _showCartSnack('${item.subtitle} is closed right now.');
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.subtitle} is unavailable right now.'
+            : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
       return;
     }
     if (inferredCategory == 'Fashion' && item.backendShopId != null) {
@@ -4334,6 +3802,14 @@ class _UserHomePageState extends State<UserHomePage> {
     _HomeMode mode, {
     String? labourBookingPeriod,
   }) async {
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.title} is unavailable right now.'
+            : '${item.title} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
+      return;
+    }
     switch (mode) {
       case _HomeMode.shop:
         await _handleShopCartAdd(item, openCartAfterAdd: true);
@@ -4449,6 +3925,14 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   Future<bool> _handleShopCartAdd(_DiscoveryItem item, {bool openCartAfterAdd = false}) async {
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.subtitle} is unavailable right now.'
+            : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
+      return false;
+    }
     final shopName = item.subtitle;
     final category = _shopCategoryForItem(item);
     if (item.backendProductId != null) {
@@ -4550,6 +4034,97 @@ class _UserHomePageState extends State<UserHomePage> {
   void _showCartSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+}
+
+enum _HomePermissionAction {
+  requestAgain,
+  appSettings,
+  locationSettings,
+}
+
+class _HomeLocationOptionTile extends StatelessWidget {
+  const _HomeLocationOptionTile({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _HomeLocationChoice option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFFCEAE5) : const Color(0xFFF8F4EF),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected ? const Color(0xFFCB6E5B) : const Color(0xFFE9DED5),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: selected ? const Color(0xFFCB6E5B) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  option.isCurrentLocation
+                      ? Icons.my_location_rounded
+                      : Icons.location_on_outlined,
+                  color: selected ? Colors.white : const Color(0xFF22314D),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      option.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF6E7B91),
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFFCB6E5B),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

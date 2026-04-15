@@ -1,46 +1,5 @@
 part of '../../main.dart';
 
-String _allQuickCategoryLabelForItem(_DiscoveryItem item) {
-  return _allQuickCategoryChipLabelForItem(item);
-}
-
-String _allQuickCategoryChipLabelForItem(_DiscoveryItem item) {
-  final extra = item.extra.trim();
-  final text = '${item.title} ${item.subtitle} ${item.extra}'.toLowerCase();
-
-  if (extra == 'Bakery' || text.contains('bakery')) {
-    return 'Bakery';
-  }
-  if (extra == 'Gift' || text.contains('gift')) {
-    return 'Gifting';
-  }
-  if (extra == 'Shop' ||
-      text.contains('kitchen') ||
-      text.contains('staples') ||
-      text.contains('oil') ||
-      text.contains('atta') ||
-      text.contains('dal')) {
-    return 'Kitchen';
-  }
-  if (extra == 'Dining' ||
-      text.contains('dinner') ||
-      text.contains('meal') ||
-      text.contains('thali') ||
-      text.contains('restaurant')) {
-    return 'Dining';
-  }
-  if (extra == 'Pharmacy' || text.contains('pharmacy')) {
-    return 'Pharmacy';
-  }
-  if (extra == 'Essentials' || text.contains('milk') || text.contains('bread')) {
-    return 'Essentials';
-  }
-  if (extra == 'Groceries' || text.contains('grocery') || text.contains('veg') || text.contains('fruit')) {
-    return 'Groceries';
-  }
-  return extra.isNotEmpty ? extra : 'Groceries';
-}
-
 class _MetaPill extends StatelessWidget {
   const _MetaPill({
     required this.icon,

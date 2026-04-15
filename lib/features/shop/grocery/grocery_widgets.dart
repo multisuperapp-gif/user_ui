@@ -1,241 +1,5 @@
 part of '../../../main.dart';
 
-class _AllHouseholdEssentialsSection extends StatelessWidget {
-  const _AllHouseholdEssentialsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final items = _groceryItemsForCategory('Household').take(8).toList();
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.045),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(
-                      Icons.home_filled,
-                      size: 15,
-                      color: Color(0xFF6E8E78),
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'Daily Home Refill Picks',
-                      style: TextStyle(
-                        color: Color(0xFF1F2A3C),
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.1,
-                        height: 1,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 5),
-                Container(
-                  width: 72,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF90B09A),
-                        Color(0xFFD7E7DC),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: items.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.7,
-                  ),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: _TemporaryCatalogImage(
-                              item: item,
-                              fallback: _SceneThumb(
-                                title: item.title,
-                                accent: item.accent,
-                                compact: true,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFF273042),
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            height: 1.1,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GroceryCategoryShowcase extends StatelessWidget {
-  const _GroceryCategoryShowcase({
-    required this.selectedCategory,
-    required this.sortOption,
-    required this.onItemTap,
-    required this.onShopTap,
-    required this.onAddToCart,
-    required this.isWishlisted,
-    required this.onWishlistToggle,
-  });
-
-  final String selectedCategory;
-  final String sortOption;
-  final ValueChanged<_DiscoveryItem> onItemTap;
-  final ValueChanged<_DiscoveryItem> onShopTap;
-  final ValueChanged<_DiscoveryItem> onAddToCart;
-  final bool Function(_DiscoveryItem item) isWishlisted;
-  final ValueChanged<_DiscoveryItem> onWishlistToggle;
-
-  List<_GroceryCampaignSectionData> get _sections {
-    final categories = selectedCategory == 'All'
-        ? const ['Biscuits', 'Noodles', 'Rice', 'Chips', 'Household']
-        : [selectedCategory];
-    return categories
-        .map((category) => _GroceryCampaignSectionData(
-              category: category,
-              title: _groceryCampaignTitle(category),
-              subtitle: _groceryCampaignSubtitle(category),
-              colors: _groceryCampaignColors(category),
-              items: _sortedGroceryItems(
-                _groceryItemsForCategory(category),
-                sortOption,
-              ),
-            ))
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sections = _sections;
-    return ColoredBox(
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < sections.length; i++) ...[
-            if (i == 0)
-              const SizedBox(height: 10)
-            else
-              const SizedBox(height: 18),
-            _GroceryCampaignSection(
-              data: sections[i],
-              onItemTap: onItemTap,
-              onShopTap: onShopTap,
-              onAddToCart: onAddToCart,
-              isWishlisted: isWishlisted,
-              onWishlistToggle: onWishlistToggle,
-            ),
-          ],
-          const SizedBox(height: 18),
-        ],
-      ),
-    );
-  }
-}
-
-class _GroceryShopWiseSection extends StatelessWidget {
-  const _GroceryShopWiseSection({
-    required this.items,
-    required this.isWishlisted,
-    required this.onWishlistToggle,
-    required this.onTap,
-  });
-
-  final List<_DiscoveryItem> items;
-  final bool Function(_DiscoveryItem item) isWishlisted;
-  final ValueChanged<_DiscoveryItem> onWishlistToggle;
-  final ValueChanged<_DiscoveryItem> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final shops = items.isEmpty ? _groceryShopWiseSeeds : items.take(8).toList();
-    return ColoredBox(
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'GROCERY SHOPS',
-              style: TextStyle(
-                color: Color(0xFF7B8392),
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.6,
-              ),
-            ),
-            const SizedBox(height: 10),
-            for (final shop in shops) ...[
-              _GroceryShopWiseCard(
-                item: shop,
-                previewItems: _groceryItemsForCategory(
-                  _shopSubcategoryFor(shop, 'Groceries'),
-                  shopName: shop.title,
-                ).take(4).toList(),
-                isWishlisted: isWishlisted(shop),
-                onWishlistToggle: () => onWishlistToggle(shop),
-                onTap: () => onTap(shop),
-              ),
-              const SizedBox(height: 14),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _GroceryCampaignSection extends StatelessWidget {
   const _GroceryCampaignSection({
     required this.data,
@@ -439,141 +203,39 @@ class _GroceryPromoGridTile extends StatelessWidget {
   }
 }
 
-class _GroceryShopWiseCard extends StatelessWidget {
-  const _GroceryShopWiseCard({
-    required this.item,
-    required this.previewItems,
-    required this.isWishlisted,
-    required this.onWishlistToggle,
+class _GroceryPackChip extends StatelessWidget {
+  const _GroceryPackChip({
+    required this.label,
+    required this.selected,
     required this.onTap,
   });
 
-  final _DiscoveryItem item;
-  final List<_DiscoveryItem> previewItems;
-  final bool isWishlisted;
-  final VoidCallback onWishlistToggle;
+  final String label;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFE7E9EE)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          color: selected ? const Color(0xFFEFF9F1) : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFF2E8E45) : const Color(0xFFE0E6DE),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(
-                          color: Color(0xFF202A3E),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Nearby grocery shop • ${item.distance}',
-                        style: const TextStyle(
-                          color: Color(0xFF6C7585),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: onWishlistToggle,
-                  child: Icon(
-                    isWishlisted ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                    color: const Color(0xFF2E8E45),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _ratingColor(item.rating),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star_rounded, size: 12, color: Colors.white),
-                      const SizedBox(width: 3),
-                      Text(
-                        item.rating,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Promotion first • top rated items',
-                  style: TextStyle(
-                    color: Color(0xFF6C7585),
-                    fontSize: 11.6,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 84,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: previewItems.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final preview = previewItems[index];
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: SizedBox(
-                      width: 76,
-                      child: _TemporaryCatalogImage(
-                        item: preview,
-                        fallback: _SceneThumb(
-                          title: preview.title,
-                          accent: preview.accent,
-                          compact: true,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? const Color(0xFF206534) : const Color(0xFF5A6370),
+            fontSize: 12.4,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
@@ -591,49 +253,66 @@ class _GroceryProfilePromoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
+          colors: [Color(0xFFF1FBF3), Color(0xFFFFFFFF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFF7FFF4),
-            Color(0xFFEAF4FF),
-          ],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDCECDD)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Top deals',
+            'Recommended nearby',
             style: TextStyle(
-              color: Color(0xFF1E2636),
-              fontSize: 20,
+              color: Color(0xFF202A3E),
+              fontSize: 14.5,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          const Text(
+            'Fast picks from this grocery store',
+            style: TextStyle(
+              color: Color(0xFF6B7482),
+              fontSize: 12.2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
-            height: 132,
+            height: 96,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: items.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final item = items[index];
-                return GestureDetector(
+                return InkWell(
                   onTap: () => onTap(item),
-                  child: SizedBox(
-                    width: 110,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: 168,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Row(
                       children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: SizedBox(
+                            width: 62,
+                            height: 76,
                             child: _TemporaryCatalogImage(
                               item: item,
                               fallback: _SceneThumb(
@@ -644,16 +323,33 @@ class _GroceryProfilePromoStrip extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF273042),
-                            fontSize: 11.3,
-                            fontWeight: FontWeight.w800,
-                            height: 1.08,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF202A3E),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.15,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                item.price,
+                                style: const TextStyle(
+                                  color: Color(0xFF2E8E45),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -687,8 +383,8 @@ class _GroceryProfileSectionHeader extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            color: Color(0xFF1E2636),
-            fontSize: 18,
+            color: Color(0xFF202A3E),
+            fontSize: 15.5,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -696,8 +392,8 @@ class _GroceryProfileSectionHeader extends StatelessWidget {
         Text(
           subtitle,
           style: const TextStyle(
-            color: Color(0xFF6B7484),
-            fontSize: 12,
+            color: Color(0xFF6D7685),
+            fontSize: 12.1,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -727,172 +423,102 @@ class _GroceryProfileItemCard extends StatelessWidget {
     final outOfStock = _isShopItemOutOfStock(item);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-        child: Container(
-        padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFE7E9EE)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: _TemporaryCatalogImage(
-                        item: item,
-                        fallback: _SceneThumb(
-                          title: item.title,
-                          accent: item.accent,
-                          compact: true,
-                        ),
+      borderRadius: BorderRadius.circular(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: _TemporaryCatalogImage(
+                      item: item,
+                      fallback: _SceneThumb(
+                        title: item.title,
+                        accent: item.accent,
+                        compact: true,
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: GestureDetector(
-                      onTap: onWishlistToggle,
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: onWishlistToggle,
                     child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isWishlisted ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                          size: 11,
-                          color: const Color(0xFF2E8E45),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (outOfStock)
-                    const Positioned(
-                      top: 6,
-                      left: 6,
-                      child: _OutOfStockBadge(compact: true),
-                    ),
-                  Positioned(
-                    left: 6,
-                    bottom: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                      width: 23,
+                      height: 23,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: Colors.white.withValues(alpha: 0.92),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isWishlisted ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                        size: 13,
+                        color: const Color(0xFF2E8E45),
+                      ),
+                    ),
+                  ),
+                ),
+                if (outOfStock)
+                  const Positioned(
+                    top: 6,
+                    left: 6,
+                    child: _OutOfStockBadge(compact: true),
+                  ),
+                Positioned(
+                  left: 6,
+                  right: 6,
+                  bottom: 6,
+                  child: InkWell(
+                    onTap: outOfStock ? null : () => onAddTap(),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.94),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        item.rating,
+                        outOfStock ? 'Unavailable' : 'ADD',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _ratingColor(item.rating),
-                          fontSize: 8.6,
+                          color: outOfStock ? const Color(0xFF9AA1AD) : const Color(0xFF2E8E45),
+                          fontSize: 10.8,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF1F2635),
-                fontSize: 8.8,
-                fontWeight: FontWeight.w700,
-                height: 1.02,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.price,
-                    style: const TextStyle(
-                      color: Color(0xFF1F2635),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => onAddTap(),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF26A05A),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Icon(
-                      Icons.add_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  ),
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GroceryPackChip extends StatelessWidget {
-  const _GroceryPackChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFFEAF7EE) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? const Color(0xFF2E8E45) : const Color(0xFFE3E6EC),
-            width: selected ? 1.5 : 1,
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? const Color(0xFF2E8E45) : const Color(0xFF3A4150),
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
+          const SizedBox(height: 6),
+          Text(
+            item.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF202A3E),
+              fontSize: 11.2,
+              fontWeight: FontWeight.w800,
+              height: 1.08,
+            ),
           ),
-        ),
+          const SizedBox(height: 4),
+          Text(
+            item.price,
+            style: const TextStyle(
+              color: Color(0xFF202A3E),
+              fontSize: 11.6,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -192,38 +192,3 @@ Alignment _pharmacyCampaignTitleAlignment(String category) {
       return Alignment.centerLeft;
   }
 }
-
-List<_DiscoveryItem> get _pharmacyShopWiseSeeds => const [
-      _DiscoveryItem(
-        title: 'Wellness Hub',
-        subtitle: 'Pharmacy',
-        accent: Color(0xFF7CB4D6),
-        icon: Icons.local_pharmacy_rounded,
-        rating: '4.7',
-        distance: '1.0 km',
-      ),
-      _DiscoveryItem(
-        title: 'Glow Pharmacy',
-        subtitle: 'Pharmacy',
-        accent: Color(0xFFE7A4B8),
-        icon: Icons.local_pharmacy_rounded,
-        rating: '4.5',
-        distance: '1.3 km',
-      ),
-      _DiscoveryItem(
-        title: 'Care Plus',
-        subtitle: 'Pharmacy',
-        accent: Color(0xFF8FC7C2),
-        icon: Icons.local_pharmacy_rounded,
-        rating: '4.6',
-        distance: '1.6 km',
-      ),
-      _DiscoveryItem(
-        title: 'Little Care Pharmacy',
-        subtitle: 'Pharmacy',
-        accent: Color(0xFFC7A1DA),
-        icon: Icons.local_pharmacy_rounded,
-        rating: '4.4',
-        distance: '1.8 km',
-      ),
-    ];

@@ -73,37 +73,72 @@ class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
+  const _HomeHeader({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const Icon(Icons.location_on_rounded, color: Color(0xFF202435), size: 18),
-        const SizedBox(width: 5),
-        Expanded(
-          child: RichText(
-            text: const TextSpan(
-              style: TextStyle(
-                color: Color(0xFF202435),
-                fontSize: 13,
-                fontFamily: 'SF Pro Display',
-              ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Icon(Icons.location_on_rounded, color: Color(0xFF202435), size: 18),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextSpan(text: 'Deliver to '),
-                TextSpan(
-                  text: 'X7MF+53X - Nawada, Bihar 84150...',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF202435),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'SF Pro Display',
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: const Color(0xFF202435).withValues(alpha: 0.72),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'SF Pro Display',
+                  ),
                 ),
               ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF202435), size: 20),
-      ],
+          const SizedBox(width: 8),
+          if (loading)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.1,
+                color: Color(0xFF202435),
+              ),
+            )
+          else
+            const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF202435), size: 20),
+        ],
+      ),
     );
   }
 }

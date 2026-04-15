@@ -434,12 +434,20 @@ class _UserAppApi {
     return _mapCart(data);
   }
 
-  static Future<_RemoteLabourLandingData> fetchLabourLanding({int? categoryId}) async {
+  static Future<_RemoteLabourLandingData> fetchLabourLanding({
+    int? categoryId,
+    String? city,
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/labour/landing',
       authenticated: true,
       queryParameters: {
         if (categoryId != null) 'categoryId': '$categoryId',
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
         'page': '0',
         'size': '20',
       },
@@ -518,6 +526,9 @@ class _UserAppApi {
   static Future<_RemoteServiceLandingData> fetchServiceLanding({
     int? categoryId,
     int? subcategoryId,
+    String? city,
+    double? latitude,
+    double? longitude,
   }) async {
     final response = await _get(
       '/public/service/landing',
@@ -525,6 +536,9 @@ class _UserAppApi {
       queryParameters: {
         if (categoryId != null) 'categoryId': '$categoryId',
         if (subcategoryId != null) 'subcategoryId': '$subcategoryId',
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
         'page': '0',
         'size': '20',
       },
@@ -571,10 +585,18 @@ class _UserAppApi {
     );
   }
 
-  static Future<_RestaurantLandingData> fetchRestaurantLanding() async {
+  static Future<_RestaurantLandingData> fetchRestaurantLanding({
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/restaurant/landing',
-      queryParameters: const {'page': '0', 'size': '20'},
+      queryParameters: {
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
+        'page': '0',
+        'size': '20',
+      },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
@@ -665,10 +687,18 @@ class _UserAppApi {
     );
   }
 
-  static Future<_FashionLandingData> fetchFashionLanding() async {
+  static Future<_FashionLandingData> fetchFashionLanding({
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/fashion/landing',
-      queryParameters: const {'page': '0', 'size': '20'},
+      queryParameters: {
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
+        'page': '0',
+        'size': '20',
+      },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
@@ -749,10 +779,18 @@ class _UserAppApi {
     );
   }
 
-  static Future<_FootwearLandingData> fetchFootwearLanding() async {
+  static Future<_FootwearLandingData> fetchFootwearLanding({
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/footwear/landing',
-      queryParameters: const {'page': '0', 'size': '20'},
+      queryParameters: {
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
+        'page': '0',
+        'size': '20',
+      },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
@@ -833,10 +871,18 @@ class _UserAppApi {
     );
   }
 
-  static Future<_GiftLandingData> fetchGiftLanding() async {
+  static Future<_GiftLandingData> fetchGiftLanding({
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/gift/landing',
-      queryParameters: const {'page': '0', 'size': '20'},
+      queryParameters: {
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
+        'page': '0',
+        'size': '20',
+      },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
@@ -917,10 +963,18 @@ class _UserAppApi {
     );
   }
 
-  static Future<_GroceryLandingData> fetchGroceryLanding() async {
+  static Future<_GroceryLandingData> fetchGroceryLanding({
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/grocery/landing',
-      queryParameters: const {'page': '0', 'size': '20'},
+      queryParameters: {
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
+        'page': '0',
+        'size': '20',
+      },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
@@ -1001,10 +1055,18 @@ class _UserAppApi {
     );
   }
 
-  static Future<_PharmacyLandingData> fetchPharmacyLanding() async {
+  static Future<_PharmacyLandingData> fetchPharmacyLanding({
+    double? latitude,
+    double? longitude,
+  }) async {
     final response = await _get(
       '/public/pharmacy/landing',
-      queryParameters: const {'page': '0', 'size': '20'},
+      queryParameters: {
+        if (latitude != null) 'latitude': '$latitude',
+        if (longitude != null) 'longitude': '$longitude',
+        'page': '0',
+        'size': '20',
+      },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
@@ -1375,6 +1437,7 @@ class _UserAppApi {
   static _DiscoveryItem _mapLabourProfile(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Labour'}';
     final hourly = _money(raw['hourlyRate']);
+    final availableToday = (raw['availableToday'] as bool?) ?? false;
     return _DiscoveryItem(
       title: '${raw['fullName'] ?? 'Labour'}',
       subtitle: category,
@@ -1387,6 +1450,8 @@ class _UserAppApi {
       maskedPhone: '${raw['maskedPhone'] ?? ''}',
       backendLabourId: (raw['labourId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
+      isDisabled: !availableToday,
+      disabledLabel: availableToday ? '' : 'Booked',
     );
   }
 
@@ -1412,6 +1477,8 @@ class _UserAppApi {
 
   static _DiscoveryItem _mapServiceProvider(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Service'}';
+    final availableServiceMen = (raw['availableServiceMen'] as num?)?.toInt() ?? 0;
+    final isAvailable = availableServiceMen > 0;
     return _DiscoveryItem(
       title: '${raw['providerName'] ?? 'Service provider'}',
       subtitle: '${raw['serviceName'] ?? raw['subcategoryName'] ?? category}',
@@ -1425,6 +1492,8 @@ class _UserAppApi {
       backendServiceProviderId: (raw['providerId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
       backendSubcategoryId: (raw['subcategoryId'] as num?)?.toInt(),
+      isDisabled: !isAvailable,
+      disabledLabel: isAvailable ? '' : 'Booked',
     );
   }
 

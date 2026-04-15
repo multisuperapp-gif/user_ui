@@ -427,7 +427,7 @@ class _RestaurantListingCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
       child: InkWell(
-        onTap: onTap,
+        onTap: item.isDisabled ? null : onTap,
         borderRadius: BorderRadius.circular(24),
         child: Container(
           decoration: BoxDecoration(
@@ -485,6 +485,14 @@ class _RestaurantListingCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
+                        Positioned(
+                          left: 12,
+                          top: 12,
+                          child: _AvailabilityBadge(
+                            label: item.disabledLabel,
+                          ),
+                        ),
                       Positioned(
                         left: 10,
                         bottom: 10,

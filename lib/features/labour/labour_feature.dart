@@ -199,7 +199,7 @@ class _LabourPortraitTile extends StatelessWidget {
     final metricsGap = compactScale < 1 ? 5.0 : 8 * compactScale;
     final distanceFont = compactScale < 1 ? 9.4 : 10.4;
     return GestureDetector(
-      onTap: onTap,
+      onTap: item.isDisabled ? null : onTap,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -266,6 +266,15 @@ class _LabourPortraitTile extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
+                        Positioned(
+                          left: 8,
+                          top: 8,
+                          child: _AvailabilityBadge(
+                            label: item.disabledLabel,
+                            compact: compactScale < 1,
+                          ),
+                        ),
                       Positioned.fill(
                         child: DecoratedBox(
                           decoration: BoxDecoration(
@@ -736,142 +745,6 @@ Color _ratingColor(String rating) {
   return const Color(0xFFD23B3B);
 }
 
-class _GridDiscoverySection extends StatelessWidget {
-  const _GridDiscoverySection({
-    required this.title,
-    required this.caption,
-    required this.items,
-    required this.onTap,
-    required this.isWishlisted,
-    required this.onWishlistToggle,
-    required this.onAddToCart,
-    this.hideHeader = false,
-  });
-
-  final String title;
-  final String caption;
-  final List<_DiscoveryItem> items;
-  final ValueChanged<_DiscoveryItem> onTap;
-  final bool Function(_DiscoveryItem item) isWishlisted;
-  final ValueChanged<_DiscoveryItem> onWishlistToggle;
-  final ValueChanged<_DiscoveryItem> onAddToCart;
-  final bool hideHeader;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(18, hideHeader ? 8 : 16, 18, 0),
-      child: Container(
-        padding: EdgeInsets.fromLTRB(12, hideHeader ? 10 : 12, 12, 14),
-        decoration: BoxDecoration(
-          color: hideHeader ? Colors.white : _sceneVisual(title).$2.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!hideHeader) ...[
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFF22314D),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                caption,
-                style: const TextStyle(
-                  color: Color(0xFF76839A),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11.5,
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: items.length.clamp(0, 8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.9,
-              ),
-              itemBuilder: (context, index) => _MiniGridItem(
-                item: items[index],
-                onTap: () => onTap(items[index]),
-                isWishlisted: isWishlisted(items[index]),
-                onWishlistToggle: () => onWishlistToggle(items[index]),
-                onAddToCart: () => onAddToCart(items[index]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-class _MiniGridItem extends StatelessWidget {
-  const _MiniGridItem({
-    required this.item,
-    required this.onTap,
-    required this.isWishlisted,
-    required this.onWishlistToggle,
-    required this.onAddToCart,
-  });
-
-  final _DiscoveryItem item;
-  final VoidCallback onTap;
-  final bool isWishlisted;
-  final VoidCallback onWishlistToggle;
-  final VoidCallback onAddToCart;
-
-  @override
-  Widget build(BuildContext context) {
-    final outOfStock = _isShopItemOutOfStock(item);
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        children: [
-          Positioned.fill(child: _ImageBackedShopTile(item: item)),
-          if (outOfStock)
-            const Positioned(
-              left: 6,
-              top: 6,
-              child: _OutOfStockBadge(compact: true),
-            ),
-          Positioned(
-            top: 6,
-            right: 6,
-            child: _RoundActionIcon(
-              icon: isWishlisted ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: const Color(0xFF4DAF50),
-              onTap: onWishlistToggle,
-              size: 24,
-              iconSize: 13,
-            ),
-          ),
-          Positioned(
-            top: 36,
-            right: 6,
-            child: _RoundActionIcon(
-              icon: outOfStock ? Icons.block_rounded : Icons.add_rounded,
-              color: outOfStock ? const Color(0xFFD8483A) : const Color(0xFF22314D),
-              onTap: outOfStock ? () {} : onAddToCart,
-              size: 24,
-              iconSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _VerticalProfileCard extends StatelessWidget {
   const _VerticalProfileCard({
     required this.item,
@@ -892,7 +765,7 @@ class _VerticalProfileCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
       child: InkWell(
-        onTap: onTap,
+        onTap: item.isDisabled ? null : onTap,
         borderRadius: BorderRadius.circular(18),
         child: Stack(
           children: [
@@ -1009,6 +882,15 @@ class _VerticalProfileCard extends StatelessWidget {
                 iconSize: 15,
               ),
             ),
+            if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
+              Positioned(
+                left: 8,
+                top: 8,
+                child: _AvailabilityBadge(
+                  label: item.disabledLabel,
+                  compact: true,
+                ),
+              ),
           ],
         ),
       ),

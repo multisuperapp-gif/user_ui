@@ -221,40 +221,66 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
                             ],
                           ),
                         ),
-                        const SizedBox(height: 18),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _FallingBrandLetter(
-                              letter: 'M',
-                              accent: const Color(0xFFCB6E5B),
-                              progress: _interval(0.48, 0.68, Curves.easeOutBack).value,
-                            ),
-                            const SizedBox(width: 12),
-                            _FallingBrandLetter(
-                              letter: 'S',
-                              accent: const Color(0xFFDF7DA0),
-                              progress: _interval(0.58, 0.78, Curves.easeOutBack).value,
-                            ),
-                            const SizedBox(width: 12),
-                            _FallingBrandLetter(
-                              letter: 'A',
-                              accent: const Color(0xFF5C8FD8),
-                              progress: _interval(0.68, 0.88, Curves.easeOutBack).value,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Center(
-                          child: Opacity(
-                            opacity: _interval(0.78, 1.0).value,
-                            child: Text(
-                              'Multi Super App',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.92),
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
+                        const SizedBox(height: 8),
+                        Opacity(
+                          opacity: _interval(0.74, 1.0).value,
+                          child: Transform.translate(
+                            offset: Offset(0, 28 * (1 - _interval(0.74, 1.0).value)),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.14),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(40),
+                                  topRight: Radius.circular(40),
+                                  bottomLeft: Radius.circular(26),
+                                  bottomRight: Radius.circular(26),
+                                ),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.14),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 14),
                                   ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _FallingBrandLetter(
+                                        letter: 'M',
+                                        accent: const Color(0xFFCB6E5B),
+                                        progress: _interval(0.48, 0.68, Curves.easeOutBack).value,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      _FallingBrandLetter(
+                                        letter: 'S',
+                                        accent: const Color(0xFFDF7DA0),
+                                        progress: _interval(0.58, 0.78, Curves.easeOutBack).value,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      _FallingBrandLetter(
+                                        letter: 'A',
+                                        accent: const Color(0xFF5C8FD8),
+                                        progress: _interval(0.68, 0.88, Curves.easeOutBack).value,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    'Multi Super App',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                          color: Colors.white.withValues(alpha: 0.94),
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -389,151 +415,185 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFD78268), Color(0xFFDF7DA0), Color(0xFFF7F2EC)],
-            stops: [0, 0.56, 0.56],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                flex: 5,
-                child: const _TopDiscoveryHero(
-                  title: 'DISCOVER HELP,\nHOME CARE & SHOPS\nNEAR YOU',
-                  subtitle:
-                      'Labour, repairs, groceries, dining, pharmacy and many more from one place.',
-                ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 780 || constraints.maxWidth < 390;
+          final horizontalPadding = constraints.maxWidth < 360 ? 16.0 : 22.0;
+          final heroHeight = (constraints.maxHeight * (compact ? 0.34 : 0.4))
+              .clamp(248.0, compact ? 320.0 : 392.0)
+              .toDouble();
+          final quickIconSize = compact ? 46.0 : 54.0;
+
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFD78268), Color(0xFFDF7DA0), Color(0xFFF7F2EC)],
+                stops: [0, 0.56, 0.56],
               ),
-              Expanded(
-                flex: 5,
-                child: Container(
-                  width: double.infinity,
-                  color: const Color(0xFFF7F2EC),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _LoginQuickIcon(
-                              icon: Icons.engineering_rounded,
-                              accent: Color(0xFFF2A13D),
-                            ),
-                            _LoginQuickIcon(
-                              icon: Icons.handyman_rounded,
-                              accent: Color(0xFFCB6E5B),
-                            ),
-                            _LoginQuickIcon(
-                              icon: Icons.local_grocery_store_rounded,
-                              accent: Color(0xFF4DAF50),
-                            ),
-                            _LoginQuickIcon(
-                              icon: Icons.local_pharmacy_rounded,
-                              accent: Color(0xFF1FB8A4),
-                            ),
-                            _LoginQuickIcon(
-                              icon: Icons.restaurant_rounded,
-                              accent: Color(0xFFFF954A),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Center(
-                          child: Text(
-                            'Log in or sign up',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF29314A),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            const _CountrySelector(),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _PhoneInputField(controller: _phoneController),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isSendingOtp ? null : _continueToOtp,
-                            style: ElevatedButton.styleFrom(
-                              elevation: 0,
-                              backgroundColor: const Color(0xFFCB6E5B),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: const RoundedRectangleBorder(),
-                              textStyle: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            child: Text(_isSendingOtp ? 'Sending OTP...' : 'Continue'),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Center(
-                          child: Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 6,
-                            runSpacing: 4,
-                            children: [
-                              Text(
-                                'By continuing, you agree to our',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: const Color(0xFF7A736A),
-                                ),
-                              ),
-                              const SizedBox(width: double.infinity),
-                              _PolicyLink(
-                                label: 'Terms of Service',
-                                onTap: () => _showPolicySheet(
-                                  'Terms of Service',
-                                  'Use of the platform means you agree to provide valid details, maintain lawful conduct, and respect provider and shop service rules. Bookings, cancellations, penalties, refunds and payment timelines will follow the app policies shown during checkout.',
-                                ),
-                              ),
-                              _PolicyLink(
-                                label: 'Privacy Policy',
-                                onTap: () => _showPolicySheet(
-                                  'Privacy Policy',
-                                  'We use your phone number, device details, saved addresses and booking activity to help you sign in, place bookings, receive updates and improve trust and safety. Sensitive details are handled only for service delivery, support and compliance.',
-                                ),
-                              ),
-                              _PolicyLink(
-                                label: 'Content Policy',
-                                onTap: () => _showPolicySheet(
-                                  'Content Policy',
-                                  'Users, providers and shops must not upload misleading, abusive, unsafe or illegal content. Fraudulent listings, fake bookings, offensive media and harmful behavior can result in suspension or permanent removal from the platform.',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                      ],
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: heroHeight,
+                    child: _TopDiscoveryHero(
+                      title: 'DISCOVER HELP,\nHOME CARE & SHOPS\nNEAR YOU',
+                      subtitle:
+                          'Labour, repairs, groceries, dining, pharmacy and many more from one place.',
+                      compact: compact,
                     ),
                   ),
-                ),
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      color: const Color(0xFFF7F2EC),
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontalPadding,
+                          compact ? 18 : 24,
+                          horizontalPadding,
+                          compact ? 12 : 16,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Center(
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: compact ? 10 : 14,
+                                runSpacing: compact ? 10 : 14,
+                                children: [
+                                  _LoginQuickIcon(
+                                    icon: Icons.engineering_rounded,
+                                    accent: const Color(0xFFF2A13D),
+                                    size: quickIconSize,
+                                  ),
+                                  _LoginQuickIcon(
+                                    icon: Icons.handyman_rounded,
+                                    accent: const Color(0xFFCB6E5B),
+                                    size: quickIconSize,
+                                  ),
+                                  _LoginQuickIcon(
+                                    icon: Icons.local_grocery_store_rounded,
+                                    accent: const Color(0xFF4DAF50),
+                                    size: quickIconSize,
+                                  ),
+                                  _LoginQuickIcon(
+                                    icon: Icons.local_pharmacy_rounded,
+                                    accent: const Color(0xFF1FB8A4),
+                                    size: quickIconSize,
+                                  ),
+                                  _LoginQuickIcon(
+                                    icon: Icons.restaurant_rounded,
+                                    accent: const Color(0xFFFF954A),
+                                    size: quickIconSize,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: compact ? 12 : 16),
+                            Center(
+                              child: Text(
+                                'Log in or sign up',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontSize: compact ? 17 : 19,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF29314A),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: compact ? 12 : 16),
+                            _PhoneInputField(
+                              controller: _phoneController,
+                              compact: compact,
+                            ),
+                            SizedBox(height: compact ? 12 : 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _isSendingOtp ? null : _continueToOtp,
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor: const Color(0xFFCB6E5B),
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: compact ? 14 : 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  textStyle: TextStyle(
+                                    fontSize: compact ? 15 : 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                child: Text(_isSendingOtp ? 'Sending OTP...' : 'Continue'),
+                              ),
+                            ),
+                            const Spacer(),
+                            Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'By continuing, you agree to our',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: const Color(0xFF7A736A),
+                                      fontSize: compact ? 12 : 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    alignment: WrapAlignment.center,
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      _PolicyLink(
+                                        label: 'Terms of Service',
+                                        onTap: () => _showPolicySheet(
+                                          'Terms of Service',
+                                          'Use of the platform means you agree to provide valid details, maintain lawful conduct, and respect provider and shop service rules. Bookings, cancellations, penalties, refunds and payment timelines will follow the app policies shown during checkout.',
+                                        ),
+                                      ),
+                                      _PolicyLink(
+                                        label: 'Privacy Policy',
+                                        onTap: () => _showPolicySheet(
+                                          'Privacy Policy',
+                                          'We use your phone number, device details, saved addresses and booking activity to help you sign in, place bookings, receive updates and improve trust and safety. Sensitive details are handled only for service delivery, support and compliance.',
+                                        ),
+                                      ),
+                                      _PolicyLink(
+                                        label: 'Content Policy',
+                                        onTap: () => _showPolicySheet(
+                                          'Content Policy',
+                                          'Users, providers and shops must not upload misleading, abusive, unsafe or illegal content. Fraudulent listings, fake bookings, offensive media and harmful behavior can result in suspension or permanent removal from the platform.',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: compact ? 10 : 12),
+                            const Center(child: _MadeWithLoveFooter()),
+                            SizedBox(height: compact ? 2 : 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
+
 }
 
 class OtpVerificationPage extends StatefulWidget {
@@ -749,231 +809,283 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFD78268), Color(0xFFDF7DA0), Color(0xFFF7F2EC)],
-            stops: [0, 0.48, 0.48],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                flex: 8,
-                child: Stack(
-                  children: [
-                    _TopDiscoveryHero(
-                      title: 'VERIFY YOUR\nNUMBER',
-                      subtitle:
-                          'Enter the 6-digit code sent to +91 ${widget.phoneNumber}. Your account will be ready in seconds.',
-                    ),
-                    Positioned(
-                      left: 22,
-                      top: 18,
-                      child: IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.14),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                    ),
-                  ],
-                ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 780 || constraints.maxWidth < 390;
+          final horizontalPadding = constraints.maxWidth < 360 ? 16.0 : 22.0;
+          final heroHeight = compact ? 280.0 : 340.0;
+          final digitWidth = constraints.maxWidth < 360 ? 40.0 : (compact ? 44.0 : 48.0);
+
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFD78268), Color(0xFFDF7DA0), Color(0xFFF7F2EC)],
+                stops: [0, 0.48, 0.48],
               ),
-              Expanded(
-                flex: 10,
-                child: Container(
-                  width: double.infinity,
-                  color: const Color(0xFFF7F2EC),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Text(
-                            'OTP Verification',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: heroHeight,
+                        child: Stack(
+                          children: [
+                            _TopDiscoveryHero(
+                              title: 'VERIFY YOUR\nNUMBER',
+                              subtitle:
+                                  'Enter the 6-digit code sent to +91 ${widget.phoneNumber}. Your account will be ready in seconds.',
+                              compact: compact,
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Center(
-                          child: Text(
-                            'Use 123456 for now',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: const Color(0xFFCB6E5B),
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            6,
-                            (index) => _OtpDigitBox(
-                              controller: _otpControllers[index],
-                              focusNode: _focusNodes[index],
-                              onChanged: (value) => _onOtpChanged(index, value),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_errorText != null)
-                          Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 14),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFE6E8),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFFFB7C0)),
-                            ),
-                            child: Text(
-                              _errorText!,
-                              style: const TextStyle(
-                                color: Color(0xFFC53B52),
-                                fontWeight: FontWeight.w700,
+                            Positioned(
+                              left: compact ? 14 : 22,
+                              top: compact ? 12 : 18,
+                              child: IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.white.withValues(alpha: 0.14),
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.arrow_back_rounded),
                               ),
                             ),
-                          ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: const Color(0xFFE3DBD3)),
-                          ),
-                          child: Row(
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: double.infinity,
+                        color: const Color(0xFFF7F2EC),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(horizontalPadding, compact ? 20 : 24, horizontalPadding, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFCB6E5B).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.sms_outlined,
-                                  color: Color(0xFFCB6E5B),
+                              Center(
+                                child: Text(
+                                  'OTP Verification',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontSize: compact ? 20 : 24,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              const SizedBox(height: 10),
+                              Center(
+                                child: Text(
+                                  'Use 123456 for now',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: const Color(0xFFCB6E5B),
+                                    fontSize: compact ? 13 : 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: compact ? 18 : 22),
+                              Center(
+                                child: Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: compact ? 8 : 10,
+                                  runSpacing: 10,
+                                  children: List.generate(
+                                    6,
+                                    (index) => _OtpDigitBox(
+                                      controller: _otpControllers[index],
+                                      focusNode: _focusNodes[index],
+                                      onChanged: (value) => _onOtpChanged(index, value),
+                                      width: digitWidth,
+                                      compact: compact,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              if (_errorText != null)
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(bottom: 14),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFE6E8),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: const Color(0xFFFFB7C0)),
+                                  ),
+                                  child: Text(
+                                    _errorText!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFC53B52),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 16, vertical: compact ? 12 : 14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(color: const Color(0xFFE3DBD3)),
+                                ),
+                                child: Row(
                                   children: [
-                                    Text(
-                                      '+91 ${widget.phoneNumber}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF171717),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
+                                    Container(
+                                      width: compact ? 36 : 40,
+                                      height: compact ? 36 : 40,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFCB6E5B).withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Icon(
+                                        Icons.sms_outlined,
+                                        color: const Color(0xFFCB6E5B),
+                                        size: compact ? 18 : 20,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Use this number to complete sign in.',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: const Color(0xFF7C756E),
+                                    SizedBox(width: compact ? 10 : 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '+91 ${widget.phoneNumber}',
+                                            style: TextStyle(
+                                              color: const Color(0xFF171717),
+                                              fontSize: compact ? 14 : 16,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Use this number to complete sign in.',
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: const Color(0xFF7C756E),
+                                              fontSize: compact ? 11.5 : 12.5,
+                                            ),
+                                          ),
+                                        ],
                                       ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(),
+                                      child: const Text('Edit'),
                                     ),
                                   ],
                                 ),
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Edit'),
+                              const SizedBox(height: 14),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  if (_resendHidden)
+                                    Expanded(
+                                      child: Text(
+                                        "Didn't receive the code? Resend hidden for now. Try again in $_formattedCountdown",
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          color: const Color(0xFFCB6E5B),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: compact ? 12 : 13,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Expanded(
+                                      child: Wrap(
+                                        alignment: WrapAlignment.center,
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: [
+                                          Text(
+                                            "Didn't receive the code?",
+                                            style: theme.textTheme.bodyMedium?.copyWith(
+                                              color: const Color(0xFF766E67),
+                                              fontSize: compact ? 12 : 13,
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: _canResend ? _handleResendOtp : null,
+                                            style: TextButton.styleFrom(
+                                              padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: 4),
+                                              minimumSize: Size.zero,
+                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            child: Text(
+                                              _canResend ? 'Resend OTP' : _formattedCountdown,
+                                              style: TextStyle(
+                                                fontSize: compact ? 12 : 13,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: _isVerifying || !_canVerify ? null : _verifyOtp,
+                                  style: ElevatedButton.styleFrom(
+                                    elevation: 0,
+                                    backgroundColor: const Color(0xFFCB6E5B),
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: compact ? 12 : 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    textStyle: TextStyle(
+                                      fontSize: compact ? 14 : 15.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  child: Text(_isVerifying ? 'Verifying...' : 'Verify OTP'),
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Text(
-                              "Didn't receive the code?",
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: const Color(0xFF766E67),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            if (_resendHidden)
-                              Expanded(
-                                child: Text(
-                                  'Resend hidden for now. Try again in $_formattedCountdown',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: const Color(0xFFCB6E5B),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              )
-                            else
-                              TextButton(
-                                onPressed: _canResend ? _handleResendOtp : null,
-                                child: Text(
-                                  _canResend
-                                      ? 'Resend OTP'
-                                      : 'Resend in $_formattedCountdown',
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _canVerify && !_isVerifying ? _verifyOtp : null,
-                            style: ElevatedButton.styleFrom(
-                              elevation: 0,
-                              backgroundColor: const Color(0xFFED5F6E),
-                              disabledBackgroundColor: const Color(0xFFF6A9B1),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            child: Text(_isVerifying ? 'Verifying...' : 'Verify OTP'),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
+
 }
 
 class _TopDiscoveryHero extends StatelessWidget {
   const _TopDiscoveryHero({
     required this.title,
     required this.subtitle,
+    this.compact = false,
   });
 
   final String title;
   final String subtitle;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final titleSize = compact ? 27.0 : 34.0;
+    final subtitleSize = compact ? 13.0 : 15.0;
+    final horizontalPadding = compact ? 20.0 : 24.0;
+    final topPadding = compact ? 16.0 : 20.0;
+    final maxTextWidth = compact ? 230.0 : 270.0;
 
     return Container(
       width: double.infinity,
@@ -1036,16 +1148,17 @@ class _TopDiscoveryHero extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
+            padding: EdgeInsets.fromLTRB(horizontalPadding, topPadding, horizontalPadding, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
                   style: theme.textTheme.headlineMedium?.copyWith(
-                    fontSize: 34,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -1.1,
+                    letterSpacing: compact ? -0.8 : -1.1,
+                    height: compact ? 1.0 : 1.02,
                     shadows: const [
                       Shadow(
                         color: Color(0x38000000),
@@ -1055,14 +1168,15 @@ class _TopDiscoveryHero extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: compact ? 8 : 10),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 270),
+                  constraints: BoxConstraints(maxWidth: maxTextWidth),
                   child: Text(
                     subtitle,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: Colors.white.withValues(alpha: 0.88),
                       height: 1.34,
+                      fontSize: subtitleSize,
                       fontWeight: FontWeight.w600,
                       shadows: const [
                         Shadow(
@@ -1782,31 +1896,6 @@ class _HeroCallout extends StatelessWidget {
   }
 }
 
-class _CountrySelector extends StatelessWidget {
-  const _CountrySelector();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 66,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFE2DAD0)),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _IndiaFlagGlyph(),
-          SizedBox(width: 8),
-          Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF666666)),
-        ],
-      ),
-    );
-  }
-}
-
 class _IndiaFlagGlyph extends StatelessWidget {
   const _IndiaFlagGlyph();
 
@@ -1846,33 +1935,54 @@ class _IndiaFlagGlyph extends StatelessWidget {
 }
 
 class _PhoneInputField extends StatelessWidget {
-  const _PhoneInputField({required this.controller});
+  const _PhoneInputField({
+    required this.controller,
+    this.compact = false,
+  });
 
   final TextEditingController controller;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final height = compact ? 54.0 : 58.0;
+    final textSize = compact ? 14.0 : 15.0;
+    final hintSize = compact ? 13.0 : 14.0;
+
     return Container(
-      height: 56,
+      height: height,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2DAD0)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
       child: Row(
         children: [
-          const Text(
-            '+91',
+          const _IndiaFlagGlyph(),
+          SizedBox(width: compact ? 8 : 10),
+          Text(
+            'IN',
             style: TextStyle(
-              color: Color(0xFF272727),
+              color: const Color(0xFF6B655F),
+              fontSize: compact ? 11.5 : 12.5,
               fontWeight: FontWeight.w700,
-              fontSize: 16,
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: compact ? 8 : 10),
           Container(width: 1, height: 24, color: const Color(0xFFE0D7CE)),
-          const SizedBox(width: 10),
+          SizedBox(width: compact ? 8 : 10),
+          Text(
+            '+91',
+            style: TextStyle(
+              color: const Color(0xFF272727),
+              fontWeight: FontWeight.w700,
+              fontSize: textSize,
+            ),
+          ),
+          SizedBox(width: compact ? 8 : 10),
+          Container(width: 1, height: 24, color: const Color(0xFFE0D7CE)),
+          SizedBox(width: compact ? 8 : 10),
           Expanded(
             child: TextField(
               controller: controller,
@@ -1881,18 +1991,19 @@ class _PhoneInputField extends StatelessWidget {
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(10),
               ],
-              style: const TextStyle(
-                fontSize: 16,
+              style: TextStyle(
+                fontSize: textSize,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1D1D1D),
+                color: const Color(0xFF1D1D1D),
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
+                isDense: true,
                 counterText: '',
                 border: InputBorder.none,
-                hintText: 'Enter Phone Number',
+                hintText: 'Enter phone number',
                 hintStyle: TextStyle(
-                  color: Color(0xFFA19A92),
-                  fontSize: 15,
+                  color: const Color(0xFFA19A92),
+                  fontSize: hintSize,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1909,16 +2020,20 @@ class _OtpDigitBox extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onChanged,
+    this.width = 48,
+    this.compact = false,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
+  final double width;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 48,
+      width: width,
       child: TextField(
         controller: controller,
         focusNode: focusNode,
@@ -1926,26 +2041,32 @@ class _OtpDigitBox extends StatelessWidget {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(
-          fontSize: 24,
+        style: TextStyle(
+          fontSize: compact ? 20 : 24,
           fontWeight: FontWeight.w900,
-          color: Color(0xFF1B1B1B),
+          color: const Color(0xFF1B1B1B),
         ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 18),
+          hintText: 'X',
+          hintStyle: TextStyle(
+            color: const Color(0xFF1B1B1B).withValues(alpha: 0.28),
+            fontSize: compact ? 20 : 24,
+            fontWeight: FontWeight.w800,
+          ),
+          contentPadding: EdgeInsets.symmetric(vertical: compact ? 14 : 18),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(compact ? 14 : 18),
             borderSide: const BorderSide(color: Color(0xFFE1D8D0)),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(compact ? 14 : 18),
             borderSide: const BorderSide(color: Color(0xFFE1D8D0)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(compact ? 14 : 18),
             borderSide: const BorderSide(color: Color(0xFFED5F6E), width: 1.8),
           ),
         ),
@@ -1984,16 +2105,19 @@ class _LoginQuickIcon extends StatelessWidget {
   const _LoginQuickIcon({
     required this.icon,
     required this.accent,
+    this.size = 54,
   });
 
   final IconData icon;
   final Color accent;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
+    final iconSize = size * 0.44;
     return Container(
-      width: 54,
-      height: 54,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
@@ -2001,7 +2125,7 @@ class _LoginQuickIcon extends StatelessWidget {
       ),
       child: Icon(
         icon,
-        size: 24,
+        size: iconSize,
         color: accent,
       ),
     );

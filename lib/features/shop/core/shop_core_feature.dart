@@ -1,79 +1,5 @@
 part of '../../../main.dart';
 
-class _ShopSectionTitle extends StatelessWidget {
-  const _ShopSectionTitle({
-    required this.title,
-    required this.pillText,
-    required this.pillColor,
-    required this.icon,
-    required this.accentStart,
-    required this.accentEnd,
-  });
-
-  final String title;
-  final String pillText;
-  final Color pillColor;
-  final IconData icon;
-  final Color accentStart;
-  final Color accentEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: pillColor,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 14, color: accentStart),
-                const SizedBox(width: 5),
-                Text(
-                  pillText,
-                  style: TextStyle(
-                    color: accentStart,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1,
-                    height: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF2B2F39),
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.2,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            width: 84,
-            height: 4,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [accentStart, accentEnd]),
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 int _extractFashionPrice(String value) {
   final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
   return int.tryParse(digits) ?? 0;
@@ -349,36 +275,6 @@ double _footwearSubcategoryWidth(String option) {
   }
 }
 
-List<String> _shopSubcategoriesFor(String category) {
-  switch (category) {
-    case 'Restaurant':
-      return const ['All'];
-    case 'Gift':
-      return const ['All', 'Birthday', 'Anniversary', 'Reception', 'Festival'];
-    case 'Groceries':
-      return const ['All', 'Biscuits', 'Noodles', 'Rice', 'Chips', 'Household'];
-    case 'Pharmacy':
-      return const ['All', 'Wellness', 'Baby care', 'Personal care', 'Essentials'];
-    case 'Fashion':
-    case 'Cloth':
-      return const ['All', 'Men', 'Women', 'Boys', 'Girls'];
-    case 'Footwear':
-      return const ['All', 'Men', 'Women', 'Boys', 'Girls'];
-    default:
-      return const ['All'];
-  }
-}
-
-String _shopCategoryForSection(_DiscoverySection section) {
-  final title = section.title.toLowerCase();
-  if (title.contains('gift')) return 'Gift';
-  if (title.contains('grocery')) return 'Groceries';
-  if (title.contains('pharmacy')) return 'Pharmacy';
-  if (title.contains('footwear') || title.contains('shoe') || title.contains('sandal')) return 'Footwear';
-  if (title.contains('fashion') || title.contains('cloth')) return 'Fashion';
-  return 'All';
-}
-
 String _shopCategoryForItem(_DiscoveryItem item) {
   final explicit = item.shopCategory?.trim();
   if (explicit != null && explicit.isNotEmpty && explicit.toLowerCase() != 'all') {
@@ -441,59 +337,6 @@ String _shopCategoryForItem(_DiscoveryItem item) {
     return 'Restaurant';
   }
   return 'Groceries';
-}
-
-String _shopSubcategoryFor(_DiscoveryItem item, String category) {
-  final text = '${item.title} ${item.subtitle}'.toLowerCase();
-  switch (category) {
-    case 'Gift':
-      if (text.contains('frame') || text.contains('perfume') || text.contains('lamp')) {
-        return 'Anniversary';
-      }
-      if (text.contains('dry fruit') || text.contains('decor')) {
-        return 'Reception';
-      }
-      if (text.contains('chocolate') || text.contains('hamper')) {
-        return 'Festival';
-      }
-      return 'Birthday';
-    case 'Groceries':
-      if (text.contains('biscuit') || text.contains('cracker') || text.contains('cookie')) {
-        return 'Biscuits';
-      }
-      if (text.contains('maggi') || text.contains('noodle') || text.contains('pasta')) {
-        return 'Noodles';
-      }
-      if (text.contains('rice') || text.contains('atta') || text.contains('dal')) {
-        return 'Rice';
-      }
-      if (text.contains('chips') || text.contains('snack')) {
-        return 'Chips';
-      }
-      return 'Household';
-    case 'Pharmacy':
-      if (text.contains('baby')) return 'Baby care';
-      if (text.contains('face') || text.contains('sanitizer')) return 'Personal care';
-      if (text.contains('bandage') || text.contains('paracetamol')) return 'Essentials';
-      return 'Wellness';
-    case 'Fashion':
-    case 'Cloth':
-      if (text.contains('girls') || text.contains('gown') || text.contains('frock')) return 'Girls';
-      if (text.contains('boys') || text.contains('kids')) return 'Boys';
-      if (text.contains('shirt') || text.contains('jeans') || text.contains('blazer') || text.contains('trouser')) {
-        return 'Men';
-      }
-      return 'Women';
-    case 'Footwear':
-      if (text.contains('girls') || text.contains('cute') || text.contains('ballet')) return 'Girls';
-      if (text.contains('boys') || text.contains('kids') || text.contains('school')) return 'Boys';
-      if (text.contains('heels') || text.contains('flats') || text.contains('women') || text.contains('party')) {
-        return 'Women';
-      }
-      return 'Men';
-    default:
-      return 'All';
-  }
 }
 
 class _ShopBrowseToggle extends StatelessWidget {
