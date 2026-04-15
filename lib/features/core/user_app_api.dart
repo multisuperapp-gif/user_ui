@@ -1437,7 +1437,13 @@ class _UserAppApi {
   static _DiscoveryItem _mapLabourProfile(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Labour'}';
     final hourly = _money(raw['hourlyRate']);
-    final availableToday = (raw['availableToday'] as bool?) ?? false;
+    final availableNow = (raw['availableNow'] as bool?) ?? false;
+    final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
+    final disabledLabel = switch (availabilityStatus) {
+      'BOOKED' => 'Booked',
+      'OFFLINE' => 'Offline',
+      _ => '',
+    };
     return _DiscoveryItem(
       title: '${raw['fullName'] ?? 'Labour'}',
       subtitle: category,
@@ -1450,8 +1456,8 @@ class _UserAppApi {
       maskedPhone: '${raw['maskedPhone'] ?? ''}',
       backendLabourId: (raw['labourId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
-      isDisabled: !availableToday,
-      disabledLabel: availableToday ? '' : 'Booked',
+      isDisabled: !availableNow,
+      disabledLabel: disabledLabel,
     );
   }
 
@@ -1477,8 +1483,13 @@ class _UserAppApi {
 
   static _DiscoveryItem _mapServiceProvider(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Service'}';
-    final availableServiceMen = (raw['availableServiceMen'] as num?)?.toInt() ?? 0;
-    final isAvailable = availableServiceMen > 0;
+    final availableNow = (raw['availableNow'] as bool?) ?? false;
+    final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
+    final disabledLabel = switch (availabilityStatus) {
+      'BOOKED' => 'Booked',
+      'OFFLINE' => 'Offline',
+      _ => '',
+    };
     return _DiscoveryItem(
       title: '${raw['providerName'] ?? 'Service provider'}',
       subtitle: '${raw['serviceName'] ?? raw['subcategoryName'] ?? category}',
@@ -1492,8 +1503,8 @@ class _UserAppApi {
       backendServiceProviderId: (raw['providerId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
       backendSubcategoryId: (raw['subcategoryId'] as num?)?.toInt(),
-      isDisabled: !isAvailable,
-      disabledLabel: isAvailable ? '' : 'Booked',
+      isDisabled: !availableNow,
+      disabledLabel: disabledLabel,
     );
   }
 

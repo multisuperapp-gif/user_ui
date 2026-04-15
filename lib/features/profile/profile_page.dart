@@ -159,7 +159,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                 },
               ),
               const Spacer(),
-              const _MadeWithLoveFooter(),
+              const Center(child: _MadeWithLoveFooter()),
             ],
           ),
         ),

@@ -150,7 +150,7 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
                         Opacity(
                           opacity: _interval(0.12, 0.38).value,
                           child: Text(
-                            'Labour at work, service on the way, shops opening live.',
+                            'Live labour, services and shops around you.',
                             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                   color: Colors.white.withValues(alpha: 0.84),
                                   fontWeight: FontWeight.w600,
@@ -159,7 +159,7 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
                         ),
                         const Spacer(),
                         SizedBox(
-                          height: 260,
+                          height: 300,
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -221,69 +221,7 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Opacity(
-                          opacity: _interval(0.74, 1.0).value,
-                          child: Transform.translate(
-                            offset: Offset(0, 28 * (1 - _interval(0.74, 1.0).value)),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.14),
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(40),
-                                  topRight: Radius.circular(40),
-                                  bottomLeft: Radius.circular(26),
-                                  bottomRight: Radius.circular(26),
-                                ),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.14),
-                                    blurRadius: 28,
-                                    offset: const Offset(0, 14),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _FallingBrandLetter(
-                                        letter: 'M',
-                                        accent: const Color(0xFFCB6E5B),
-                                        progress: _interval(0.48, 0.68, Curves.easeOutBack).value,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      _FallingBrandLetter(
-                                        letter: 'S',
-                                        accent: const Color(0xFFDF7DA0),
-                                        progress: _interval(0.58, 0.78, Curves.easeOutBack).value,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      _FallingBrandLetter(
-                                        letter: 'A',
-                                        accent: const Color(0xFF5C8FD8),
-                                        progress: _interval(0.68, 0.88, Curves.easeOutBack).value,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Text(
-                                    'Multi Super App',
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                          color: Colors.white.withValues(alpha: 0.94),
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                        const SizedBox(height: 22),
                       ],
                     ),
                   ),
@@ -419,10 +357,14 @@ class _LoginPageState extends State<LoginPage> {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 780 || constraints.maxWidth < 390;
           final horizontalPadding = constraints.maxWidth < 360 ? 16.0 : 22.0;
-          final heroHeight = (constraints.maxHeight * (compact ? 0.34 : 0.4))
-              .clamp(248.0, compact ? 320.0 : 392.0)
-              .toDouble();
-          final quickIconSize = compact ? 46.0 : 54.0;
+          final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+          final keyboardVisible = keyboardInset > 0;
+          final heroHeight = keyboardVisible
+              ? (compact ? 188.0 : 224.0)
+              : (constraints.maxHeight * (compact ? 0.44 : 0.50))
+                  .clamp(320.0, compact ? 390.0 : 460.0)
+                  .toDouble();
+          final quickIconSize = compact ? 42.0 : 48.0;
 
           return Container(
             decoration: const BoxDecoration(
@@ -434,32 +376,38 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             child: SafeArea(
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: heroHeight,
-                    child: _TopDiscoveryHero(
-                      title: 'DISCOVER HELP,\nHOME CARE & SHOPS\nNEAR YOU',
-                      subtitle:
-                          'Labour, repairs, groceries, dining, pharmacy and many more from one place.',
-                      compact: compact,
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.only(bottom: keyboardVisible ? 10 : 0),
+                child: Column(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
                       width: double.infinity,
-                      color: const Color(0xFFF7F2EC),
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          horizontalPadding,
-                          compact ? 18 : 24,
-                          horizontalPadding,
-                          compact ? 12 : 16,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                      height: heroHeight,
+                      child: _TopDiscoveryHero(
+                        title: 'DISCOVER LABOUR,\nSERVICES & SHOPS\nNEAR YOU',
+                        subtitle:
+                            'Book nearby help, services and local shops in one simple flow.',
+                        compact: compact,
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        color: const Color(0xFFF7F2EC),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            keyboardVisible ? 10 : (compact ? 14 : 18),
+                            horizontalPadding,
+                            compact ? 10 : 14,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                             Center(
                               child: Wrap(
                                 alignment: WrapAlignment.center,
@@ -494,7 +442,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ],
                               ),
                             ),
-                            SizedBox(height: compact ? 12 : 16),
+                            SizedBox(height: compact ? 10 : 12),
                             Center(
                               child: Text(
                                 'Log in or sign up',
@@ -506,12 +454,12 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                             ),
-                            SizedBox(height: compact ? 12 : 16),
+                            SizedBox(height: compact ? 10 : 12),
                             _PhoneInputField(
                               controller: _phoneController,
                               compact: compact,
                             ),
-                            SizedBox(height: compact ? 12 : 14),
+                            SizedBox(height: compact ? 10 : 12),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
@@ -532,60 +480,64 @@ class _LoginPageState extends State<LoginPage> {
                                 child: Text(_isSendingOtp ? 'Sending OTP...' : 'Continue'),
                               ),
                             ),
-                            const Spacer(),
-                            Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'By continuing, you agree to our',
-                                    textAlign: TextAlign.center,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: const Color(0xFF7A736A),
-                                      fontSize: compact ? 12 : 13,
+                            SizedBox(height: compact ? 12 : 16),
+                            if (!keyboardVisible)
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'By continuing, you agree to our',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: const Color(0xFF7A736A),
+                                        fontSize: compact ? 12 : 13,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    alignment: WrapAlignment.center,
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: [
-                                      _PolicyLink(
-                                        label: 'Terms of Service',
-                                        onTap: () => _showPolicySheet(
-                                          'Terms of Service',
-                                          'Use of the platform means you agree to provide valid details, maintain lawful conduct, and respect provider and shop service rules. Bookings, cancellations, penalties, refunds and payment timelines will follow the app policies shown during checkout.',
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: [
+                                        _PolicyLink(
+                                          label: 'Terms of Service',
+                                          onTap: () => _showPolicySheet(
+                                            'Terms of Service',
+                                            'Use of the platform means you agree to provide valid details, maintain lawful conduct, and respect provider and shop service rules. Bookings, cancellations, penalties, refunds and payment timelines will follow the app policies shown during checkout.',
+                                          ),
                                         ),
-                                      ),
-                                      _PolicyLink(
-                                        label: 'Privacy Policy',
-                                        onTap: () => _showPolicySheet(
-                                          'Privacy Policy',
-                                          'We use your phone number, device details, saved addresses and booking activity to help you sign in, place bookings, receive updates and improve trust and safety. Sensitive details are handled only for service delivery, support and compliance.',
+                                        _PolicyLink(
+                                          label: 'Privacy Policy',
+                                          onTap: () => _showPolicySheet(
+                                            'Privacy Policy',
+                                            'We use your phone number, device details, saved addresses and booking activity to help you sign in, place bookings, receive updates and improve trust and safety. Sensitive details are handled only for service delivery, support and compliance.',
+                                          ),
                                         ),
-                                      ),
-                                      _PolicyLink(
-                                        label: 'Content Policy',
-                                        onTap: () => _showPolicySheet(
-                                          'Content Policy',
-                                          'Users, providers and shops must not upload misleading, abusive, unsafe or illegal content. Fraudulent listings, fake bookings, offensive media and harmful behavior can result in suspension or permanent removal from the platform.',
+                                        _PolicyLink(
+                                          label: 'Content Policy',
+                                          onTap: () => _showPolicySheet(
+                                            'Content Policy',
+                                            'Users, providers and shops must not upload misleading, abusive, unsafe or illegal content. Fraudulent listings, fake bookings, offensive media and harmful behavior can result in suspension or permanent removal from the platform.',
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(height: compact ? 10 : 12),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              const Spacer(),
+                            const SizedBox(height: 6),
                             const Center(child: _MadeWithLoveFooter()),
-                            SizedBox(height: compact ? 2 : 4),
-                          ],
+                            const SizedBox(height: 0),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -622,14 +574,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   Timer? _resendTimer;
   int _resendCountdownSeconds = _resendCooldownSeconds;
   int _resendAttempts = 0;
-  bool _resendHidden = false;
   bool _isVerifying = false;
   late String _requestId;
 
   String get _enteredOtp => _otpControllers.map((controller) => controller.text).join();
 
   bool get _canVerify => _enteredOtp.length == 6;
-  bool get _canResend => !_resendHidden && _resendCountdownSeconds == 0;
+  bool get _canResend => _resendCountdownSeconds == 0;
 
   String get _formattedCountdown {
     final minutes = (_resendCountdownSeconds ~/ 60).toString().padLeft(2, '0');
@@ -643,7 +594,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     _requestId = widget.requestId;
     _startResendTimer(
       seconds: _resendCooldownSeconds,
-      hideButtonWhileCounting: false,
       resetAttemptsOnComplete: false,
     );
   }
@@ -685,12 +635,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   void _startResendTimer({
     required int seconds,
-    required bool hideButtonWhileCounting,
     required bool resetAttemptsOnComplete,
   }) {
     _resendTimer?.cancel();
     _resendCountdownSeconds = seconds;
-    _resendHidden = hideButtonWhileCounting;
     setState(() {});
 
     _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -703,7 +651,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         timer.cancel();
         setState(() {
           _resendCountdownSeconds = 0;
-          _resendHidden = false;
           if (resetAttemptsOnComplete) {
             _resendAttempts = 0;
           }
@@ -749,7 +696,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     if (_resendAttempts >= 3) {
       _startResendTimer(
         seconds: _resendLockoutSeconds,
-        hideButtonWhileCounting: true,
         resetAttemptsOnComplete: true,
       );
       return;
@@ -757,7 +703,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
     _startResendTimer(
       seconds: _resendCooldownSeconds,
-      hideButtonWhileCounting: false,
       resetAttemptsOnComplete: false,
     );
   }
@@ -979,54 +924,51 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 ),
                               ),
                               const SizedBox(height: 14),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                              Column(
                                 children: [
-                                  if (_resendHidden)
-                                    Expanded(
-                                      child: Text(
-                                        "Didn't receive the code? Resend hidden for now. Try again in $_formattedCountdown",
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: const Color(0xFFCB6E5B),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: compact ? 12 : 13,
+                                  Text(
+                                    "Didn't receive the code?",
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: const Color(0xFF766E67),
+                                      fontSize: compact ? 12 : 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton(
+                                      onPressed: _canResend ? _handleResendOtp : null,
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: const Color(0xFFCB6E5B),
+                                        disabledForegroundColor: const Color(0xFFB69B91),
+                                        side: BorderSide(
+                                          color: _canResend
+                                              ? const Color(0xFFCB6E5B)
+                                              : const Color(0xFFE3DBD3),
+                                        ),
+                                        backgroundColor: _canResend
+                                            ? const Color(0xFFFFF6F1)
+                                            : const Color(0xFFF4EEEA),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: compact ? 11 : 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14),
                                         ),
                                       ),
-                                    )
-                                  else
-                                    Expanded(
-                                      child: Wrap(
-                                        alignment: WrapAlignment.center,
-                                        crossAxisAlignment: WrapCrossAlignment.center,
-                                        spacing: 6,
-                                        runSpacing: 4,
-                                        children: [
-                                          Text(
-                                            "Didn't receive the code?",
-                                            style: theme.textTheme.bodyMedium?.copyWith(
-                                              color: const Color(0xFF766E67),
-                                              fontSize: compact ? 12 : 13,
-                                            ),
-                                          ),
-                                          TextButton(
-                                            onPressed: _canResend ? _handleResendOtp : null,
-                                            style: TextButton.styleFrom(
-                                              padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: 4),
-                                              minimumSize: Size.zero,
-                                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                              visualDensity: VisualDensity.compact,
-                                            ),
-                                            child: Text(
-                                              _canResend ? 'Resend OTP' : _formattedCountdown,
-                                              style: TextStyle(
-                                                fontSize: compact ? 12 : 13,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                      child: Text(
+                                        _canResend
+                                            ? 'Resend OTP'
+                                            : 'Resend OTP in $_formattedCountdown',
+                                        style: TextStyle(
+                                          fontSize: compact ? 12.5 : 13.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 20),
@@ -1081,11 +1023,11 @@ class _TopDiscoveryHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final titleSize = compact ? 27.0 : 34.0;
-    final subtitleSize = compact ? 13.0 : 15.0;
+    final titleSize = compact ? 25.0 : 31.0;
+    final subtitleSize = compact ? 12.5 : 14.0;
     final horizontalPadding = compact ? 20.0 : 24.0;
     final topPadding = compact ? 16.0 : 20.0;
-    final maxTextWidth = compact ? 230.0 : 270.0;
+    final maxTextWidth = compact ? 246.0 : 292.0;
 
     return Container(
       width: double.infinity,
@@ -1338,53 +1280,6 @@ class _LaunchSceneCard extends StatelessWidget {
   }
 }
 
-class _FallingBrandLetter extends StatelessWidget {
-  const _FallingBrandLetter({
-    required this.letter,
-    required this.accent,
-    required this.progress,
-  });
-
-  final String letter;
-  final Color accent;
-  final double progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final clamped = progress.clamp(0.0, 1.0).toDouble();
-    return Transform.translate(
-      offset: Offset(0, -38 * (1 - clamped)),
-      child: Opacity(
-        opacity: clamped,
-        child: Container(
-          width: 58,
-          height: 58,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.34),
-                blurRadius: 22,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Text(
-            letter,
-            style: TextStyle(
-              color: accent,
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.8,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _HeroBackgroundPattern extends StatelessWidget {
   const _HeroBackgroundPattern();
@@ -2032,8 +1927,27 @@ class _OtpDigitBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final radius = BorderRadius.circular(compact ? 18 : 22);
+    return Container(
       width: width,
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFFFFFFF),
+            Color(0xFFFFF8F3),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFCB6E5B).withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
       child: TextField(
         controller: controller,
         focusNode: focusNode,
@@ -2049,25 +1963,25 @@ class _OtpDigitBox extends StatelessWidget {
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Colors.transparent,
           hintText: 'X',
           hintStyle: TextStyle(
-            color: const Color(0xFF1B1B1B).withValues(alpha: 0.28),
+            color: const Color(0xFF1B1B1B).withValues(alpha: 0.24),
             fontSize: compact ? 20 : 24,
             fontWeight: FontWeight.w800,
           ),
           contentPadding: EdgeInsets.symmetric(vertical: compact ? 14 : 18),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(compact ? 14 : 18),
-            borderSide: const BorderSide(color: Color(0xFFE1D8D0)),
+            borderRadius: radius,
+            borderSide: const BorderSide(color: Color(0xFFE8D7CE), width: 1.2),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(compact ? 14 : 18),
-            borderSide: const BorderSide(color: Color(0xFFE1D8D0)),
+            borderRadius: radius,
+            borderSide: const BorderSide(color: Color(0xFFE8D7CE), width: 1.2),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(compact ? 14 : 18),
-            borderSide: const BorderSide(color: Color(0xFFED5F6E), width: 1.8),
+            borderRadius: radius,
+            borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.8),
           ),
         ),
       ),

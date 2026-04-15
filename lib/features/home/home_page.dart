@@ -353,16 +353,16 @@ class _UserHomePageState extends State<UserHomePage> {
             ),
             actions: [
               if (!locationServiceEnabled)
-                TextButton(
+                FilledButton(
                   onPressed: () => Navigator.of(context).pop(_HomePermissionAction.locationSettings),
                   child: const Text('Location settings'),
                 )
               else
-                TextButton(
+                FilledButton(
                   onPressed: () => Navigator.of(context).pop(_HomePermissionAction.requestAgain),
                   child: const Text('Allow now'),
                 ),
-              FilledButton(
+              OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(_HomePermissionAction.appSettings),
                 child: const Text('Open settings'),
               ),
@@ -679,7 +679,7 @@ class _UserHomePageState extends State<UserHomePage> {
         _serviceRemoteProviders
           ..clear()
           ..addAll(landing.providers);
-        _serviceRemoteReady = landing.providers.isNotEmpty || landing.categories.isNotEmpty;
+        _serviceRemoteReady = true;
         _serviceRemoteError = null;
         if (!categoryLabels.contains(_selectedServiceCategory)) {
           _selectedServiceCategory = categoryLabels.isEmpty ? 'Automobile' : categoryLabels.first;
@@ -690,6 +690,22 @@ class _UserHomePageState extends State<UserHomePage> {
         }
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _serviceRemoteReady = true;
+            _serviceRemoteCategories = const <_RemoteServiceCategory>[];
+            _serviceRemoteProviders.clear();
+            _serviceRemoteError = null;
+          });
+        } else {
+          _serviceRemoteReady = true;
+          _serviceRemoteCategories = const <_RemoteServiceCategory>[];
+          _serviceRemoteProviders.clear();
+          _serviceRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _serviceRemoteError = error.message;
@@ -752,6 +768,22 @@ class _UserHomePageState extends State<UserHomePage> {
         _restaurantRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _restaurantRemoteCuisines = const <_RestaurantCuisineItem>[];
+            _restaurantRemoteProducts.clear();
+            _restaurantRemoteShops.clear();
+            _restaurantRemoteError = null;
+          });
+        } else {
+          _restaurantRemoteCuisines = const <_RestaurantCuisineItem>[];
+          _restaurantRemoteProducts.clear();
+          _restaurantRemoteShops.clear();
+          _restaurantRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _restaurantRemoteError = error.message;
@@ -825,6 +857,24 @@ class _UserHomePageState extends State<UserHomePage> {
         _fashionRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _fashionRemoteReady = true;
+            _fashionRemoteCategories = const <_FashionRemoteCategory>[];
+            _fashionRemoteProducts.clear();
+            _fashionRemoteShops.clear();
+            _fashionRemoteError = null;
+          });
+        } else {
+          _fashionRemoteReady = true;
+          _fashionRemoteCategories = const <_FashionRemoteCategory>[];
+          _fashionRemoteProducts.clear();
+          _fashionRemoteShops.clear();
+          _fashionRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _fashionRemoteError = error.message;
@@ -898,6 +948,24 @@ class _UserHomePageState extends State<UserHomePage> {
         _footwearRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _footwearRemoteReady = true;
+            _footwearRemoteCategories = const <_FootwearRemoteCategory>[];
+            _footwearRemoteProducts.clear();
+            _footwearRemoteShops.clear();
+            _footwearRemoteError = null;
+          });
+        } else {
+          _footwearRemoteReady = true;
+          _footwearRemoteCategories = const <_FootwearRemoteCategory>[];
+          _footwearRemoteProducts.clear();
+          _footwearRemoteShops.clear();
+          _footwearRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _footwearRemoteError = error.message;
@@ -964,6 +1032,24 @@ class _UserHomePageState extends State<UserHomePage> {
         _giftRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _giftRemoteReady = true;
+            _giftRemoteCategories = const <_GiftRemoteCategory>[];
+            _giftRemoteProducts.clear();
+            _giftRemoteShops.clear();
+            _giftRemoteError = null;
+          });
+        } else {
+          _giftRemoteReady = true;
+          _giftRemoteCategories = const <_GiftRemoteCategory>[];
+          _giftRemoteProducts.clear();
+          _giftRemoteShops.clear();
+          _giftRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _giftRemoteError = error.message;
@@ -1031,6 +1117,24 @@ class _UserHomePageState extends State<UserHomePage> {
         _groceryRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _groceryRemoteReady = true;
+            _groceryRemoteCategories = const <_GroceryRemoteCategory>[];
+            _groceryRemoteProducts.clear();
+            _groceryRemoteShops.clear();
+            _groceryRemoteError = null;
+          });
+        } else {
+          _groceryRemoteReady = true;
+          _groceryRemoteCategories = const <_GroceryRemoteCategory>[];
+          _groceryRemoteProducts.clear();
+          _groceryRemoteShops.clear();
+          _groceryRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _groceryRemoteError = error.message;
@@ -1098,6 +1202,24 @@ class _UserHomePageState extends State<UserHomePage> {
         _pharmacyRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _pharmacyRemoteReady = true;
+            _pharmacyRemoteCategories = const <_PharmacyRemoteCategory>[];
+            _pharmacyRemoteProducts.clear();
+            _pharmacyRemoteShops.clear();
+            _pharmacyRemoteError = null;
+          });
+        } else {
+          _pharmacyRemoteReady = true;
+          _pharmacyRemoteCategories = const <_PharmacyRemoteCategory>[];
+          _pharmacyRemoteProducts.clear();
+          _pharmacyRemoteShops.clear();
+          _pharmacyRemoteError = null;
+        }
+        return;
+      }
       if (mounted) {
         setState(() {
           _pharmacyRemoteError = error.message;
@@ -2014,6 +2136,83 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
+
+  bool _hasRestaurantShopData() =>
+      _restaurantRemoteProducts.isNotEmpty ||
+      _restaurantRemoteShops.isNotEmpty ||
+      _restaurantRemoteCuisines.isNotEmpty;
+
+  bool _hasFashionShopData() =>
+      _fashionRemoteProducts.isNotEmpty || _fashionRemoteShops.isNotEmpty;
+
+  bool _hasFootwearShopData() =>
+      _footwearRemoteProducts.isNotEmpty || _footwearRemoteShops.isNotEmpty;
+
+  bool _hasGiftShopData() =>
+      _giftRemoteProducts.isNotEmpty || _giftRemoteShops.isNotEmpty;
+
+  bool _hasGroceryShopData() =>
+      _groceryRemoteProducts.isNotEmpty || _groceryRemoteShops.isNotEmpty;
+
+  bool _hasPharmacyShopData() =>
+      _pharmacyRemoteProducts.isNotEmpty || _pharmacyRemoteShops.isNotEmpty;
+
+  List<String> get _availableShopCategories {
+    final categories = <String>['All'];
+    if (_hasRestaurantShopData()) {
+      categories.add('Restaurant');
+    }
+    if (_hasFashionShopData()) {
+      categories.add('Fashion');
+    }
+    if (_hasFootwearShopData()) {
+      categories.add('Footwear');
+    }
+    if (_hasGroceryShopData()) {
+      categories.add('Groceries');
+    }
+    if (_hasPharmacyShopData()) {
+      categories.add('Pharmacy');
+    }
+    if (_hasGiftShopData()) {
+      categories.add('Gift');
+    }
+    return categories;
+  }
+
+  bool _shouldTreatAsEmptyResults(String message) {
+    final normalized = message.trim().toLowerCase();
+    return normalized.contains('not found') ||
+        normalized.contains('no shop') ||
+        normalized.contains('no shops') ||
+        normalized.contains('no store') ||
+        normalized.contains('no provider') ||
+        normalized.contains('no providers') ||
+        normalized.contains('no service') ||
+        normalized.contains('no data');
+  }
+
+  void _ensureShopSelectionIsVisible() {
+    if (_mode != _HomeMode.shop) {
+      return;
+    }
+    final availableCategories = _availableShopCategories;
+    final fallbackCategory =
+        availableCategories.isEmpty ? 'All' : availableCategories.first;
+    if (availableCategories.contains(_selectedShopCategory)) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedShopCategory = fallbackCategory;
+        _selectedShopSubCategory = 'All';
+      });
+    });
+  }
+
   String get _searchHint {
     switch (_mode) {
       case _HomeMode.all:
@@ -2040,15 +2239,9 @@ class _UserHomePageState extends State<UserHomePage> {
             ? _serviceRemoteCategories.map((item) => item.label).toList(growable: false)
             : const <String>[];
       case _HomeMode.shop:
-        return [
-          ..._shopCategorySortOrder.where(_shopComingSoonCategories.contains),
-          ..._shopCategorySortOrder.where((category) => !_shopComingSoonCategories.contains(category)),
-        ];
+        return _availableShopCategories;
     }
   }
-
-  List<String> get _shopCategorySortOrder =>
-      const ['All', 'Restaurant', 'Fashion', 'Footwear', 'Groceries', 'Pharmacy', 'Gift'];
 
 
   List<String> get _selectedServiceSubcategories =>
@@ -2227,6 +2420,8 @@ class _UserHomePageState extends State<UserHomePage> {
     const pinnedModeHeaderHeight = 44.0;
     const pinnedFilterHeaderHeight = 58.0;
 
+    _ensureShopSelectionIsVisible();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -2354,7 +2549,7 @@ class _UserHomePageState extends State<UserHomePage> {
                                       filters: _modeFilters,
                                       selected: _selectedFilter,
                                       selectedTextColor: _modeTint(_mode),
-                                      disabledFilters: _mode == _HomeMode.shop ? _shopComingSoonCategories : const {},
+                                      disabledFilters: const <String>{},
                                       onSelected: _handleFilterSelect,
                                     ),
                                   ),
@@ -2499,17 +2694,13 @@ class _UserHomePageState extends State<UserHomePage> {
       case _HomeMode.service:
         return _selectedServiceCategory;
       case _HomeMode.shop:
-        return _selectedShopCategory;
+        return _modeFilters.contains(_selectedShopCategory)
+            ? _selectedShopCategory
+            : (_modeFilters.isEmpty ? 'All' : _modeFilters.first);
     }
   }
 
   void _handleFilterSelect(String value) {
-    if (_mode == _HomeMode.shop && _shopComingSoonCategories.contains(value)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$value is coming soon.')),
-      );
-      return;
-    }
     setState(() {
       switch (_mode) {
         case _HomeMode.all:

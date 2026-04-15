@@ -971,6 +971,7 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
                       target: _selectedPosition,
                       zoom: 16,
                     ),
+                    mapType: MapType.normal,
                     zoomControlsEnabled: false,
                     mapToolbarEnabled: false,
                     myLocationEnabled: true,
