@@ -24,8 +24,11 @@ class _DiscoveryItem {
     this.backendServiceProviderId,
     this.backendCategoryId,
     this.backendSubcategoryId,
+    this.profileImageUrl = '',
     this.isDisabled = false,
     this.disabledLabel = '',
+    this.labourHalfDayPrice = '',
+    this.labourFullDayPrice = '',
   });
 
   final String title;
@@ -45,6 +48,59 @@ class _DiscoveryItem {
   final int? backendServiceProviderId;
   final int? backendCategoryId;
   final int? backendSubcategoryId;
+  final String profileImageUrl;
   final bool isDisabled;
   final String disabledLabel;
+  final String labourHalfDayPrice;
+  final String labourFullDayPrice;
+
+  _DiscoveryItem copyWith({
+    String? title,
+    String? subtitle,
+    Color? accent,
+    IconData? icon,
+    String? price,
+    String? rating,
+    String? distance,
+    String? extra,
+    String? maskedPhone,
+    String? shopCategory,
+    int? backendProductId,
+    int? backendVariantId,
+    int? backendShopId,
+    int? backendLabourId,
+    int? backendServiceProviderId,
+    int? backendCategoryId,
+    int? backendSubcategoryId,
+    String? profileImageUrl,
+    bool? isDisabled,
+    String? disabledLabel,
+    String? labourHalfDayPrice,
+    String? labourFullDayPrice,
+  }) {
+    return _DiscoveryItem(
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      accent: accent ?? this.accent,
+      icon: icon ?? this.icon,
+      price: price ?? this.price,
+      rating: rating ?? this.rating,
+      distance: distance ?? this.distance,
+      extra: extra ?? this.extra,
+      maskedPhone: maskedPhone ?? this.maskedPhone,
+      shopCategory: shopCategory ?? this.shopCategory,
+      backendProductId: backendProductId ?? this.backendProductId,
+      backendVariantId: backendVariantId ?? this.backendVariantId,
+      backendShopId: backendShopId ?? this.backendShopId,
+      backendLabourId: backendLabourId ?? this.backendLabourId,
+      backendServiceProviderId: backendServiceProviderId ?? this.backendServiceProviderId,
+      backendCategoryId: backendCategoryId ?? this.backendCategoryId,
+      backendSubcategoryId: backendSubcategoryId ?? this.backendSubcategoryId,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      isDisabled: isDisabled ?? this.isDisabled,
+      disabledLabel: disabledLabel ?? this.disabledLabel,
+      labourHalfDayPrice: labourHalfDayPrice ?? this.labourHalfDayPrice,
+      labourFullDayPrice: labourFullDayPrice ?? this.labourFullDayPrice,
+    );
+  }
 }

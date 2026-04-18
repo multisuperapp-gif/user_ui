@@ -34,20 +34,64 @@ class _RemoteServiceLandingData {
 
 class _RemoteServiceBookingResult {
   const _RemoteServiceBookingResult({
-    required this.bookingId,
-    required this.bookingCode,
-    required this.paymentId,
-    required this.paymentCode,
-    required this.payableAmount,
+    required this.requestId,
+    required this.requestCode,
+    required this.requestStatus,
+    required this.quotedPriceAmount,
     required this.providerName,
     required this.serviceName,
   });
 
-  final int bookingId;
-  final String bookingCode;
-  final int paymentId;
-  final String paymentCode;
-  final String payableAmount;
+  final int requestId;
+  final String requestCode;
+  final String requestStatus;
+  final String quotedPriceAmount;
   final String providerName;
   final String serviceName;
+}
+
+class _RemoteServiceBookingRequestStatus {
+  const _RemoteServiceBookingRequestStatus({
+    required this.requestId,
+    required this.requestCode,
+    required this.requestStatus,
+    required this.providerName,
+    required this.providerPhone,
+    required this.quotedPriceAmount,
+    required this.distanceLabel,
+    required this.bookingId,
+    required this.bookingCode,
+    required this.bookingStatus,
+    required this.paymentStatus,
+    required this.canMakePayment,
+  });
+
+  final int requestId;
+  final String requestCode;
+  final String requestStatus;
+  final String providerName;
+  final String providerPhone;
+  final String quotedPriceAmount;
+  final String distanceLabel;
+  final int bookingId;
+  final String bookingCode;
+  final String bookingStatus;
+  final String paymentStatus;
+  final bool canMakePayment;
+}
+
+class _RemoteServiceBookingPaymentResult {
+  const _RemoteServiceBookingPaymentResult({
+    required this.bookingId,
+    required this.bookingCode,
+    required this.paymentCode,
+    required this.amountLabel,
+    required this.currencyCode,
+  });
+
+  final int bookingId;
+  final String bookingCode;
+  final String paymentCode;
+  final String amountLabel;
+  final String currencyCode;
 }

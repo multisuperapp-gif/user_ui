@@ -23,10 +23,10 @@ class _HomeLocationChoice {
 class UserHomePage extends StatefulWidget {
   const UserHomePage({
     super.key,
-    required this.phoneNumber,
+    this.phoneNumber,
   });
 
-  final String phoneNumber;
+  final String? phoneNumber;
 
   @override
   State<UserHomePage> createState() => _UserHomePageState();
@@ -60,15 +60,23 @@ class _UserHomePageState extends State<UserHomePage> {
   _ShopBrowseMode _shopBrowseMode = _ShopBrowseMode.itemWise;
   String _selectedServiceCategory = 'Automobile';
   String _selectedServiceSubCategory = 'All';
-  String _selectedShopCategory = 'All';
+  String _selectedShopCategory = 'All Deals';
   String _selectedShopSubCategory = 'All';
   String _selectedRestaurantCuisine = 'All';
   String _selectedLabourCategory = 'All labour';
-  String _selectedLabourPrice = '40';
+  String _selectedSingleLabourPeriod = 'All';
+  String _selectedSingleLabourMaxPrice = '';
+  String _selectedLabourPrice = '';
   String _selectedLabourPricePeriod = 'Full Day';
-  int _selectedLabourCount = 4;
+  int _selectedLabourCount = 1;
+  int _maxGroupLabourCount = 7;
+  String _labourBookingChargePerLabour = '5%';
+  bool _showLabourPriceError = false;
+  bool _showLabourCountError = false;
+  String? _labourCountErrorText;
   String? _cartShopName;
   int _notificationUnreadCount = 0;
+  _ActiveBookingStatus? _activeBookingStatus;
   List<_UserAddressData> _savedAddresses = const <_UserAddressData>[];
   _HomeLocationChoice? _currentLocationChoice;
   _HomeLocationChoice? _selectedLocationChoice;
@@ -124,6 +132,9 @@ class _UserHomePageState extends State<UserHomePage> {
   bool _fashionLoadMoreQueued = false;
   bool _footwearLoadMoreQueued = false;
   bool _initialHomeSetupRunning = false;
+  bool _localCartNeedsSync = false;
+  bool _guestLocationPromptShown = false;
+  String? _sessionPhoneNumber;
   StreamSubscription<_NotificationEvent>? _notificationEventSubscription;
 
   static const int _fashionProductBatchSize = 20;
@@ -134,9 +145,11 @@ class _UserHomePageState extends State<UserHomePage> {
   @override
   void initState() {
     super.initState();
+    _sessionPhoneNumber = widget.phoneNumber?.trim();
     _scrollController.addListener(_handleScroll);
     _notificationEventSubscription = _NotificationBootstrap.events.listen(_handleNotificationEvent);
     unawaited(_hydrateRemoteState());
+    unawaited(_loadLabourBookingPolicy());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_initializeHomeRequirements());
       final pendingEvent = _NotificationBootstrap.takePendingOpenEvent();
@@ -156,74 +169,89 @@ class _UserHomePageState extends State<UserHomePage> {
     super.dispose();
   }
 
-  Future<void> _hydrateRemoteState({bool silent = true}) async {
-    if (_remoteSyncInFlight) {
-      return;
-    }
-    if (mounted) {
-      setState(() {
-        _remoteSyncInFlight = true;
-        _homeBootstrapError = null;
-      });
-    } else {
+
+Future<void> _hydrateRemoteState({bool silent = true}) async {
+  if (_remoteSyncInFlight) {
+    return;
+  }
+  if (mounted) {
+    setState(() {
       _remoteSyncInFlight = true;
       _homeBootstrapError = null;
-    }
-    try {
+    });
+  } else {
+    _remoteSyncInFlight = true;
+    _homeBootstrapError = null;
+  }
+  try {
+    final remoteProducts = await _UserAppApi.fetchHomeTopProducts();
+    _RemoteCartState? remoteCart;
+    _ActiveBookingStatus? activeBooking;
+    if (_isAuthenticated) {
       final results = await Future.wait<dynamic>([
-        _UserAppApi.fetchHomeTopProducts(),
         _UserAppApi.fetchCart(),
+        _loadActiveBookingStatusSafe(),
       ]);
-      if (!mounted) {
-        return;
-      }
-      final remoteProducts = (results[0] as List<_DiscoveryItem>);
-      final remoteCart = results[1] as _RemoteCartState;
-      setState(() {
-        _backendTopProducts
-          ..clear()
-          ..addAll(remoteProducts);
+      remoteCart = results[0] as _RemoteCartState;
+      activeBooking = results[1] as _ActiveBookingStatus?;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _backendTopProducts
+        ..clear()
+        ..addAll(remoteProducts);
+      if (remoteCart != null) {
         _cartShopName = remoteCart.shopName.isEmpty ? null : remoteCart.shopName;
         _cartItems
           ..clear()
           ..addAll(remoteCart.items);
-        _homeBootstrapError = null;
-      });
+        _localCartNeedsSync = false;
+      }
+      _activeBookingStatus = _isAuthenticated ? activeBooking : null;
+      _homeBootstrapError = null;
+    });
+    if (_isAuthenticated) {
       unawaited(_refreshNotificationPreview(silent: true));
-    } on _UserAppApiException catch (error) {
-      if (mounted) {
-        setState(() {
-          _homeBootstrapError = error.message;
-        });
-      } else {
+    }
+  } on _UserAppApiException catch (error) {
+    if (mounted) {
+      setState(() {
         _homeBootstrapError = error.message;
-      }
-      if (!silent && mounted) {
-        _showCartSnack(error.message);
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _homeBootstrapError = 'Could not refresh live user app data right now.';
-        });
-      } else {
+      });
+    } else {
+      _homeBootstrapError = error.message;
+    }
+    if (!silent && mounted) {
+      _showCartSnack(error.message);
+    }
+  } catch (_) {
+    if (mounted) {
+      setState(() {
         _homeBootstrapError = 'Could not refresh live user app data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not refresh live user app data right now.');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _remoteSyncInFlight = false;
-        });
-      } else {
+      });
+    } else {
+      _homeBootstrapError = 'Could not refresh live user app data right now.';
+    }
+    if (!silent && mounted) {
+      _showCartSnack('Could not refresh live user app data right now.');
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
         _remoteSyncInFlight = false;
-      }
+      });
+    } else {
+      _remoteSyncInFlight = false;
     }
   }
+}
 
-  Future<void> _handleNotificationEvent(_NotificationEvent event) async {
+Future<void> _handleNotificationEvent(_NotificationEvent event) async {
+    if (!event.isVisibleInUserApp) {
+      return;
+    }
     await _refreshNotificationPreview(silent: true);
     await _hydrateRemoteState(silent: true);
     if (!mounted) {
@@ -238,6 +266,13 @@ class _UserHomePageState extends State<UserHomePage> {
           ),
         );
         await _refreshNotificationPreview(silent: true);
+      } else if (event.isBookingRelated) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const _LiveBookingsPage(),
+          ),
+        );
+        await _hydrateRemoteState(silent: true);
       } else {
         await _openNotificationsPage();
       }
@@ -305,11 +340,106 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
-  String get _selectedLocationCity => _selectedLocationChoice?.city ?? '';
-  double? get _selectedLatitude => _selectedLocationChoice?.latitude;
-  double? get _selectedLongitude => _selectedLocationChoice?.longitude;
 
-  Future<void> _initializeHomeRequirements() async {
+String get _selectedLocationCity => _selectedLocationChoice?.city ?? '';
+double? get _selectedLatitude => _selectedLocationChoice?.latitude;
+double? get _selectedLongitude => _selectedLocationChoice?.longitude;
+String get _currentPhoneNumber => (_sessionPhoneNumber ?? '').trim();
+bool get _isAuthenticated => _currentPhoneNumber.isNotEmpty;
+bool get _anyHomeRemoteLoading =>
+    _remoteSyncInFlight ||
+    _labourRemoteLoading ||
+    _serviceRemoteLoading ||
+    _restaurantRemoteLoading ||
+    _fashionRemoteLoading ||
+    _footwearRemoteLoading ||
+    _giftRemoteLoading ||
+    _groceryRemoteLoading ||
+    _pharmacyRemoteLoading ||
+    _homeLocationLoading;
+
+Future<void> _refreshSessionPhoneFromStore() async {
+  final savedPhoneNumber = (await _LocalSessionStore.readPhoneNumber())?.trim() ?? '';
+  if (!mounted || savedPhoneNumber == _currentPhoneNumber) {
+    return;
+  }
+  setState(() {
+    _sessionPhoneNumber = savedPhoneNumber.isEmpty ? null : savedPhoneNumber;
+  });
+}
+
+Future<bool> _ensureAuthenticated() async {
+  if (_isAuthenticated) {
+    return true;
+  }
+  final loggedIn = await Navigator.of(context).push<bool>(
+    MaterialPageRoute<bool>(
+      builder: (_) => const LoginPage(embeddedFlow: true),
+    ),
+  );
+  if (loggedIn != true) {
+    return false;
+  }
+  final savedPhoneNumber = await _LocalSessionStore.readPhoneNumber();
+  if (savedPhoneNumber == null || savedPhoneNumber.trim().isEmpty) {
+    if (mounted) {
+      _showCartSnack('Login completed, but the session could not be restored.');
+    }
+    return false;
+  }
+  if (!mounted) {
+    return true;
+  }
+  setState(() {
+    _sessionPhoneNumber = savedPhoneNumber.trim();
+  });
+  await _NotificationBootstrap.ensureRegistered();
+  await _loadHomeLocationOptions();
+  await _reloadAddressAwareDiscovery(silent: true);
+  await _hydrateRemoteState(silent: true);
+  await _refreshNotificationPreview(silent: true);
+  return true;
+}
+
+Future<void> _syncLocalCartToBackend() async {
+  if (!_isAuthenticated || !_localCartNeedsSync) {
+    return;
+  }
+  final syncableItems = _cartItems.where((item) => item.backendProductId != null).toList(growable: false);
+  if (syncableItems.isEmpty) {
+    if (mounted) {
+      setState(() {
+        _localCartNeedsSync = false;
+      });
+    } else {
+      _localCartNeedsSync = false;
+    }
+    return;
+  }
+  _RemoteCartState? remoteCart;
+  for (final item in syncableItems) {
+    remoteCart = await _UserAppApi.addItemToCart(item);
+  }
+  if (!mounted) {
+    _localCartNeedsSync = false;
+    return;
+  }
+  if (remoteCart != null) {
+    setState(() {
+      _cartShopName = remoteCart!.shopName.isEmpty ? null : remoteCart.shopName;
+      _cartItems
+        ..clear()
+        ..addAll(remoteCart.items);
+      _localCartNeedsSync = false;
+    });
+  } else {
+    setState(() {
+      _localCartNeedsSync = false;
+    });
+  }
+}
+
+Future<void> _initializeHomeRequirements() async {
     if (_initialHomeSetupRunning) {
       return;
     }
@@ -317,6 +447,14 @@ class _UserHomePageState extends State<UserHomePage> {
     try {
       await _enforceHomePermissions();
       await _loadHomeLocationOptions();
+      if (!_isAuthenticated && !_guestLocationPromptShown && mounted) {
+        _guestLocationPromptShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            unawaited(_openHomeLocationSelector(showManageAddresses: false));
+          }
+        });
+      }
       await _NotificationBootstrap.ensureRegistered();
       await _reloadAddressAwareDiscovery();
     } finally {
@@ -325,124 +463,93 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   Future<void> _enforceHomePermissions() async {
-    while (mounted) {
-      final locationServiceEnabled = await Geolocator.isLocationServiceEnabled();
-      final locationPermission = await Permission.locationWhenInUse.status;
-      final notificationPermission = Platform.isAndroid || Platform.isIOS
-          ? await Permission.notification.status
-          : PermissionStatus.granted;
-      final locationGranted = locationServiceEnabled && locationPermission.isGranted;
-      final notificationsGranted = notificationPermission.isGranted;
-      if (locationGranted && notificationsGranted) {
-        return;
+    final locationPermission = await Permission.locationWhenInUse.status;
+    if (!locationPermission.isGranted) {
+      await Permission.locationWhenInUse.request();
+    }
+    if (Platform.isAndroid || Platform.isIOS) {
+      final notificationPermission = await Permission.notification.status;
+      if (!notificationPermission.isGranted) {
+        await Permission.notification.request();
       }
-      if (!mounted) {
-        return;
-      }
-
-      final action = await showDialog<_HomePermissionAction>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Allow location and notifications'),
-            content: Text(
-              !locationServiceEnabled
-                  ? 'Turn on location services to continue. We use it to choose the right nearby shops and place orders on the correct address.'
-                  : 'Allow location and notification access to continue. We use them to show nearby shops, save your exact address, and keep order alerts working.',
-            ),
-            actions: [
-              if (!locationServiceEnabled)
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(_HomePermissionAction.locationSettings),
-                  child: const Text('Location settings'),
-                )
-              else
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(_HomePermissionAction.requestAgain),
-                  child: const Text('Allow now'),
-                ),
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(_HomePermissionAction.appSettings),
-                child: const Text('Open settings'),
-              ),
-            ],
-          );
-        },
-      );
-      if (!mounted) {
-        return;
-      }
-      if (action == _HomePermissionAction.locationSettings) {
-        await Geolocator.openLocationSettings();
-      } else if (action == _HomePermissionAction.appSettings) {
-        await openAppSettings();
-      } else {
-        if (!locationServiceEnabled) {
-          await Geolocator.openLocationSettings();
-        } else {
-          await Permission.locationWhenInUse.request();
-          if (Platform.isAndroid || Platform.isIOS) {
-            await Permission.notification.request();
-          }
-        }
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 300));
     }
   }
 
-  Future<void> _loadHomeLocationOptions() async {
-    if (mounted) {
-      setState(() {
-        _homeLocationLoading = true;
-        _homeLocationError = null;
-      });
-    } else {
+
+Future<void> _loadHomeLocationOptions() async {
+  if (mounted) {
+    setState(() {
       _homeLocationLoading = true;
       _homeLocationError = null;
-    }
-    try {
-      final addresses = await _UserAppApi.fetchAddresses();
-      final currentLocation = await _resolveCurrentLocationChoice();
-      if (!mounted) {
-        return;
-      }
-      final previousSelection = _selectedLocationChoice;
-      _HomeLocationChoice? selectedLocation = previousSelection;
-      if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
-        final selectedAddress = addresses.where((item) => item.id == selectedLocation!.addressId).firstOrNull;
-        if (selectedAddress != null) {
-          selectedLocation = _locationChoiceFromAddress(selectedAddress);
-        } else {
-          selectedLocation = null;
-        }
-      } else if (selectedLocation?.isCurrentLocation == true) {
-        selectedLocation = currentLocation;
-      }
-      selectedLocation ??= currentLocation;
-      selectedLocation ??= addresses.where((item) => item.isDefault).map(_locationChoiceFromAddress).firstOrNull;
-      selectedLocation ??= addresses.map(_locationChoiceFromAddress).firstOrNull;
-      setState(() {
-        _savedAddresses = addresses;
-        _currentLocationChoice = currentLocation;
-        _selectedLocationChoice = selectedLocation;
-        _homeLocationLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _savedAddresses = const <_UserAddressData>[];
-        _currentLocationChoice = null;
-        _selectedLocationChoice = null;
-        _homeLocationError = '$error';
-        _homeLocationLoading = false;
-      });
-    }
+    });
+  } else {
+    _homeLocationLoading = true;
+    _homeLocationError = null;
   }
+  try {
+    final addresses = _isAuthenticated
+        ? await _UserAppApi.fetchAddresses()
+        : <_UserAddressData>[];
+    _HomeLocationChoice? currentLocation;
+    try {
+      currentLocation = await _resolveCurrentLocationChoice();
+    } catch (_) {
+      currentLocation = null;
+    }
+    if (!mounted) {
+      return;
+    }
+    final previousSelection = _selectedLocationChoice;
+    _HomeLocationChoice? selectedLocation = previousSelection;
+    if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
+      final selectedAddress = addresses.where((item) => item.id == selectedLocation!.addressId).firstOrNull;
+      if (selectedAddress != null) {
+        selectedLocation = _locationChoiceFromAddress(selectedAddress);
+      } else {
+        selectedLocation = null;
+      }
+    } else if (selectedLocation?.isCurrentLocation == true) {
+      selectedLocation = currentLocation;
+    }
+    selectedLocation ??= currentLocation;
+    selectedLocation ??= addresses.where((item) => item.isDefault).map(_locationChoiceFromAddress).firstOrNull;
+    selectedLocation ??= addresses.map(_locationChoiceFromAddress).firstOrNull;
+    setState(() {
+      _savedAddresses = addresses;
+      _currentLocationChoice = currentLocation;
+      _selectedLocationChoice = selectedLocation;
+      _homeLocationError = null;
+      _homeLocationLoading = false;
+    });
+  } catch (error) {
+    _HomeLocationChoice? currentLocation;
+    try {
+      currentLocation = await _resolveCurrentLocationChoice();
+    } catch (_) {
+      currentLocation = null;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _savedAddresses = const <_UserAddressData>[];
+      _currentLocationChoice = currentLocation;
+      _selectedLocationChoice = currentLocation;
+      _homeLocationError = currentLocation == null ? '$error' : null;
+      _homeLocationLoading = false;
+    });
+  }
+}
 
-  Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
+Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
+    final locationServiceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!locationServiceEnabled) {
+      return null;
+    }
+    final locationPermission = await Permission.locationWhenInUse.status;
+    if (!locationPermission.isGranted) {
+      return null;
+    }
     final position = await Geolocator.getCurrentPosition();
     final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
     final placemark = placemarks.isEmpty ? null : placemarks.first;
@@ -476,21 +583,27 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
-  Future<void> _openHomeLocationSelector() async {
+  Future<void> _openHomeLocationSelector({bool? showManageAddresses}) async {
+    final canManageAddresses = showManageAddresses ?? _isAuthenticated;
     final result = await showModalBottomSheet<Object?>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) {
         final options = <_HomeLocationChoice>[
           ...?_currentLocationChoice == null ? null : <_HomeLocationChoice>[_currentLocationChoice!],
           ..._savedAddresses.map(_locationChoiceFromAddress),
         ];
+        final safeBottom = MediaQuery.viewPaddingOf(context).bottom > 12
+            ? MediaQuery.viewPaddingOf(context).bottom
+            : 12.0;
         return Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(18, 16, 18, safeBottom + 8),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
           ),
           child: SafeArea(
             top: false,
@@ -541,15 +654,17 @@ class _UserHomePageState extends State<UserHomePage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop('manage'),
-                    icon: const Icon(Icons.edit_location_alt_rounded),
-                    label: const Text('Manage saved addresses'),
+                if (canManageAddresses) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).pop('manage'),
+                      icon: const Icon(Icons.edit_location_alt_rounded),
+                      label: const Text('Manage saved addresses'),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -560,6 +675,10 @@ class _UserHomePageState extends State<UserHomePage> {
       return;
     }
     if (result == 'manage') {
+      final canContinue = await _ensureAuthenticated();
+      if (!mounted || !canContinue) {
+        return;
+      }
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => const _AddressesPage(),
@@ -590,68 +709,98 @@ class _UserHomePageState extends State<UserHomePage> {
     ]);
   }
 
-  Future<void> _loadLabourLanding({bool silent = true}) async {
-    if (_labourRemoteLoading) {
-      return;
-    }
-    setState(() {
-      _labourRemoteLoading = true;
-      _labourRemoteError = null;
-    });
+  Future<void> _refreshVisiblePage() async {
+    await _loadHomeLocationOptions();
+    await _refreshNotificationPreview(silent: true);
+    await _loadLabourBookingPolicy();
+    await _hydrateRemoteState(silent: false);
+    await _reloadAddressAwareDiscovery(silent: false);
+  }
+
+  Future<void> _loadLabourBookingPolicy() async {
     try {
-      final landing = await _UserAppApi.fetchLabourLanding(
-        categoryId: _labourCategoryIdForLabel(_selectedLabourCategory),
-        city: _selectedLocationCity,
-        latitude: _selectedLatitude,
-        longitude: _selectedLongitude,
-      );
+      final policy = await _UserAppApi.fetchLabourBookingPolicy();
       if (!mounted) {
         return;
       }
-      final labels = landing.categories.map((item) => item.label).toList(growable: false);
       setState(() {
-        _labourRemoteCategories = landing.categories;
-        _labourRemoteProfiles
-          ..clear()
-          ..addAll(landing.profiles);
-        _labourRemoteReady = landing.profiles.isNotEmpty || landing.categories.isNotEmpty;
-        _labourRemoteError = null;
-        if (!labels.contains(_selectedLabourCategory)) {
-          _selectedLabourCategory = labels.isEmpty ? 'All labour' : labels.first;
+        _labourBookingChargePerLabour = policy.bookingChargePerLabour;
+        _maxGroupLabourCount = policy.maxGroupLabourCount <= 0 ? 7 : policy.maxGroupLabourCount;
+        if (_selectedLabourCount <= 0) {
+          _selectedLabourCount = 1;
+        } else if (_selectedLabourCount > _maxGroupLabourCount) {
+          _selectedLabourCount = _maxGroupLabourCount;
         }
       });
-    } on _UserAppApiException catch (error) {
-      if (mounted) {
-        setState(() {
-          _labourRemoteError = error.message;
-        });
-      } else {
-        _labourRemoteError = error.message;
-      }
-      if (!silent && mounted) {
-        _showCartSnack(error.message);
-      }
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _labourRemoteError = 'Could not load labour profiles right now.';
-        });
-      } else {
-        _labourRemoteError = 'Could not load labour profiles right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load labour profiles right now.');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _labourRemoteLoading = false);
-      } else {
-        _labourRemoteLoading = false;
-      }
+      // Keep the safe local default until the policy endpoint is reachable.
     }
   }
 
-  Future<void> _loadServiceLanding({bool silent = true}) async {
+
+Future<void> _loadLabourLanding({bool silent = true}) async {
+  if (_labourRemoteLoading) {
+    return;
+  }
+  setState(() {
+    _labourRemoteLoading = true;
+    _labourRemoteError = null;
+    _labourRemoteProfiles.clear();
+  });
+  try {
+    final landing = await _UserAppApi.fetchLabourLanding(
+      categoryId: _labourCategoryIdForLabel(_selectedLabourCategory),
+      city: _selectedLocationCity,
+      latitude: _selectedLatitude,
+      longitude: _selectedLongitude,
+    );
+    if (!mounted) {
+      return;
+    }
+    final labels = landing.categories.map((item) => item.label).toList(growable: false);
+    setState(() {
+      _labourRemoteCategories = landing.categories;
+      _labourRemoteProfiles
+        ..clear()
+        ..addAll(landing.profiles);
+      _labourRemoteReady = landing.profiles.isNotEmpty || landing.categories.isNotEmpty;
+      _labourRemoteError = null;
+      if (!labels.contains(_selectedLabourCategory)) {
+        _selectedLabourCategory = labels.isEmpty ? 'All labour' : labels.first;
+      }
+    });
+  } on _UserAppApiException catch (error) {
+    if (mounted) {
+      setState(() {
+        _labourRemoteError = error.message;
+      });
+    } else {
+      _labourRemoteError = error.message;
+    }
+    if (!silent && mounted) {
+      _showCartSnack(error.message);
+    }
+  } catch (_) {
+    if (mounted) {
+      setState(() {
+        _labourRemoteError = 'Could not load labour profiles right now.';
+      });
+    } else {
+      _labourRemoteError = 'Could not load labour profiles right now.';
+    }
+    if (!silent && mounted) {
+      _showCartSnack('Could not load labour profiles right now.');
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _labourRemoteLoading = false);
+    } else {
+      _labourRemoteLoading = false;
+    }
+  }
+}
+
+Future<void> _loadServiceLanding({bool silent = true}) async {
     if (_serviceRemoteLoading) {
       return;
     }
@@ -822,10 +971,14 @@ class _UserHomePageState extends State<UserHomePage> {
       setState(() {
         _fashionRemoteLoading = true;
         _fashionRemoteError = null;
+        _fashionRemoteProducts.clear();
+        _fashionRemoteShops.clear();
       });
     } else {
       _fashionRemoteLoading = true;
       _fashionRemoteError = null;
+      _fashionRemoteProducts.clear();
+      _fashionRemoteShops.clear();
     }
     try {
       final landing = await _UserAppApi.fetchFashionLanding(
@@ -913,10 +1066,14 @@ class _UserHomePageState extends State<UserHomePage> {
       setState(() {
         _footwearRemoteLoading = true;
         _footwearRemoteError = null;
+        _footwearRemoteProducts.clear();
+        _footwearRemoteShops.clear();
       });
     } else {
       _footwearRemoteLoading = true;
       _footwearRemoteError = null;
+      _footwearRemoteProducts.clear();
+      _footwearRemoteShops.clear();
     }
     try {
       final landing = await _UserAppApi.fetchFootwearLanding(
@@ -1086,10 +1243,14 @@ class _UserHomePageState extends State<UserHomePage> {
       setState(() {
         _groceryRemoteLoading = true;
         _groceryRemoteError = null;
+        _groceryRemoteProducts.clear();
+        _groceryRemoteShops.clear();
       });
     } else {
       _groceryRemoteLoading = true;
       _groceryRemoteError = null;
+      _groceryRemoteProducts.clear();
+      _groceryRemoteShops.clear();
     }
     try {
       final landing = await _UserAppApi.fetchGroceryLanding(
@@ -1171,10 +1332,14 @@ class _UserHomePageState extends State<UserHomePage> {
       setState(() {
         _pharmacyRemoteLoading = true;
         _pharmacyRemoteError = null;
+        _pharmacyRemoteProducts.clear();
+        _pharmacyRemoteShops.clear();
       });
     } else {
       _pharmacyRemoteLoading = true;
       _pharmacyRemoteError = null;
+      _pharmacyRemoteProducts.clear();
+      _pharmacyRemoteShops.clear();
     }
     try {
       final landing = await _UserAppApi.fetchPharmacyLanding(
@@ -1259,6 +1424,108 @@ class _UserHomePageState extends State<UserHomePage> {
     return null;
   }
 
+  Future<int?> _resolveGroupLabourCategoryId() async {
+    final selectedId = _labourCategoryIdForLabel(_selectedLabourCategory);
+    if (selectedId != null) {
+      return selectedId;
+    }
+    final options = _labourRemoteCategories
+        .where((category) => category.backendCategoryId != null)
+        .toList(growable: false);
+    if (options.isEmpty) {
+      return null;
+    }
+    final selected = await showModalBottomSheet<_RemoteLabourCategory>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F2EC),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD8C7BC),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Select labour type',
+              style: TextStyle(
+                color: Color(0xFF22314D),
+                fontWeight: FontWeight.w900,
+                fontSize: 20,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Group request will go to all matching labour in this type and in your selected range.',
+              style: TextStyle(
+                color: Color(0xFF66748C),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: options.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final category = options[index];
+                  return ListTile(
+                    onTap: () => Navigator.of(context).pop(category),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    tileColor: Colors.white,
+                    leading: const Icon(Icons.engineering_rounded, color: Color(0xFFCB6E5B)),
+                    title: Text(
+                      category.label,
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) {
+      return null;
+    }
+    if (mounted) {
+      setState(() {
+        _selectedLabourCategory = selected.label;
+        _showLabourCountError = false;
+        _labourCountErrorText = null;
+      });
+      unawaited(_loadLabourLanding(silent: false));
+    }
+    return selected.backendCategoryId;
+  }
+
+  int _availableLabourCountForGroupCategory(int? categoryId) {
+    final profiles = categoryId == null
+        ? _labourRemoteProfiles
+        : _labourRemoteProfiles.where((item) => item.backendCategoryId == categoryId);
+    return profiles.where((item) => !item.isDisabled).length;
+  }
+
   int? _serviceCategoryIdForLabel(String label) {
     for (final category in _serviceRemoteCategories) {
       if (category.label == label) {
@@ -1282,37 +1549,52 @@ class _UserHomePageState extends State<UserHomePage> {
     return null;
   }
 
-  Future<void> _selectRestaurantCuisine(String value) async {
-    setState(() {
-      _selectedRestaurantCuisine = value;
-    });
-    _RestaurantCuisineItem? selectedCategory;
-    for (final item in _restaurantRemoteCuisines) {
-      if (item.label == value) {
-        selectedCategory = item;
-        break;
-      }
-    }
-    try {
-      final products = await _UserAppApi.fetchRestaurantProducts(
-        categoryId: selectedCategory?.backendCategoryId,
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _restaurantRemoteProducts
-          ..clear()
-          ..addAll(products);
-      });
-    } catch (_) {
-      if (mounted) {
-        _showCartSnack('Could not refresh restaurant items right now.');
-      }
+
+Future<void> _selectRestaurantCuisine(String value) async {
+  setState(() {
+    _selectedRestaurantCuisine = value;
+    _restaurantRemoteLoading = true;
+    _restaurantRemoteProducts.clear();
+  });
+  _RestaurantCuisineItem? selectedCategory;
+  for (final item in _restaurantRemoteCuisines) {
+    if (item.label == value) {
+      selectedCategory = item;
+      break;
     }
   }
+  try {
+    final products = await _UserAppApi.fetchRestaurantProducts(
+      categoryId: selectedCategory?.backendCategoryId,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _restaurantRemoteProducts
+        ..clear()
+        ..addAll(products);
+    });
+  } on _UserAppApiException catch (error) {
+    if (mounted && !_shouldTreatAsEmptyResults(error.message)) {
+      _showCartSnack('Could not refresh restaurant items right now.');
+    }
+  } catch (_) {
+    if (mounted) {
+      _showCartSnack('Could not refresh restaurant items right now.');
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _restaurantRemoteLoading = false;
+      });
+    } else {
+      _restaurantRemoteLoading = false;
+    }
+  }
+}
 
-  Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async {
+Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async {
     setState(() {
       _selectedShopSubCategory = value;
     });
@@ -1339,6 +1621,10 @@ class _UserHomePageState extends State<UserHomePage> {
         _fashionRemotePage = page.page;
         _fashionRemoteHasMore = page.hasMore;
       });
+    } on _UserAppApiException catch (error) {
+      if (!silent && mounted && !_shouldTreatAsEmptyResults(error.message)) {
+        _showCartSnack('Could not refresh fashion items right now.');
+      }
     } catch (_) {
       if (!silent && mounted) {
         _showCartSnack('Could not refresh fashion items right now.');
@@ -1377,6 +1663,9 @@ class _UserHomePageState extends State<UserHomePage> {
   Future<void> _selectFootwearSubcategory(String value, {bool silent = true}) async {
     setState(() {
       _selectedShopSubCategory = value;
+      _footwearRemoteLoading = true;
+      _footwearRemoteProducts.clear();
+      _footwearRemoteError = null;
     });
     if (!_footwearRemoteReady && value == 'All') {
       await _loadFootwearLanding(silent: silent);
@@ -1401,15 +1690,32 @@ class _UserHomePageState extends State<UserHomePage> {
         _footwearRemotePage = page.page;
         _footwearRemoteHasMore = page.hasMore;
       });
+    } on _UserAppApiException catch (error) {
+      if (!silent && mounted && !_shouldTreatAsEmptyResults(error.message)) {
+        _showCartSnack('Could not refresh footwear items right now.');
+      }
     } catch (_) {
       if (!silent && mounted) {
         _showCartSnack('Could not refresh footwear items right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _footwearRemoteLoading = false;
+        });
+      } else {
+        _footwearRemoteLoading = false;
       }
     }
   }
 
   Future<void> _selectGiftSubcategory(String value, {bool silent = true}) async {
-    setState(() => _selectedShopSubCategory = value);
+    setState(() {
+      _selectedShopSubCategory = value;
+      _giftRemoteLoading = true;
+      _giftRemoteProducts.clear();
+      _giftRemoteError = null;
+    });
     final categoryId = _giftCategoryIdForLabel(value);
     try {
       final page = await _UserAppApi.fetchGiftProducts(categoryId: categoryId);
@@ -1422,15 +1728,32 @@ class _UserHomePageState extends State<UserHomePage> {
         _giftRemotePage = page.page;
         _giftRemoteHasMore = page.hasMore;
       });
+    } on _UserAppApiException catch (error) {
+      if (!silent && mounted && !_shouldTreatAsEmptyResults(error.message)) {
+        _showCartSnack('Could not refresh gift items right now.');
+      }
     } catch (_) {
       if (!silent && mounted) {
         _showCartSnack('Could not refresh gift items right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _giftRemoteLoading = false;
+        });
+      } else {
+        _giftRemoteLoading = false;
       }
     }
   }
 
   Future<void> _selectGrocerySubcategory(String value, {bool silent = true}) async {
-    setState(() => _selectedShopSubCategory = value);
+    setState(() {
+      _selectedShopSubCategory = value;
+      _groceryRemoteLoading = true;
+      _groceryRemoteProducts.clear();
+      _groceryRemoteError = null;
+    });
     final categoryId = _groceryCategoryIdForLabel(value);
     try {
       final page = await _UserAppApi.fetchGroceryProducts(categoryId: categoryId);
@@ -1443,15 +1766,32 @@ class _UserHomePageState extends State<UserHomePage> {
         _groceryRemotePage = page.page;
         _groceryRemoteHasMore = page.hasMore;
       });
+    } on _UserAppApiException catch (error) {
+      if (!silent && mounted && !_shouldTreatAsEmptyResults(error.message)) {
+        _showCartSnack('Could not refresh grocery items right now.');
+      }
     } catch (_) {
       if (!silent && mounted) {
         _showCartSnack('Could not refresh grocery items right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _groceryRemoteLoading = false;
+        });
+      } else {
+        _groceryRemoteLoading = false;
       }
     }
   }
 
   Future<void> _selectPharmacySubcategory(String value, {bool silent = true}) async {
-    setState(() => _selectedShopSubCategory = value);
+    setState(() {
+      _selectedShopSubCategory = value;
+      _pharmacyRemoteLoading = true;
+      _pharmacyRemoteProducts.clear();
+      _pharmacyRemoteError = null;
+    });
     final categoryId = _pharmacyCategoryIdForLabel(value);
     try {
       final page = await _UserAppApi.fetchPharmacyProducts(categoryId: categoryId);
@@ -1464,9 +1804,21 @@ class _UserHomePageState extends State<UserHomePage> {
         _pharmacyRemotePage = page.page;
         _pharmacyRemoteHasMore = page.hasMore;
       });
+    } on _UserAppApiException catch (error) {
+      if (!silent && mounted && !_shouldTreatAsEmptyResults(error.message)) {
+        _showCartSnack('Could not refresh pharmacy items right now.');
+      }
     } catch (_) {
       if (!silent && mounted) {
         _showCartSnack('Could not refresh pharmacy items right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pharmacyRemoteLoading = false;
+        });
+      } else {
+        _pharmacyRemoteLoading = false;
       }
     }
   }
@@ -1895,34 +2247,77 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
-  Widget? _buildLabourStateSliver() {
-    if (_labourRemoteLoading && _labourRemoteProfiles.isEmpty) {
-      return _buildRemoteStateSliver(
-        icon: Icons.engineering_rounded,
-        title: 'Loading labour nearby',
-        message: 'We are fetching the latest available labour profiles for you.',
-        loading: true,
-      );
-    }
-    if (_labourRemoteError != null && _labourRemoteProfiles.isEmpty) {
-      return _buildRemoteStateSliver(
-        icon: Icons.cloud_off_rounded,
-        title: 'Could not load labour',
-        message: _labourRemoteError!,
-        actionLabel: 'Try Again',
-        onAction: () => unawaited(_loadLabourLanding(silent: false)),
-      );
-    }
-    if (_labourRemoteReady && _labourRemoteProfiles.isEmpty) {
-      return _buildAreaComingSoonSliver(
-        icon: Icons.engineering_rounded,
-        message: 'No labour profile is registered within your selected range yet.',
-      );
-    }
-    return null;
-  }
 
-  Widget? _buildServiceStateSliver() {
+Widget? _buildLabourStateSliver() {
+  if (_labourRemoteLoading && _labourRemoteProfiles.isEmpty) {
+    return _buildRemoteStateSliver(
+      icon: Icons.engineering_rounded,
+      title: 'Loading labour nearby',
+      message: 'We are fetching the latest available labour profiles for you.',
+      loading: true,
+    );
+  }
+  if (_labourRemoteError != null && _labourRemoteProfiles.isEmpty) {
+    return _buildRemoteStateSliver(
+      icon: Icons.cloud_off_rounded,
+      title: 'Could not load labour',
+      message: _labourRemoteError!,
+      actionLabel: 'Try Again',
+      onAction: () => unawaited(_loadLabourLanding(silent: false)),
+    );
+  }
+  if (_labourRemoteReady && _labourRemoteProfiles.isEmpty) {
+    final selectedCategoryName = _selectedLabourCategory.trim().isEmpty ? 'labour category' : _selectedLabourCategory;
+    final isAllCategory = selectedCategoryName == 'All labour';
+    return _buildAreaComingSoonSliver(
+      icon: Icons.engineering_rounded,
+      title: isAllCategory ? 'Coming soon in your area....!' : 'No labour available yet',
+      message: isAllCategory
+          ? 'We are onboarding more labour partners near your selected location every day. Please check again soon.'
+          : 'No labour is available yet for $selectedCategoryName. Every day we are onboarding more labour partners to help them get jobs and help you get work done faster.',
+    );
+  }
+  return null;
+}
+
+List<_DiscoveryItem> get _filteredSingleLabourProfiles {
+  final period = _selectedSingleLabourPeriod.trim().toUpperCase();
+  final maxPrice = _parseMoneyAmount(_selectedSingleLabourMaxPrice);
+  return _labourRemoteProfiles.where((item) {
+    final halfDay = _parseMoneyAmount(item.labourHalfDayPrice);
+    final fullDay = _parseMoneyAmount(item.labourFullDayPrice);
+    if (item.backendLabourId != null && halfDay <= 0 && fullDay <= 0) {
+      return false;
+    }
+    if (period == 'HALF DAY') {
+      if (halfDay <= 0) {
+        return false;
+      }
+      return maxPrice <= 0 || halfDay <= maxPrice;
+    }
+    if (period == 'FULL DAY') {
+      if (fullDay <= 0) {
+        return false;
+      }
+      return maxPrice <= 0 || fullDay <= maxPrice;
+    }
+    if (maxPrice <= 0) {
+      return true;
+    }
+    final prices = <double>[
+      if (halfDay > 0) halfDay,
+      if (fullDay > 0) fullDay,
+    ];
+    return prices.any((price) => price <= maxPrice);
+  }).toList(growable: false);
+}
+
+double _parseMoneyAmount(String value) {
+  final normalized = value.replaceAll(RegExp(r'[^0-9.]'), '');
+  return double.tryParse(normalized) ?? 0;
+}
+
+Widget? _buildServiceStateSliver() {
     if (_serviceRemoteLoading && _serviceRemoteProviders.isEmpty) {
       return _buildRemoteStateSliver(
         icon: Icons.handyman_rounded,
@@ -2158,7 +2553,7 @@ class _UserHomePageState extends State<UserHomePage> {
       _pharmacyRemoteProducts.isNotEmpty || _pharmacyRemoteShops.isNotEmpty;
 
   List<String> get _availableShopCategories {
-    final categories = <String>['All'];
+    final categories = <String>['All Deals'];
     if (_hasRestaurantShopData()) {
       categories.add('Restaurant');
     }
@@ -2183,9 +2578,16 @@ class _UserHomePageState extends State<UserHomePage> {
   bool _shouldTreatAsEmptyResults(String message) {
     final normalized = message.trim().toLowerCase();
     return normalized.contains('not found') ||
+        normalized.contains('no result') ||
+        normalized.contains('no results') ||
+        normalized.contains('empty') ||
         normalized.contains('no shop') ||
         normalized.contains('no shops') ||
         normalized.contains('no store') ||
+        normalized.contains('no restaurant') ||
+        normalized.contains('no restaurants') ||
+        normalized.contains('no cuisine') ||
+        normalized.contains('no gift') ||
         normalized.contains('no provider') ||
         normalized.contains('no providers') ||
         normalized.contains('no service') ||
@@ -2198,7 +2600,7 @@ class _UserHomePageState extends State<UserHomePage> {
     }
     final availableCategories = _availableShopCategories;
     final fallbackCategory =
-        availableCategories.isEmpty ? 'All' : availableCategories.first;
+        availableCategories.isEmpty ? 'All Deals' : availableCategories.first;
     if (availableCategories.contains(_selectedShopCategory)) {
       return;
     }
@@ -2260,7 +2662,7 @@ class _UserHomePageState extends State<UserHomePage> {
 
   bool get _showShopAllLanding =>
       _shopBrowseMode == _ShopBrowseMode.itemWise &&
-      _selectedShopCategory == 'All' &&
+      _selectedShopCategory == 'All Deals' &&
       _selectedShopSubCategory == 'All';
 
   bool get _showShopRestaurantLanding => _selectedShopCategory == 'Restaurant';
@@ -2436,14 +2838,20 @@ class _UserHomePageState extends State<UserHomePage> {
               color: _headerGradient(_mode).first,
             ),
             Expanded(
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child: Container(
-                  color: Colors.white,
-                  child: CustomScrollView(
-                    controller: _scrollController,
-                    slivers: [
+              child: RefreshIndicator.adaptive(
+                onRefresh: _refreshVisiblePage,
+                color: const Color(0xFFCB6E5B),
+                child: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: Container(
+                    color: Colors.white,
+                    child: CustomScrollView(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      slivers: [
                     SliverToBoxAdapter(
                       child: Container(
                         color: _headerGradient(_mode).first,
@@ -2456,7 +2864,9 @@ class _UserHomePageState extends State<UserHomePage> {
                                 title: _selectedLocationChoice?.title ?? 'Choose location',
                                 subtitle: _selectedLocationChoice?.subtitle ??
                                     _homeLocationError ??
-                                    'Allow location to see nearby shops',
+                                    (_isAuthenticated
+                                        ? 'Allow location to see nearby shops'
+                                        : 'Choose your current area to see nearby shops'),
                                 onTap: _openHomeLocationSelector,
                                 loading: _homeLocationLoading,
                               ),
@@ -2532,9 +2942,9 @@ class _UserHomePageState extends State<UserHomePage> {
                                   _headerGradient(_mode).first,
                                   _headerGradient(_mode)[1],
                                   _headerGradient(_mode)[2],
-                                  Colors.white,
+                                  _headerGradient(_mode)[2],
                                 ],
-                                stops: const [0, 0.44, 0.82, 1],
+                                stops: const [0, 0.44, 0.86, 1],
                               ),
                             ),
                             child: Transform.translate(
@@ -2548,7 +2958,7 @@ class _UserHomePageState extends State<UserHomePage> {
                                   child: _ModeFilterRow(
                                       filters: _modeFilters,
                                       selected: _selectedFilter,
-                                      selectedTextColor: _modeTint(_mode),
+                                      selectedTextColor: Colors.white,
                                       disabledFilters: const <String>{},
                                       onSelected: _handleFilterSelect,
                                     ),
@@ -2559,42 +2969,21 @@ class _UserHomePageState extends State<UserHomePage> {
                           ),
                         ),
                       ),
-                    if (_mode != _HomeMode.all && _modeFilters.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Container(
-                          height: 14,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                _headerGradient(_mode)[2],
-                                Colors.white,
-                              ],
-                            ),
-                          ),
-                        ),
+                    SliverToBoxAdapter(
+                      child: _CurvedBodyTransition(
+                        colors: _headerGradient(_mode),
+                        compact: _mode == _HomeMode.all,
+                        foreground: _buildCurveForeground(),
+                        foregroundHeight: _mode == _HomeMode.shop &&
+                                _shopBrowseMode == _ShopBrowseMode.itemWise &&
+                                _selectedShopSubcategories.length > 1
+                            ? 116
+                            : 76,
                       ),
-                    if (_mode == _HomeMode.all)
-                      SliverToBoxAdapter(
-                        child: Container(
-                          height: 4,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                _headerGradient(_mode).first,
-                                _headerGradient(_mode)[1],
-                                _headerGradient(_mode)[2],
-                                Colors.white,
-                              ],
-                              stops: const [0, 0.36, 0.76, 1],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ..._buildModeSlivers(),
+                    ),
+                    if (_activeBookingStatus != null)
+                      _buildActiveBookingSliver(),
+                    ..._buildModeSlivers(includeTopControls: false),
                     const SliverToBoxAdapter(
                       child: ColoredBox(
                         color: Colors.white,
@@ -2604,7 +2993,8 @@ class _UserHomePageState extends State<UserHomePage> {
                         ),
                       ),
                     ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2634,16 +3024,16 @@ class _UserHomePageState extends State<UserHomePage> {
                 child: const Icon(Icons.keyboard_arrow_up_rounded),
               ),
             ),
-          FloatingActionButton(
-            heroTag: 'cartFloat',
-            onPressed: _openCartPage,
-            backgroundColor: const Color(0xFFCB6E5B),
-            foregroundColor: Colors.white,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.shopping_cart_checkout_rounded),
-                if (_cartItems.isNotEmpty)
+          if (_cartItems.isNotEmpty)
+            FloatingActionButton(
+              heroTag: 'cartFloat',
+              onPressed: _openCartPage,
+              backgroundColor: const Color(0xFFCB6E5B),
+              foregroundColor: Colors.white,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.shopping_cart_checkout_rounded),
                   Positioned(
                     right: -8,
                     top: -8,
@@ -2668,9 +3058,9 @@ class _UserHomePageState extends State<UserHomePage> {
                       ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -2679,7 +3069,7 @@ class _UserHomePageState extends State<UserHomePage> {
   String get _selectedFilter {
     switch (_mode) {
       case _HomeMode.all:
-        return _modeFilters.first;
+        return 'ALL';
       case _HomeMode.labour:
         if (_labourRemoteCategories.isNotEmpty) {
           return _selectedLabourCategory;
@@ -2696,7 +3086,7 @@ class _UserHomePageState extends State<UserHomePage> {
       case _HomeMode.shop:
         return _modeFilters.contains(_selectedShopCategory)
             ? _selectedShopCategory
-            : (_modeFilters.isEmpty ? 'All' : _modeFilters.first);
+            : (_modeFilters.isEmpty ? _selectedShopCategory : _modeFilters.first);
     }
   }
 
@@ -2751,16 +3141,337 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
-  List<Widget> _buildModeSlivers() {
+
+Future<_ActiveBookingStatus?> _loadActiveBookingStatusSafe() async {
+  if (!_isAuthenticated) {
+    return null;
+  }
+  try {
+    return await _UserAppApi.fetchLatestActiveBookingStatus();
+  } catch (_) {
+    return _activeBookingStatus;
+  }
+}
+
+SliverToBoxAdapter _buildActiveBookingSliver() {
+    final status = _activeBookingStatus!;
+    final title = status.providerName.trim().isNotEmpty
+        ? status.providerName
+        : status.bookingType.toUpperCase() == 'SERVICE'
+            ? 'Service booking'
+            : 'Labour booking';
+    final width = math.max(168.0, MediaQuery.sizeOf(context).width * 0.42);
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => _openActiveBookingSheet(status),
+            child: Container(
+              width: width,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF22314D), Color(0xFF3E587D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0x2922314D),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  _ActiveBookingAvatar(status: status, size: 38),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _liveBookingStatusLabel(status),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                            height: 1.15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white, size: 22),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openActiveBookingSheet(_ActiveBookingStatus status) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ActiveBookingDetailsSheet(
+        initialStatus: status,
+        onPayNow: (latestStatus) async {
+          Navigator.of(context).pop();
+          await _handleActiveBookingPayment(latestStatus);
+        },
+        onStatusChanged: (latestStatus) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _activeBookingStatus = latestStatus;
+          });
+        },
+      ),
+    );
+  }
+
+  String _liveBookingStatusLabel(_ActiveBookingStatus status) {
+    if (status.canMakePayment) {
+      return 'Accepted. Pay booking charges.';
+    }
+    final bookingStatus = status.bookingStatus.trim().toUpperCase();
+    switch (bookingStatus) {
+      case 'PAYMENT_COMPLETED':
+        return 'Payment done. Track labour arrival.';
+      case 'ARRIVED':
+        return 'Labour arrived. Enter OTP to start.';
+      case 'IN_PROGRESS':
+        return 'Work in progress.';
+      case 'COMPLETED':
+        return 'Booking completed.';
+    }
+    if (bookingStatus.isNotEmpty) {
+      return _titleCase(bookingStatus);
+    }
+    switch (status.requestStatus.trim().toUpperCase()) {
+      case 'OPEN':
+        return 'Waiting for provider acceptance';
+      case 'REJECTED':
+        return 'Provider rejected the request';
+      case 'EXPIRED':
+        return 'Booking request expired';
+      case 'CANCELLED':
+        return 'Booking request cancelled';
+      default:
+        return _titleCase(status.requestStatus);
+    }
+  }
+
+  Future<void> _handleActiveBookingPayment(_ActiveBookingStatus status) async {
+    if (!status.canMakePayment) {
+      return;
+    }
+    try {
+      if (status.bookingType.toUpperCase() == 'SERVICE') {
+        final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
+        if (!mounted) {
+          return;
+        }
+        final paymentResult = await _PaymentFlow.start(
+          context,
+          paymentCode: payment.paymentCode,
+          title: 'Confirm service booking',
+        );
+        if (!mounted) {
+          return;
+        }
+        await _hydrateRemoteState(silent: true);
+        if (!mounted) {
+          return;
+        }
+        await _PaymentFlow.showOutcome(
+          context,
+          result: paymentResult,
+          successTitle: 'Service booking confirmed',
+          failureTitle: 'Service payment incomplete',
+          extraLines: [
+            'Booking code: ${payment.bookingCode}',
+            if (status.providerName.trim().isNotEmpty) 'Provider: ${status.providerName}',
+            if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+            'Amount: ${payment.amountLabel}',
+          ],
+        );
+        return;
+      }
+      final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
+      if (!mounted) {
+        return;
+      }
+      final paymentResult = await _PaymentFlow.start(
+        context,
+        paymentCode: payment.paymentCode,
+        title: 'Confirm labour booking',
+      );
+      if (!mounted) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      if (!mounted) {
+        return;
+      }
+      await _PaymentFlow.showOutcome(
+        context,
+        result: paymentResult,
+        successTitle: 'Labour booking confirmed',
+        failureTitle: 'Labour payment incomplete',
+        extraLines: [
+          'Booking code: ${payment.bookingCode}',
+          if (status.providerName.trim().isNotEmpty) 'Labour: ${status.providerName}',
+          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+          'Amount: ${payment.amountLabel}',
+        ],
+      );
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        _showCartSnack(error.message);
+      }
+    }
+  }
+
+  Widget? _buildCurveForeground() {
+    switch (_mode) {
+      case _HomeMode.all:
+        return null;
+      case _HomeMode.labour:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: _LabourModeCard(
+                  label: 'Single booking',
+                  icon: Icons.engineering_rounded,
+                  selected: _labourViewMode == _LabourViewMode.individual,
+                  onTap: () => setState(() => _labourViewMode = _LabourViewMode.individual),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: _LabourModeCard(
+                  label: 'Group booking',
+                  icon: Icons.groups_2_rounded,
+                  selected: _labourViewMode == _LabourViewMode.group,
+                  onTap: () => setState(() => _labourViewMode = _LabourViewMode.group),
+                ),
+              ),
+            ],
+          ),
+        );
+      case _HomeMode.service:
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+          child: _ServiceSubcategoryFilter(
+            selectedCategory: _selectedServiceCategory,
+            options: _selectedServiceSubcategories,
+            selected: _selectedServiceSubCategory,
+            onSelected: (value) {
+              setState(() => _selectedServiceSubCategory = value);
+              if (_serviceRemoteCategories.isNotEmpty) {
+                unawaited(_loadServiceLanding(silent: false));
+              }
+            },
+          ),
+        );
+      case _HomeMode.shop:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!_showShopRestaurantLanding)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+                child: _ShopBrowseToggle(
+                  selected: _shopBrowseMode,
+                  onSelected: (value) => setState(() {
+                    _shopBrowseMode = value;
+                    _fashionVisibleProductCount = _fashionProductBatchSize;
+                    _footwearVisibleProductCount = _footwearProductBatchSize;
+                  }),
+                  sortByPrice: _shopSortOption != 'Popular',
+                  onSortByPrice: _openShopSortSheet,
+                  onFilterTap: _openShopFilterPage,
+                ),
+              ),
+            if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
+                _selectedShopSubcategories.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 2, 18, 0),
+                child: _ShopSubcategoryFilter(
+                  category: _selectedShopCategory,
+                  options: _selectedShopSubcategories,
+                  selected: _selectedShopSubCategory,
+                  onSelected: (value) {
+                    if (_selectedShopCategory == 'Fashion') {
+                      unawaited(_selectFashionSubcategory(value, silent: false));
+                      return;
+                    }
+                    if (_selectedShopCategory == 'Footwear') {
+                      unawaited(_selectFootwearSubcategory(value, silent: false));
+                      return;
+                    }
+                    if (_selectedShopCategory == 'Gift') {
+                      unawaited(_selectGiftSubcategory(value, silent: false));
+                      return;
+                    }
+                    if (_selectedShopCategory == 'Groceries') {
+                      unawaited(_selectGrocerySubcategory(value, silent: false));
+                      return;
+                    }
+                    if (_selectedShopCategory == 'Pharmacy') {
+                      unawaited(_selectPharmacySubcategory(value, silent: false));
+                      return;
+                    }
+                    setState(() {
+                      _selectedShopSubCategory = value;
+                      _fashionVisibleProductCount = _fashionProductBatchSize;
+                      _footwearVisibleProductCount = _footwearProductBatchSize;
+                    });
+                  },
+                ),
+              ),
+          ],
+        );
+    }
+  }
+
+  List<Widget> _buildModeSlivers({bool includeTopControls = true}) {
     switch (_mode) {
       case _HomeMode.all:
         return _buildAllMode();
       case _HomeMode.labour:
-        return _buildLabourMode();
+        return _buildLabourMode(includeTopControls: includeTopControls);
       case _HomeMode.service:
-        return _buildServiceMode();
+        return _buildServiceMode(includeTopControls: includeTopControls);
       case _HomeMode.shop:
-        return _buildShopMode();
+        return _buildShopMode(includeTopControls: includeTopControls);
     }
   }
 
@@ -2779,12 +3490,12 @@ class _UserHomePageState extends State<UserHomePage> {
         nearbyShopProfiles.isNotEmpty;
     final slivers = <Widget>[];
 
-    if (_remoteSyncInFlight && _backendTopProducts.isEmpty && !hasAnyLiveSection) {
+    if (_anyHomeRemoteLoading && _backendTopProducts.isEmpty && !hasAnyLiveSection) {
       slivers.add(
         _buildRemoteStateSliver(
           icon: Icons.storefront_rounded,
-          title: 'Loading live shop picks',
-          message: 'We are fetching fresh products and cart state from the user app API.',
+          title: 'Loading nearby options',
+          message: 'We are checking live shops, labour, and services around your selected location.',
           loading: true,
         ),
       );
@@ -2855,7 +3566,7 @@ class _UserHomePageState extends State<UserHomePage> {
             items: _labourRemoteProfiles,
             isFavourited: _isFavourited,
             onFavouriteToggle: _toggleFavourite,
-            onTap: (item) => _openCard(item, _HomeMode.labour),
+            onTap: (item) => unawaited(_openCard(item, _HomeMode.labour)),
           ),
         ),
       );
@@ -2867,7 +3578,7 @@ class _UserHomePageState extends State<UserHomePage> {
           child: _AllServiceSection(
             title: 'Service nearby',
             items: _serviceRemoteProviders,
-            onTap: (item) => _openCard(item, _HomeMode.service),
+            onTap: (item) => unawaited(_openCard(item, _HomeMode.service)),
           ),
         ),
       );
@@ -2899,11 +3610,7 @@ class _UserHomePageState extends State<UserHomePage> {
       );
     }
 
-    if (!hasAnyLiveSection &&
-        !_remoteSyncInFlight &&
-        !_labourRemoteLoading &&
-        !_serviceRemoteLoading &&
-        !_restaurantRemoteLoading) {
+    if (!hasAnyLiveSection && !_anyHomeRemoteLoading) {
       slivers.add(
         _buildAreaComingSoonSliver(
           icon: Icons.location_city_rounded,
@@ -2915,81 +3622,140 @@ class _UserHomePageState extends State<UserHomePage> {
     return slivers;
   }
 
-  List<Widget> _buildLabourMode() {
+  List<Widget> _buildLabourMode({bool includeTopControls = true}) {
     final labourStateSliver = _buildLabourStateSliver();
+    final visibleLabourProfiles = _filteredSingleLabourProfiles;
+    final selectedGroupCategoryId = _labourCategoryIdForLabel(_selectedLabourCategory);
+    final groupAvailableLabour = _availableLabourCountForGroupCategory(selectedGroupCategoryId);
     return [
-      SliverToBoxAdapter(
-        child: ColoredBox(
-          color: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 6, 18, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _LabourModeCard(
-                    label: 'Single booking',
-                    icon: Icons.engineering_rounded,
-                    selected: _labourViewMode == _LabourViewMode.individual,
-                    onTap: () => setState(() => _labourViewMode = _LabourViewMode.individual),
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: _LabourModeCard(
-                    label: 'Group booking',
-                    icon: Icons.groups_2_rounded,
-                    selected: _labourViewMode == _LabourViewMode.group,
-                    onTap: () => setState(() => _labourViewMode = _LabourViewMode.group),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      if (includeTopControls)
+        SliverToBoxAdapter(child: _buildCurveForeground()),
       if (labourStateSliver != null)
         labourStateSliver
       else
       if (_labourViewMode == _LabourViewMode.individual)
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-          sliver: SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              mainAxisExtent: 246,
+        ...[
+          SliverToBoxAdapter(
+            child: _SingleLabourFilterBar(
+              selectedPeriod: _selectedSingleLabourPeriod,
+              maxPrice: _selectedSingleLabourMaxPrice,
+              onPeriodSelected: (value) => setState(() => _selectedSingleLabourPeriod = value),
+              onMaxPriceChanged: (value) => setState(() => _selectedSingleLabourMaxPrice = value),
             ),
-            itemCount: _labourRemoteProfiles.length,
-            itemBuilder: (context, index) {
-              final item = _labourRemoteProfiles[index];
-              return _LabourPortraitTile(
-                item: item,
-                isFavourited: _isFavourited(item),
-                onFavouriteToggle: () => _toggleFavourite(item),
-                onTap: () => _openCard(item, _mode),
-                compactScale: 0.62,
-              );
-            },
           ),
-        )
+          if (visibleLabourProfiles.isEmpty)
+            _buildRemoteStateSliver(
+              icon: Icons.filter_alt_off_rounded,
+              title: 'No labour matched this filter',
+              message: 'Try changing Half Day / Full Day or increasing your price range.',
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+              sliver: SliverGrid.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  mainAxisExtent: 246,
+                ),
+                itemCount: visibleLabourProfiles.length,
+                itemBuilder: (context, index) {
+                  final item = visibleLabourProfiles[index];
+                  return _LabourPortraitTile(
+                    item: item,
+                    isFavourited: _isFavourited(item),
+                    onFavouriteToggle: () => _toggleFavourite(item),
+                    onTap: () => unawaited(_openCard(item, _mode)),
+                    compactScale: 0.62,
+                  );
+                },
+              ),
+            ),
+        ]
       else
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+            padding: const EdgeInsets.fromLTRB(18, 6, 18, 0),
             child: _GroupBookingCard(
-              availableLabour: _labourRemoteProfiles.where((item) => !item.isDisabled).length,
+              availableLabour: groupAvailableLabour,
+              selectedLabourType: _selectedLabourCategory,
+              needsLabourTypeSelection: selectedGroupCategoryId == null,
               selectedMaxPrice: _selectedLabourPrice,
               selectedPricePeriod: _selectedLabourPricePeriod,
               selectedCount: _selectedLabourCount,
-              onPriceSelected: (value) => setState(() => _selectedLabourPrice = value),
+              maxSelectableCount: _maxGroupLabourCount,
+              bookingChargePerLabour: _labourBookingChargePerLabour,
+              showPriceError: _showLabourPriceError,
+              showCountError: _showLabourCountError,
+              countErrorText: _labourCountErrorText,
+              onLabourTypeSelected: () => unawaited(_resolveGroupLabourCategoryId()),
+              onPriceSelected: (value) => setState(() {
+                _selectedLabourPrice = value;
+                if (value.trim().isNotEmpty) {
+                  _showLabourPriceError = false;
+                }
+              }),
               onPricePeriodSelected: (value) => setState(() => _selectedLabourPricePeriod = value),
-              onCountSelected: (value) => setState(() => _selectedLabourCount = value),
+              onCountSelected: (value) => setState(() {
+                _selectedLabourCount = value;
+                if (value > 0 && value > groupAvailableLabour) {
+                  _showLabourCountError = true;
+                  _labourCountErrorText = 'Only $groupAvailableLabour labour available';
+                } else if (value > 0) {
+                  _showLabourCountError = false;
+                  _labourCountErrorText = null;
+                }
+              }),
               onBook: () async {
-                final categoryId = _labourCategoryIdForLabel(_selectedLabourCategory);
-                if (categoryId == null) {
-                  _showCartSnack('Please select a labour category first.');
+                if (_selectedLabourPrice.trim().isEmpty) {
+                  setState(() {
+                    _showLabourPriceError = true;
+                  });
+                  _showCartSnack('Enter the maximum budget for each labour first.');
                   return;
+                }
+                if (_selectedLabourCount <= 0) {
+                  setState(() {
+                    _showLabourCountError = true;
+                    _labourCountErrorText = 'Select count';
+                  });
+                  _showCartSnack('Select how many labours you need first.');
+                  return;
+                }
+                if (_selectedLabourCount > groupAvailableLabour) {
+                  setState(() {
+                    _showLabourCountError = true;
+                    _labourCountErrorText = 'Only $groupAvailableLabour labour available';
+                  });
+                  return;
+                }
+                setState(() {
+                  _showLabourPriceError = false;
+                  _showLabourCountError = false;
+                  _labourCountErrorText = null;
+                });
+                final categoryId = await _resolveGroupLabourCategoryId();
+                if (!mounted) {
+                  return;
+                }
+                if (categoryId == null) {
+                  _showCartSnack('Please select a labour type first.');
+                  return;
+                }
+                final selectedTypeAvailableLabour = _availableLabourCountForGroupCategory(categoryId);
+                if (_selectedLabourCount > selectedTypeAvailableLabour) {
+                  setState(() {
+                    _showLabourCountError = true;
+                    _labourCountErrorText = 'Only $selectedTypeAvailableLabour labour available';
+                  });
+                  return;
+                }
+                if (!_isAuthenticated) {
+                  final loggedIn = await _ensureAuthenticated();
+                  if (!loggedIn) {
+                    return;
+                  }
                 }
                 try {
                   final result = await _UserAppApi.requestGroupLabourBooking(
@@ -3001,12 +3767,68 @@ class _UserHomePageState extends State<UserHomePage> {
                   if (!mounted) {
                     return;
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Request ${result.requestCode} sent to ${result.availableCandidates} matching labour. Platform amount due: ${result.platformAmountDue}.',
-                      ),
-                    ),
+                  final request = _RemoteLabourBookingResult(
+                    requestId: result.requestId,
+                    requestCode: result.requestCode,
+                    requestStatus: 'OPEN',
+                    quotedPriceAmount: result.platformAmountDue,
+                    labourName: 'nearby labour',
+                  );
+                  final status = await _waitForLabourAcceptance(
+                    request,
+                    timeoutSeconds: 60,
+                    requestedCount: result.requestedCount,
+                    isGroupRequest: true,
+                  );
+                  if (!mounted) {
+                    return;
+                  }
+                  if (status == null || !status.canMakePayment || status.acceptedProviderCount <= 0) {
+                    await _showLabourRequestStateDialog(
+                      request: request,
+                      status: status,
+                      isGroupRequest: true,
+                      requestedCount: result.requestedCount,
+                    );
+                    return;
+                  }
+                  final shouldPay = await _showAcceptedLabourDialog(
+                    request: request,
+                    status: status,
+                    requestedCount: result.requestedCount,
+                    isGroupRequest: true,
+                  );
+                  if (!mounted || !shouldPay) {
+                    return;
+                  }
+                  final acceptedPayments = math.max(1, status.acceptedProviderCount);
+                  final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
+                  if (!mounted) {
+                    return;
+                  }
+                  final paymentResult = await _PaymentFlow.start(
+                    context,
+                    paymentCode: payment.paymentCode,
+                    title: 'Confirm group labour booking',
+                  );
+                  if (!mounted) {
+                    return;
+                  }
+                  await _hydrateRemoteState(silent: true);
+                  if (!mounted) {
+                    return;
+                  }
+                  await _PaymentFlow.showOutcome(
+                    context,
+                    result: paymentResult,
+                    successTitle: 'Group labour booking confirmed',
+                    failureTitle: 'Group labour payment incomplete',
+                    extraLines: [
+                      'Request code: ${result.requestCode}',
+                      'Accepted labour: $acceptedPayments',
+                      'Requested labour: ${result.requestedCount}',
+                      'Amount: ${payment.amountLabel}',
+                    ],
                   );
                 } on _UserAppApiException catch (error) {
                   if (mounted) {
@@ -3020,26 +3842,12 @@ class _UserHomePageState extends State<UserHomePage> {
     ];
   }
 
-  List<Widget> _buildServiceMode() {
+  List<Widget> _buildServiceMode({bool includeTopControls = true}) {
     final providers = _filteredServiceProviders;
     final serviceStateSliver = _buildServiceStateSliver();
     return [
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-          child: _ServiceSubcategoryFilter(
-            selectedCategory: _selectedServiceCategory,
-            options: _selectedServiceSubcategories,
-            selected: _selectedServiceSubCategory,
-            onSelected: (value) {
-              setState(() => _selectedServiceSubCategory = value);
-              if (_serviceRemoteCategories.isNotEmpty) {
-                unawaited(_loadServiceLanding(silent: false));
-              }
-            },
-          ),
-        ),
-      ),
+      if (includeTopControls)
+        SliverToBoxAdapter(child: _buildCurveForeground()),
       if (serviceStateSliver != null)
         serviceStateSliver
       else
@@ -3050,13 +3858,13 @@ class _UserHomePageState extends State<UserHomePage> {
             mode: _mode,
             isFavourited: _isFavourited(providers[index]),
             onFavouriteToggle: () => _toggleFavourite(providers[index]),
-            onTap: () => _openCard(providers[index], _mode),
+            onTap: () => unawaited(_openCard(providers[index], _mode)),
           ),
         ),
     ];
   }
 
-  List<Widget> _buildShopMode() {
+  List<Widget> _buildShopMode({bool includeTopControls = true}) {
     final shopRemoteStateSliver = _buildShopRemoteStateSliver();
     final visibleRestaurantListings = _effectiveRestaurantListings;
     final allNearbyShopProfiles = <_DiscoveryItem>[
@@ -3067,62 +3875,8 @@ class _UserHomePageState extends State<UserHomePage> {
       ..._effectivePharmacyShopCards,
     ];
     return [
-      if (!_showShopRestaurantLanding)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-            child: _ShopBrowseToggle(
-              selected: _shopBrowseMode,
-              onSelected: (value) => setState(() {
-                _shopBrowseMode = value;
-                _fashionVisibleProductCount = _fashionProductBatchSize;
-                _footwearVisibleProductCount = _footwearProductBatchSize;
-              }),
-              sortByPrice: _shopSortOption != 'Popular',
-              onSortByPrice: _openShopSortSheet,
-              onFilterTap: _openShopFilterPage,
-            ),
-          ),
-        ),
-      if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
-          _selectedShopSubcategories.length > 1)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-            child: _ShopSubcategoryFilter(
-              category: _selectedShopCategory,
-              options: _selectedShopSubcategories,
-              selected: _selectedShopSubCategory,
-              onSelected: (value) {
-                if (_selectedShopCategory == 'Fashion') {
-                  unawaited(_selectFashionSubcategory(value, silent: false));
-                  return;
-                }
-                if (_selectedShopCategory == 'Footwear') {
-                  unawaited(_selectFootwearSubcategory(value, silent: false));
-                  return;
-                }
-                if (_selectedShopCategory == 'Gift') {
-                  unawaited(_selectGiftSubcategory(value, silent: false));
-                  return;
-                }
-                if (_selectedShopCategory == 'Groceries') {
-                  unawaited(_selectGrocerySubcategory(value, silent: false));
-                  return;
-                }
-                if (_selectedShopCategory == 'Pharmacy') {
-                  unawaited(_selectPharmacySubcategory(value, silent: false));
-                  return;
-                }
-                setState(() {
-                  _selectedShopSubCategory = value;
-                  _fashionVisibleProductCount = _fashionProductBatchSize;
-                  _footwearVisibleProductCount = _footwearProductBatchSize;
-                });
-              },
-            ),
-          ),
-        ),
+      if (includeTopControls)
+        SliverToBoxAdapter(child: _buildCurveForeground()),
       if (shopRemoteStateSliver != null)
         shopRemoteStateSliver
       else
@@ -3359,36 +4113,163 @@ class _UserHomePageState extends State<UserHomePage> {
     ];
   }
 
-  void _openCard(_DiscoveryItem item, _HomeMode mode) {
+  Future<void> _openCard(_DiscoveryItem item, _HomeMode mode) async {
     if (item.isDisabled) {
-      _showCartSnack(
-        item.disabledLabel.trim().isEmpty
-            ? '${item.title} is unavailable right now.'
-            : '${item.title} is ${item.disabledLabel.toLowerCase()} right now.',
-      );
-      return;
+      if (mode == _HomeMode.shop) {
+        _showCartSnack(
+          item.disabledLabel.trim().isEmpty
+              ? '${item.title} is unavailable right now.'
+              : '${item.title} is ${item.disabledLabel.toLowerCase()} right now.',
+        );
+        return;
+      }
     }
     if (mode == _HomeMode.shop) {
       _openShopProfile(item);
       return;
     }
+    var detailItem = item;
+    if (mode == _HomeMode.labour &&
+        _selectedLabourCategory == 'All labour' &&
+        item.backendLabourId != null) {
+      final selectedItem = await _selectLabourCategoryForProfile(item);
+      if (!mounted || selectedItem == null) {
+        return;
+      }
+      detailItem = selectedItem;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _DiscoveryDetailPage(
-          item: item,
+          item: detailItem,
           mode: mode,
-          isWishlisted: _isWishlisted(item),
-          isFavourited: _isFavourited(item),
-          onWishlistToggle: () => _toggleWishlist(item),
-          onFavouriteToggle: () => _toggleFavourite(item),
+          isAuthenticated: _isAuthenticated,
+          isWishlisted: _isWishlisted(detailItem),
+          isFavourited: _isFavourited(detailItem),
+          onWishlistToggle: () => _toggleWishlist(detailItem),
+          onFavouriteToggle: () => _toggleFavourite(detailItem),
           onPrimaryAction: (labourBookingPeriod) => _handlePrimaryAction(
-            item,
+            detailItem,
             mode,
             labourBookingPeriod: labourBookingPeriod,
           ),
         ),
       ),
     );
+  }
+
+  Future<_DiscoveryItem?> _selectLabourCategoryForProfile(_DiscoveryItem item) async {
+    final categoryOptions = _labourRemoteCategories
+        .where((category) => category.backendCategoryId != null)
+        .where((category) => _labourItemMatchesCategory(item, category.label))
+        .toList(growable: false);
+    final options = categoryOptions.isEmpty
+        ? _labourRemoteCategories.where((category) => category.backendCategoryId != null).toList(growable: false)
+        : categoryOptions;
+    if (options.isEmpty) {
+      _showCartSnack('No active labour category is available for this profile.');
+      return null;
+    }
+    final selected = await showModalBottomSheet<_RemoteLabourCategory>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F2EC),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD8C7BC),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Select work category for ${item.title}',
+              style: const TextStyle(
+                color: Color(0xFF22314D),
+                fontWeight: FontWeight.w900,
+                fontSize: 19,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Prices are different for each labour category, so choose the work before viewing and booking.',
+              style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+            ),
+            const SizedBox(height: 14),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: options.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final category = options[index];
+                  return ListTile(
+                    onTap: () => Navigator.of(context).pop(category),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    tileColor: Colors.white,
+                    leading: const Icon(Icons.handyman_rounded, color: Color(0xFFCB6E5B)),
+                    title: Text(
+                      category.label,
+                      style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) {
+      return null;
+    }
+    try {
+      final landing = await _UserAppApi.fetchLabourLanding(
+        categoryId: selected.backendCategoryId,
+        city: _selectedLocationCity,
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
+      for (final profile in landing.profiles) {
+        if (profile.backendLabourId == item.backendLabourId) {
+          return profile;
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        _showCartSnack('Could not refresh category price. Showing selected category with current profile.');
+      }
+    }
+    return item.copyWith(
+      subtitle: selected.label,
+      backendCategoryId: selected.backendCategoryId,
+    );
+  }
+
+  bool _labourItemMatchesCategory(_DiscoveryItem item, String categoryLabel) {
+    final label = categoryLabel.trim().toLowerCase();
+    if (label.isEmpty) {
+      return false;
+    }
+    final categories = item.subtitle
+        .split(',')
+        .map((part) => part.trim().toLowerCase())
+        .where((part) => part.isNotEmpty)
+        .toSet();
+    return categories.isEmpty || categories.contains(label) || item.subtitle.toLowerCase().contains(label);
   }
 
   Future<void> _openRestaurantListing(_RestaurantListingItem listing) async {
@@ -3689,9 +4570,143 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
+
+Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
+  final itemCategory = _shopCategoryForItem(item);
+  if (item.isDisabled) {
+    _showCartSnack(
+      item.disabledLabel.trim().isEmpty
+          ? '${item.subtitle} is unavailable right now.'
+          : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
+    );
+    return;
+  }
+  final isFashionItem = itemCategory == 'Fashion';
+  final isFootwearItem = itemCategory == 'Footwear';
+  final isGroceryItem = itemCategory == 'Groceries';
+  final isPharmacyItem = itemCategory == 'Pharmacy';
+  final isGiftItem = itemCategory == 'Gift';
+  final isRestaurantItem = itemCategory == 'Restaurant';
+  final navigator = Navigator.of(context);
+  if (isFashionItem) {
+    await navigator.push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _ShopItemDetailPage(
+          item: item,
+          supportsColorVariants: true,
+          useFoodPopupStyle: false,
+          returnToShopOnBackAfterAdd: false,
+          onAddToCart: () => _handleShopCartAdd(item),
+          onOpenCart: () => Navigator.of(context).pop(),
+          onWishlistTap: () => _toggleWishlist(item),
+          onShareTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+            );
+          },
+        ),
+      ),
+    );
+  } else if (isFootwearItem) {
+    await navigator.push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _FootwearItemDetailPage(
+          item: item,
+          returnToShopOnBackAfterAdd: false,
+          onAddToCart: () => _handleShopCartAdd(item),
+          onOpenCart: () => Navigator.of(context).pop(),
+          onWishlistTap: () => _toggleWishlist(item),
+          onShareTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+            );
+          },
+        ),
+      ),
+    );
+  } else if (isGroceryItem) {
+    await navigator.push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _GroceryItemDetailPage(
+          item: item,
+          returnToShopOnBackAfterAdd: false,
+          onAddToCart: () => _handleShopCartAdd(item),
+          onOpenCart: () => Navigator.of(context).pop(),
+          onWishlistTap: () => _toggleWishlist(item),
+          onShareTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+            );
+          },
+        ),
+      ),
+    );
+  } else if (isPharmacyItem) {
+    await navigator.push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _PharmacyItemDetailPage(
+          item: item,
+          returnToShopOnBackAfterAdd: false,
+          onAddToCart: () => _handleShopCartAdd(item),
+          onOpenCart: () => Navigator.of(context).pop(),
+          onWishlistTap: () => _toggleWishlist(item),
+          onShareTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+            );
+          },
+        ),
+      ),
+    );
+  } else if (isGiftItem) {
+    await navigator.push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _GiftItemDetailPage(
+          item: item,
+          returnToShopOnBackAfterAdd: false,
+          onAddToCart: () => _handleShopCartAdd(item),
+          onOpenCart: () => Navigator.of(context).pop(),
+          onGiftNow: () => _handleShopCartAdd(item, openCartAfterAdd: true),
+          onWishlistTap: () => _toggleWishlist(item),
+          onShareTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+            );
+          },
+        ),
+      ),
+    );
+  } else {
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.52),
+      builder: (_) => _ShopItemDetailPage(
+        item: item,
+        supportsColorVariants: false,
+        useFoodPopupStyle: isRestaurantItem,
+        returnToShopOnBackAfterAdd: false,
+        onAddToCart: () => _handleShopCartAdd(item),
+        onOpenCart: () => Navigator.of(context).pop(),
+        onWishlistTap: () => _toggleWishlist(item),
+        onShareTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+          );
+        },
+      ),
+    );
+  }
+  if (mounted && _isAuthenticated) {
+    await _hydrateRemoteState(silent: true);
+  }
+}
+
   void _openShopProfile(_DiscoveryItem item, {bool autoAddItem = false}) {
     final inferredCategory =
-        _selectedShopCategory == 'All' ? _shopCategoryForItem(item) : _selectedShopCategory;
+        _selectedShopCategory == 'All Deals' ? _shopCategoryForItem(item) : _selectedShopCategory;
     if (_shopComingSoonCategories.contains(inferredCategory)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$inferredCategory is coming soon.')),
@@ -3883,116 +4898,147 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
-  void _openProfilePage() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _ProfilePage(
-          phoneNumber: widget.phoneNumber,
-          onLogout: () async {
-            await _NotificationBootstrap.deactivateCurrentToken();
-            await _LocalSessionStore.clear();
-            if (!mounted) {
-              return;
-            }
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute<void>(builder: (_) => const LoginPage()),
-              (route) => false,
-            );
-          },
-        ),
-      ),
-    );
-  }
 
-  Future<void> _openNotificationsPage() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const _NotificationsPage(),
-      ),
-    );
-    await _refreshNotificationPreview(silent: true);
+Future<void> _openProfilePage() async {
+  final canContinue = await _ensureAuthenticated();
+  if (!mounted || !canContinue) {
+    return;
   }
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => _ProfilePage(
+        phoneNumber: _currentPhoneNumber,
+        onLogout: () async {
+          await _NotificationBootstrap.deactivateCurrentToken();
+          await _LocalSessionStore.clear();
+          if (!mounted) {
+            return;
+          }
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute<void>(builder: (_) => const UserHomePage()),
+            (route) => false,
+          );
+        },
+      ),
+    ),
+  );
+  await _refreshNotificationPreview(silent: true);
+  await _hydrateRemoteState(silent: true);
+}
 
-  Future<void> _openCartPage() async {
+Future<void> _openNotificationsPage() async {
+  final canContinue = await _ensureAuthenticated();
+  if (!mounted || !canContinue) {
+    return;
+  }
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => const _NotificationsPage(),
+    ),
+  );
+  await _refreshNotificationPreview(silent: true);
+}
+
+Future<void> _openCartPage() async {
+  if (_isAuthenticated) {
     await _hydrateRemoteState();
     if (!mounted) {
       return;
     }
-    if (_cartItems.isEmpty) {
-      _showCartSnack('Your cart is empty right now.');
+  }
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => _CartPage(
+        shopName: _cartShopName ?? 'Your cart',
+        items: List<_DiscoveryItem>.unmodifiable(_cartItems),
+        isAuthenticated: _isAuthenticated,
+        onCheckout: _checkoutFromCartPage,
+        onBrowseItems: () => Navigator.of(context).pop(),
+        onRequireLogin: _ensureAuthenticated,
+        onItemTap: _openCartItemFromCart,
+      ),
+    ),
+  );
+  if (mounted) {
+    await _hydrateRemoteState(silent: true);
+  }
+}
+
+Future<void> _checkoutFromCartPage(int? addressId) async {
+  final canContinue = await _ensureAuthenticated();
+  if (!mounted || !canContinue) {
+    return;
+  }
+  await _syncLocalCartToBackend();
+  try {
+    final preview = await _UserAppApi.previewCheckout(addressId: addressId);
+    if (!preview.canPlaceOrder) {
+      if (!mounted) {
+        return;
+      }
+      _showCartSnack(
+        preview.issues.isEmpty
+            ? 'This order cannot be placed right now.'
+            : preview.issues.join(' • '),
+      );
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _CartPage(
-          shopName: _cartShopName ?? 'Selected shop',
-          items: List<_DiscoveryItem>.unmodifiable(_cartItems),
-          onCheckout: _checkoutFromCartPage,
-        ),
-      ),
+    final order = await _UserAppApi.placeOrder(
+      fulfillmentType: preview.fulfillmentType,
+      addressId: preview.addressId ?? addressId,
     );
-  }
-
-  Future<void> _checkoutFromCartPage(int? addressId) async {
-    try {
-      final preview = await _UserAppApi.previewCheckout(addressId: addressId);
-      if (!preview.canPlaceOrder) {
-        if (!mounted) {
-          return;
-        }
-        _showCartSnack(
-          preview.issues.isEmpty
-              ? 'This order cannot be placed right now.'
-              : preview.issues.join(' • '),
-        );
-        return;
-      }
-      final order = await _UserAppApi.placeOrder(
-        fulfillmentType: preview.fulfillmentType,
-        addressId: preview.addressId ?? addressId,
-      );
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop();
-      final paymentResult = await _PaymentFlow.start(
-        context,
-        paymentCode: order.paymentCode,
-        title: 'Pay for ${preview.shopName}',
-      );
-      if (!mounted) {
-        return;
-      }
-      await _hydrateRemoteState(silent: true);
-      if (!mounted) {
-        return;
-      }
-      await _PaymentFlow.showOutcome(
-        context,
-        result: paymentResult,
-        successTitle: 'Order confirmed',
-        failureTitle: 'Order payment incomplete',
-        extraLines: [
-          'Order code: ${order.orderCode}',
-          'Amount: ${order.totalAmount}',
-          preview.addressLine.isEmpty
-              ? 'Default delivery address was used.'
-              : 'Delivering to ${preview.addressLine}',
-        ],
-      );
-    } on _UserAppApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _showCartSnack(error.message);
+    if (!mounted) {
+      return;
     }
+    Navigator.of(context).pop();
+    final paymentResult = await _PaymentFlow.start(
+      context,
+      paymentCode: order.paymentCode,
+      title: 'Pay for ${preview.shopName}',
+    );
+    if (!mounted) {
+      return;
+    }
+    await _hydrateRemoteState(silent: true);
+    if (!mounted) {
+      return;
+    }
+    await _PaymentFlow.showOutcome(
+      context,
+      result: paymentResult,
+      successTitle: 'Order confirmed',
+      failureTitle: 'Order payment incomplete',
+      extraLines: [
+        'Order code: ${order.orderCode}',
+        'Amount: ${order.totalAmount}',
+        preview.addressLine.isEmpty
+            ? 'Default delivery address was used.'
+            : 'Delivering to ${preview.addressLine}',
+      ],
+    );
+  } on _UserAppApiException catch (error) {
+    if (!mounted) {
+      return;
+    }
+    _showCartSnack(error.message);
   }
+}
 
-  Future<void> _handlePrimaryAction(
+Future<void> _handlePrimaryAction(
     _DiscoveryItem item,
     _HomeMode mode, {
     String? labourBookingPeriod,
   }) async {
+    await _refreshSessionPhoneFromStore();
+    if ((mode == _HomeMode.labour || mode == _HomeMode.service) && !_isAuthenticated) {
+      final loggedIn = await _ensureAuthenticated();
+      if (!loggedIn) {
+        return;
+      }
+      if (!mounted) {
+        return;
+      }
+    }
     if (item.isDisabled) {
       _showCartSnack(
         item.disabledLabel.trim().isEmpty
@@ -4012,38 +5058,10 @@ class _UserHomePageState extends State<UserHomePage> {
           );
           return;
         }
-        try {
-          final result = await _UserAppApi.bookLabourDirect(
-            item: item,
-            bookingPeriod: labourBookingPeriod ?? 'Full Day',
-          );
-          if (!mounted) {
-            return;
-          }
-          final paymentResult = await _PaymentFlow.start(
-            context,
-            paymentCode: result.paymentCode,
-            title: 'Pay labour booking',
-          );
-          if (!mounted) {
-            return;
-          }
-          await _PaymentFlow.showOutcome(
-            context,
-            result: paymentResult,
-            successTitle: 'Labour booking confirmed',
-            failureTitle: 'Labour payment incomplete',
-            extraLines: [
-              'Booking code: ${result.bookingCode}',
-              'Labour: ${result.labourName}',
-              'Amount: ${result.payableAmount}',
-            ],
-          );
-        } on _UserAppApiException catch (error) {
-          if (mounted) {
-            _showCartSnack(error.message);
-          }
-        }
+        await _startLabourBookingRequestFlow(
+          item,
+          labourBookingPeriod ?? 'Full Day',
+        );
         return;
       case _HomeMode.service:
         if (item.backendServiceProviderId == null) {
@@ -4052,35 +5070,7 @@ class _UserHomePageState extends State<UserHomePage> {
           );
           return;
         }
-        try {
-          final result = await _UserAppApi.bookServiceDirect(item: item);
-          if (!mounted) {
-            return;
-          }
-          final paymentResult = await _PaymentFlow.start(
-            context,
-            paymentCode: result.paymentCode,
-            title: 'Pay service booking',
-          );
-          if (!mounted) {
-            return;
-          }
-          await _PaymentFlow.showOutcome(
-            context,
-            result: paymentResult,
-            successTitle: 'Service booking confirmed',
-            failureTitle: 'Service payment incomplete',
-            extraLines: [
-              'Booking code: ${result.bookingCode}',
-              'Provider: ${result.providerName}',
-              'Amount: ${result.payableAmount}',
-            ],
-          );
-        } on _UserAppApiException catch (error) {
-          if (mounted) {
-            _showCartSnack(error.message);
-          }
-        }
+        await _startServiceBookingRequestFlow(item);
         return;
       case _HomeMode.all:
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4090,6 +5080,749 @@ class _UserHomePageState extends State<UserHomePage> {
     }
   }
 
+  Future<void> _startLabourBookingRequestFlow(
+    _DiscoveryItem item,
+    String bookingPeriod,
+  ) async {
+    try {
+      final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour();
+      if (!mounted) {
+        return;
+      }
+      final request = await _UserAppApi.bookLabourDirect(
+        item: item,
+        bookingPeriod: bookingPeriod,
+        addressId: bookingAddressId,
+      );
+      if (!mounted) {
+        return;
+      }
+      final status = await _waitForLabourAcceptance(request);
+      if (!mounted) {
+        return;
+      }
+      if (status == null || !status.canMakePayment) {
+        await _showLabourRequestStateDialog(
+          request: request,
+          status: status,
+        );
+        return;
+      }
+      final shouldPay = await _showAcceptedLabourDialog(
+        request: request,
+        status: status,
+        requestedCount: 1,
+      );
+      if (!mounted || !shouldPay) {
+        return;
+      }
+      final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
+      if (!mounted) {
+        return;
+      }
+      final paymentResult = await _PaymentFlow.start(
+        context,
+        paymentCode: payment.paymentCode,
+        title: 'Confirm labour booking',
+      );
+      if (!mounted) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      if (!mounted) {
+        return;
+      }
+      await _PaymentFlow.showOutcome(
+        context,
+        result: paymentResult,
+        successTitle: 'Labour booking confirmed',
+        failureTitle: 'Labour payment incomplete',
+        extraLines: [
+          'Booking code: ${payment.bookingCode}',
+          'Labour: ${status.providerName.trim().isNotEmpty ? status.providerName : request.labourName}',
+          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+          'Amount: ${payment.amountLabel}',
+        ],
+      );
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        if (_isLabourAvailabilityChangedError(error.message)) {
+          await _hydrateRemoteState(silent: true);
+          if (!mounted) {
+            return;
+          }
+          _showCartSnack('This labour is no longer available. Availability has been refreshed.');
+          return;
+        }
+        _showCartSnack(error.message);
+      }
+    }
+  }
+
+  bool _isLabourAvailabilityChangedError(String message) {
+    final normalized = message.toLowerCase();
+    return normalized.contains('labour') &&
+        (normalized.contains('offline') ||
+            normalized.contains('booked') ||
+            normalized.contains('not available') ||
+            normalized.contains('unavailable'));
+  }
+
+  Future<_RemoteLabourBookingRequestStatus?> _waitForLabourAcceptance(
+    _RemoteLabourBookingResult request, {
+    int timeoutSeconds = 45,
+    int requestedCount = 1,
+    bool isGroupRequest = false,
+  }) async {
+    final remainingSeconds = ValueNotifier<int>(timeoutSeconds);
+    final dragOffset = ValueNotifier<Offset>(Offset.zero);
+    final cancelledByUser = Completer<bool>();
+    final deadline = DateTime.now().add(Duration(seconds: timeoutSeconds));
+    var dialogVisible = true;
+    Timer? timer;
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final remaining = deadline.difference(DateTime.now()).inSeconds + 1;
+      remainingSeconds.value = remaining.clamp(0, timeoutSeconds);
+      if (remainingSeconds.value <= 0) {
+        timer?.cancel();
+      }
+    });
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => PopScope(
+          canPop: false,
+          child: ValueListenableBuilder<Offset>(
+            valueListenable: dragOffset,
+            builder: (context, offset, child) => Transform.translate(
+              offset: offset,
+              child: Dialog(
+                insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.16),
+                          blurRadius: 30,
+                          offset: const Offset(0, 18),
+                        ),
+                      ],
+                    ),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onPanUpdate: (details) {
+                        dragOffset.value = dragOffset.value + details.delta;
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE5D9D2),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    isGroupRequest ? 'Waiting for labour responses' : 'Waiting for labour to accept',
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF22314D),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ValueListenableBuilder<int>(
+                                  valueListenable: remainingSeconds,
+                                  builder: (context, seconds, child) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF2A13D),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${seconds}s',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            ValueListenableBuilder<int>(
+                              valueListenable: remainingSeconds,
+                              builder: (context, seconds, child) {
+                                final progress = timeoutSeconds <= 0
+                                    ? 0.0
+                                    : (seconds / timeoutSeconds).clamp(0.0, 1.0);
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    minHeight: 9,
+                                    backgroundColor: const Color(0xFFFBE8C8),
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF2A13D)),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 18),
+                            const SizedBox(
+                              width: 34,
+                              height: 34,
+                              child: CircularProgressIndicator(strokeWidth: 3.2),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              isGroupRequest
+                                  ? 'Your request was sent to nearby matching labour.'
+                                  : '${request.labourName} has received your booking request.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF22314D),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              isGroupRequest
+                                  ? 'We will wait 1 minute and show how many labour accepted.'
+                                  : 'Please wait while the labour accepts or rejects it.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF66748C),
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFD84A4A),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  if (!cancelledByUser.isCompleted) {
+                                    cancelledByUser.complete(true);
+                                  }
+                                  dialogVisible = false;
+                                  Navigator.of(dialogContext).pop();
+                                },
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ).whenComplete(() => dialogVisible = false),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    _RemoteLabourBookingRequestStatus? status;
+    try {
+      while (DateTime.now().isBefore(deadline)) {
+        if (cancelledByUser.isCompleted) {
+          await _UserAppApi.cancelLabourBookingRequest(
+            request.requestId,
+            reason: 'User cancelled the waiting request.',
+          );
+          status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
+          return status;
+        }
+        status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
+        if (isGroupRequest) {
+          final enoughAccepted = status.acceptedProviderCount >= requestedCount;
+          final closedWithoutAcceptance =
+              _isClosedLabourRequestStatus(status.requestStatus) && status.acceptedProviderCount <= 0;
+          if (enoughAccepted || closedWithoutAcceptance) {
+            break;
+          }
+        } else if (status.canMakePayment || _isClosedLabourRequestStatus(status.requestStatus)) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      if (!isGroupRequest && (status == null || !status.canMakePayment)) {
+        await _UserAppApi.cancelLabourBookingRequest(
+          request.requestId,
+          reason: 'Labour did not accept within $timeoutSeconds seconds.',
+        );
+        status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
+      } else if (isGroupRequest && (status == null || status.acceptedProviderCount <= 0)) {
+        await _UserAppApi.cancelLabourBookingRequest(
+          request.requestId,
+          reason: 'No labour accepted within $timeoutSeconds seconds.',
+        );
+        status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
+      }
+      return status;
+    } finally {
+      timer.cancel();
+      remainingSeconds.dispose();
+      dragOffset.dispose();
+      if (mounted && dialogVisible) {
+        final navigator = Navigator.of(context, rootNavigator: true);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+      }
+    }
+  }
+
+  bool _isClosedLabourRequestStatus(String requestStatus) {
+    switch (requestStatus.trim().toUpperCase()) {
+      case 'CANCELLED':
+      case 'EXPIRED':
+      case 'REJECTED':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> _showLabourRequestStateDialog({
+    required _RemoteLabourBookingResult request,
+    _RemoteLabourBookingRequestStatus? status,
+    bool isGroupRequest = false,
+    int requestedCount = 1,
+  }) async {
+    final normalized = status?.requestStatus.trim().toUpperCase() ?? request.requestStatus.trim().toUpperCase();
+    final title = normalized == 'OPEN' ? 'Still waiting' : 'Booking request update';
+    final acceptedCount = status?.acceptedProviderCount ?? 0;
+    final message = isGroupRequest
+        ? switch (acceptedCount) {
+            <= 0 => 'No labour accepted your booking yet. Please try again, or choose another labour type available near you.',
+            _ =>
+              'Only $acceptedCount of $requestedCount labour accepted your booking. You can make payment to confirm the accepted labour, then try again for the remaining requirement.',
+          }
+        : switch (normalized) {
+            'CANCELLED' =>
+              'This labour did not accept your request in time. Please select a different labour available near you.',
+            'EXPIRED' =>
+              'This labour did not accept your request within 45 seconds. Please select a different labour available near you.',
+            'REJECTED' =>
+              'This labour rejected your booking request. Please select a different labour available near you.',
+            _ => 'Waiting for labour to accept the booking. Please try again in a moment.',
+          };
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _showAcceptedLabourDialog({
+    required _RemoteLabourBookingResult request,
+    required _RemoteLabourBookingRequestStatus status,
+    required int requestedCount,
+    bool isGroupRequest = false,
+  }) async {
+    final providerName = status.providerName.trim().isNotEmpty ? status.providerName : request.labourName;
+    final acceptedCount = status.acceptedProviderCount <= 0 ? 1 : status.acceptedProviderCount;
+    final totalAcceptedPriceLabel = isGroupRequest
+        ? (status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
+            ? status.totalAcceptedQuotedPriceAmount
+            : 'As accepted')
+        : status.quotedPriceAmount;
+    final bookingChargeLabel = isGroupRequest
+        ? (status.totalAcceptedBookingChargeAmount.trim().isNotEmpty
+            ? status.totalAcceptedBookingChargeAmount
+            : request.quotedPriceAmount)
+        : _formatRupee(
+            _amountFromLabel(status.quotedPriceAmount) *
+                (_amountFromLabel(_labourBookingChargePerLabour) / 100),
+          );
+    final shouldPay = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: Text(isGroupRequest ? 'Labour accepted' : 'Booking accepted'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isGroupRequest ? '$acceptedCount labour accepted' : providerName,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+            const SizedBox(height: 10),
+            if (isGroupRequest && acceptedCount < requestedCount)
+              Text(
+                'You requested $requestedCount labour. Only $acceptedCount accepted within 1 minute. Make payment to confirm these $acceptedCount, then you can try again for the remaining labour.',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            if (isGroupRequest && acceptedCount >= requestedCount)
+              Text(
+                'All requested labour accepted. Make payment to confirm the booking.',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            if (isGroupRequest) const SizedBox(height: 10),
+            if (status.distanceLabel.trim().isNotEmpty) Text('Distance: ${status.distanceLabel}'),
+            if (status.providerPhone.trim().isNotEmpty) Text('Phone: ${status.providerPhone}'),
+            const SizedBox(height: 10),
+            Text('Booking code: ${status.bookingCode.trim().isNotEmpty ? status.bookingCode : request.requestCode}'),
+            Text(isGroupRequest ? 'Accepted labour amount: $totalAcceptedPriceLabel' : 'Labour amount: ${status.quotedPriceAmount}'),
+            Text('Booking charges: $bookingChargeLabel'),
+            const SizedBox(height: 12),
+            const Text(
+              'Booking fee is separate and will not be deducted from the labour amount. You still pay the full labour charge for Half Day or Full Day work.',
+              style: TextStyle(fontWeight: FontWeight.w700, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Confirm booking by making booking charges.',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Make payment'),
+          ),
+        ],
+      ),
+    );
+    return shouldPay ?? false;
+  }
+
+
+  Future<void> _startServiceBookingRequestFlow(_DiscoveryItem item) async {
+    try {
+      final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour();
+      if (!mounted) {
+        return;
+      }
+      final request = await _UserAppApi.bookServiceDirect(
+        item: item,
+        addressId: bookingAddressId,
+      );
+      if (!mounted) {
+        return;
+      }
+      final status = await _waitForServiceAcceptance(request);
+      if (!mounted) {
+        return;
+      }
+      if (status == null || !status.canMakePayment) {
+        await _showServiceRequestStateDialog(
+          request: request,
+          status: status,
+        );
+        return;
+      }
+      final shouldPay = await _showAcceptedServiceDialog(
+        request: request,
+        status: status,
+      );
+      if (!mounted || !shouldPay) {
+        return;
+      }
+      final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
+      if (!mounted) {
+        return;
+      }
+      final paymentResult = await _PaymentFlow.start(
+        context,
+        paymentCode: payment.paymentCode,
+        title: 'Confirm service booking',
+      );
+      if (!mounted) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      if (!mounted) {
+        return;
+      }
+      await _PaymentFlow.showOutcome(
+        context,
+        result: paymentResult,
+        successTitle: 'Service booking confirmed',
+        failureTitle: 'Service payment incomplete',
+        extraLines: [
+          'Booking code: ${payment.bookingCode}',
+          'Provider: ${status.providerName.trim().isNotEmpty ? status.providerName : request.providerName}',
+          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+          'Amount: ${payment.amountLabel}',
+        ],
+      );
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        _showCartSnack(error.message);
+      }
+    }
+  }
+
+  Future<int?> _ensureBookingAddressIdForServiceOrLabour() async {
+    final selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+    if (!_isAuthenticated || selectedLocation == null) {
+      return selectedLocation?.addressId;
+    }
+    if (selectedLocation.addressId != null) {
+      return selectedLocation.addressId;
+    }
+
+    final placemarks = await placemarkFromCoordinates(
+      selectedLocation.latitude,
+      selectedLocation.longitude,
+    );
+    final placemark = placemarks.isEmpty ? null : placemarks.first;
+    final city = (placemark?.locality ?? placemark?.subAdministrativeArea ?? selectedLocation.city).trim();
+    final state = (placemark?.administrativeArea ?? city).trim();
+    final country = (placemark?.country ?? 'India').trim();
+    final postalCode = (placemark?.postalCode ?? '').trim().isNotEmpty ? placemark!.postalCode!.trim() : '000000';
+    final addressLine1Parts = <String>[
+      if ((placemark?.name ?? '').trim().isNotEmpty) placemark!.name!.trim(),
+      if ((placemark?.thoroughfare ?? '').trim().isNotEmpty) placemark!.thoroughfare!.trim(),
+      if ((placemark?.subLocality ?? '').trim().isNotEmpty) placemark!.subLocality!.trim(),
+    ];
+    final addressLine2Parts = <String>[
+      if ((placemark?.locality ?? '').trim().isNotEmpty) placemark!.locality!.trim(),
+      if ((placemark?.administrativeArea ?? '').trim().isNotEmpty) placemark!.administrativeArea!.trim(),
+    ];
+    final createdAddress = await _UserAppApi.createAddress(
+      _UserAddressInput(
+        label: selectedLocation.isCurrentLocation ? 'Current location' : (selectedLocation.title.trim().isEmpty ? 'Saved location' : selectedLocation.title.trim()),
+        addressLine1: addressLine1Parts.isEmpty
+            ? (selectedLocation.subtitle.trim().isEmpty ? 'Current location' : selectedLocation.subtitle.trim())
+            : addressLine1Parts.join(', '),
+        addressLine2: addressLine2Parts.join(', '),
+        landmark: (placemark?.subLocality ?? '').trim(),
+        city: city.isEmpty ? 'Current City' : city,
+        stateId: null,
+        state: state.isEmpty ? 'Unknown State' : state,
+        countryId: null,
+        country: country.isEmpty ? 'India' : country,
+        postalCode: postalCode,
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+        isDefault: _savedAddresses.isEmpty,
+      ),
+    );
+    if (!mounted) {
+      return createdAddress.id;
+    }
+    setState(() {
+      _savedAddresses = [
+        for (final address in _savedAddresses)
+          if (createdAddress.isDefault)
+            _UserAddressData(
+              id: address.id,
+              label: address.label,
+              addressLine1: address.addressLine1,
+              addressLine2: address.addressLine2,
+              landmark: address.landmark,
+              city: address.city,
+              stateId: address.stateId,
+              state: address.state,
+              countryId: address.countryId,
+              country: address.country,
+              postalCode: address.postalCode,
+              latitude: address.latitude,
+              longitude: address.longitude,
+              isDefault: false,
+            )
+          else
+            address,
+        createdAddress,
+      ];
+      _selectedLocationChoice = _locationChoiceFromAddress(createdAddress);
+    });
+    return createdAddress.id;
+  }
+
+  Future<_RemoteServiceBookingRequestStatus?> _waitForServiceAcceptance(
+    _RemoteServiceBookingResult request,
+  ) async {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Text('Waiting for provider to accept'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${request.providerName} has received your service booking request.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Please wait while the provider accepts or rejects it.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    _RemoteServiceBookingRequestStatus? status;
+    try {
+      for (int attempt = 0; attempt < 18; attempt++) {
+        status = await _UserAppApi.fetchServiceBookingRequestStatus(request.requestId);
+        if (status.canMakePayment || _isClosedServiceRequestStatus(status.requestStatus)) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(seconds: 3));
+      }
+      return status;
+    } finally {
+      if (mounted) {
+        final navigator = Navigator.of(context, rootNavigator: true);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+      }
+    }
+  }
+
+  bool _isClosedServiceRequestStatus(String requestStatus) {
+    switch (requestStatus.trim().toUpperCase()) {
+      case 'CANCELLED':
+      case 'EXPIRED':
+      case 'REJECTED':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> _showServiceRequestStateDialog({
+    required _RemoteServiceBookingResult request,
+    _RemoteServiceBookingRequestStatus? status,
+  }) async {
+    final normalized = status?.requestStatus.trim().toUpperCase() ?? request.requestStatus.trim().toUpperCase();
+    final title = normalized == 'OPEN' ? 'Still waiting' : 'Booking request update';
+    final message = switch (normalized) {
+      'CANCELLED' => 'No provider accepted your service booking request.',
+      'EXPIRED' => 'This service booking request timed out before any provider accepted it.',
+      'REJECTED' => 'The service provider rejected this booking request.',
+      _ => 'Waiting for the provider to accept the booking. Please try again in a moment.',
+    };
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _showAcceptedServiceDialog({
+    required _RemoteServiceBookingResult request,
+    required _RemoteServiceBookingRequestStatus status,
+  }) async {
+    final providerName = status.providerName.trim().isNotEmpty ? status.providerName : request.providerName;
+    final shouldPay = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Booking accepted'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(providerName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            const SizedBox(height: 6),
+            if (request.serviceName.trim().isNotEmpty) Text(request.serviceName),
+            const SizedBox(height: 10),
+            if (status.distanceLabel.trim().isNotEmpty) Text('Distance: ${status.distanceLabel}'),
+            if (status.providerPhone.trim().isNotEmpty) Text('Phone: ${status.providerPhone}'),
+            const SizedBox(height: 10),
+            Text('Booking code: ${status.bookingCode.trim().isNotEmpty ? status.bookingCode : request.requestCode}'),
+            Text('Booking charges: ${status.quotedPriceAmount}'),
+            const SizedBox(height: 12),
+            const Text(
+              'Confirm booking by making booking charges.',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Make payment'),
+          ),
+        ],
+      ),
+    );
+    return shouldPay ?? false;
+  }
   bool _isWishlisted(_DiscoveryItem item) => _wishlistedItems.contains('${item.subtitle}:${item.title}');
 
   bool _isFavourited(_DiscoveryItem item) => _favouriteProfiles.contains(item.title);
@@ -4115,124 +5848,1361 @@ class _UserHomePageState extends State<UserHomePage> {
     });
   }
 
-  Future<bool> _handleShopCartAdd(_DiscoveryItem item, {bool openCartAfterAdd = false}) async {
-    if (item.isDisabled) {
-      _showCartSnack(
-        item.disabledLabel.trim().isEmpty
-            ? '${item.subtitle} is unavailable right now.'
-            : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
-      );
-      return false;
-    }
-    final shopName = item.subtitle;
-    final category = _shopCategoryForItem(item);
-    if (item.backendProductId != null) {
-      try {
-        final remoteCart = await _UserAppApi.addItemToCart(item);
-        if (!mounted) {
-          return false;
-        }
-        setState(() {
-          _cartShopName = remoteCart.shopName;
-          _cartItems
-            ..clear()
-            ..addAll(remoteCart.items);
-        });
-        _showCartSnack('${item.title} added to cart from ${remoteCart.shopName}.');
-        if (openCartAfterAdd) {
-          unawaited(_openCartPage());
-        }
-        return true;
-      } on _UserAppApiException catch (error) {
-        if (mounted) {
-          _showCartSnack(error.message);
-        }
-        return false;
-      } catch (_) {
-        if (mounted) {
-          _showCartSnack('Could not add ${item.title} right now.');
-        }
-        return false;
-      }
-    }
-    if (_isShopItemOutOfStock(item)) {
-      _showCartSnack('${item.title} is out of stock right now.');
-      return false;
-    }
-    final shopTiming = _shopTimingFor(shopName, category);
-    if (!shopTiming.acceptsOrders) {
-      _showCartSnack(
-        shopTiming.isOpen
-            ? '$shopName has stopped receiving orders for today.'
-            : '$shopName is closed right now.',
-      );
-      return false;
-    }
-    if (_cartShopName == null || _cartShopName == shopName) {
-      setState(() {
-        _cartShopName = shopName;
-        _cartItems.add(item);
-      });
-      _showCartSnack('${item.title} added to cart from $shopName.');
-      if (openCartAfterAdd) {
-        _openCartPage();
-      }
-      return true;
-    }
 
-    final replace = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Replace existing cart?'),
-          content: Text(
-            'Your current cart has items from $_cartShopName. If you continue, existing items will be removed and ${item.title} from $shopName will be added.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('No'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFCB6E5B),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Yes'),
-            ),
-          ],
-        );
-      },
+Future<bool> _handleShopCartAdd(_DiscoveryItem item, {bool openCartAfterAdd = false}) async {
+  if (item.isDisabled) {
+    _showCartSnack(
+      item.disabledLabel.trim().isEmpty
+          ? '${item.subtitle} is unavailable right now.'
+          : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
     );
-
-    if (replace == true) {
-      setState(() {
-        _cartShopName = shopName;
-        _cartItems
-          ..clear()
-          ..add(item);
-      });
-      _showCartSnack('Cart replaced. ${item.title} added from $shopName.');
-      if (openCartAfterAdd) {
-        _openCartPage();
-      }
-      return true;
-    }
     return false;
   }
+  final shopName = item.subtitle;
+  final category = _shopCategoryForItem(item);
+  if (_isAuthenticated && item.backendProductId != null) {
+    try {
+      final remoteCart = await _UserAppApi.addItemToCart(item);
+      if (!mounted) {
+        return false;
+      }
+      setState(() {
+        _cartShopName = remoteCart.shopName;
+        _cartItems
+          ..clear()
+          ..addAll(remoteCart.items);
+        _localCartNeedsSync = false;
+      });
+      _showCartSnack('${item.title} added to cart from ${remoteCart.shopName}.');
+      if (openCartAfterAdd) {
+        unawaited(_openCartPage());
+      }
+      return true;
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        _showCartSnack(error.message);
+      }
+      return false;
+    } catch (_) {
+      if (mounted) {
+        _showCartSnack('Could not add ${item.title} right now.');
+      }
+      return false;
+    }
+  }
+  if (_isShopItemOutOfStock(item)) {
+    _showCartSnack('${item.title} is out of stock right now.');
+    return false;
+  }
+  final shopTiming = _shopTimingFor(shopName, category);
+  if (!shopTiming.acceptsOrders) {
+    _showCartSnack(
+      shopTiming.isOpen
+          ? '$shopName has stopped receiving orders for today.'
+          : '$shopName is closed right now.',
+    );
+    return false;
+  }
+  if (_cartShopName == null || _cartShopName == shopName) {
+    setState(() {
+      _cartShopName = shopName;
+      _cartItems.add(item);
+      if (item.backendProductId != null) {
+        _localCartNeedsSync = true;
+      }
+    });
+    _showCartSnack('${item.title} added to cart from $shopName.');
+    if (openCartAfterAdd) {
+      _openCartPage();
+    }
+    return true;
+  }
 
-  void _showCartSnack(String message) {
+  final replace = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Replace existing cart?'),
+        content: Text(
+          'Your current cart has items from $_cartShopName. If you continue, existing items will be removed and ${item.title} from $shopName will be added.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCB6E5B),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Yes'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (replace == true) {
+    setState(() {
+      _cartShopName = shopName;
+      _cartItems
+        ..clear()
+        ..add(item);
+      _localCartNeedsSync = item.backendProductId != null;
+    });
+    _showCartSnack('Cart replaced. ${item.title} added from $shopName.');
+    if (openCartAfterAdd) {
+      _openCartPage();
+    }
+    return true;
+  }
+  return false;
+}
+
+void _showCartSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
   }
 }
 
-enum _HomePermissionAction {
-  requestAgain,
-  appSettings,
-  locationSettings,
+class _ActiveBookingAvatar extends StatelessWidget {
+  const _ActiveBookingAvatar({
+    required this.status,
+    required this.size,
+  });
+
+  final _ActiveBookingStatus status;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = status.providerPhotoUrl.trim();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.32)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: imageUrl.isEmpty
+          ? Icon(Icons.person_rounded, color: Colors.white, size: size * 0.58)
+          : Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Icon(Icons.person_rounded, color: Colors.white, size: size * 0.58),
+            ),
+    );
+  }
+}
+
+class _ActiveBookingDetailsSheet extends StatefulWidget {
+  const _ActiveBookingDetailsSheet({
+    required this.initialStatus,
+    required this.onPayNow,
+    required this.onStatusChanged,
+  });
+
+  final _ActiveBookingStatus initialStatus;
+  final Future<void> Function(_ActiveBookingStatus status) onPayNow;
+  final ValueChanged<_ActiveBookingStatus?> onStatusChanged;
+
+  @override
+  State<_ActiveBookingDetailsSheet> createState() => _ActiveBookingDetailsSheetState();
+}
+
+class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> {
+  static final RegExp _sixDigitOtpRegex = RegExp(r'^\d{6}$');
+  static const String _androidDirectionsApiKey = 'AIzaSyA51i0ow9o6wBQzJ1km94Hv_9g2rzesgRA';
+  static const String _iosDirectionsApiKey = 'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
+  final TextEditingController _startWorkOtpController = TextEditingController();
+  final TextEditingController _mutualCancelOtpController = TextEditingController();
+  _ActiveBookingStatus? _status;
+  Timer? _liveTrackingPollTimer;
+  _TrackingRouteSnapshot? _routeSnapshot;
+  bool _loadingRouteSnapshot = false;
+  DateTime? _lastRouteFetchedAt;
+  LatLng? _lastRouteOrigin;
+  LatLng? _lastRouteDestination;
+  bool _loading = false;
+  bool _verifyingStart = false;
+  bool _generatingCompleteOtp = false;
+  bool _requestingMutualCancel = false;
+  bool _verifyingMutualCancel = false;
+  bool _cancellingNoShow = false;
+  bool _paying = false;
+  String? _startOtpError;
+  String? _mutualCancelOtpError;
+  String? _completeWorkOtpCode;
+  bool _mutualCancelRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.initialStatus;
+    _syncLiveTrackingPolling();
+    unawaited(_refreshTrackingRoute(force: true));
+  }
+
+  @override
+  void dispose() {
+    _liveTrackingPollTimer?.cancel();
+    _startWorkOtpController.dispose();
+    _mutualCancelOtpController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _reload() async {
+    setState(() => _loading = true);
+    try {
+      final latest = await _UserAppApi.fetchLatestActiveBookingStatus();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _status = latest;
+        _startOtpError = null;
+        _mutualCancelOtpError = null;
+        if (latest?.bookingStatus.toUpperCase() != 'IN_PROGRESS') {
+          _completeWorkOtpCode = null;
+        }
+      });
+      _syncLiveTrackingPolling();
+      unawaited(_refreshTrackingRoute(force: true));
+      widget.onStatusChanged(latest);
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  bool _shouldPollLiveTracking(_ActiveBookingStatus? status) {
+    if (status == null || status.bookingId <= 0) {
+      return false;
+    }
+    final bookingStatus = status.bookingStatus.trim().toUpperCase();
+    return bookingStatus != 'COMPLETED' && bookingStatus != 'CANCELLED';
+  }
+
+  void _syncLiveTrackingPolling() {
+    if (!_shouldPollLiveTracking(_status)) {
+      _liveTrackingPollTimer?.cancel();
+      _liveTrackingPollTimer = null;
+      return;
+    }
+    _liveTrackingPollTimer ??= Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || _loading || !_shouldPollLiveTracking(_status)) {
+        return;
+      }
+      unawaited(_reloadLiveTrackingSilently());
+    });
+  }
+
+  Future<void> _reloadLiveTrackingSilently() async {
+    try {
+      final latest = await _UserAppApi.fetchLatestActiveBookingStatus();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _status = latest;
+        if (latest?.bookingStatus.toUpperCase() != 'IN_PROGRESS') {
+          _completeWorkOtpCode = null;
+        }
+      });
+      _syncLiveTrackingPolling();
+      unawaited(_refreshTrackingRoute());
+      widget.onStatusChanged(latest);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+    }
+  }
+
+  Future<void> _refreshTrackingRoute({bool force = false}) async {
+    final status = _status;
+    final origin = status == null ? null : _providerTrackingLatLng(status);
+    final destination = status == null ? null : _destinationTrackingLatLng(status);
+    if (origin == null || destination == null) {
+      if (mounted && _routeSnapshot != null) {
+        setState(() => _routeSnapshot = null);
+      }
+      return;
+    }
+    if (_loadingRouteSnapshot) {
+      return;
+    }
+    final now = DateTime.now();
+    if (!force &&
+        _lastRouteFetchedAt != null &&
+        now.difference(_lastRouteFetchedAt!).inSeconds < 15 &&
+        _lastRouteOrigin != null &&
+        _lastRouteDestination != null) {
+      final movedMeters = Geolocator.distanceBetween(
+        _lastRouteOrigin!.latitude,
+        _lastRouteOrigin!.longitude,
+        origin.latitude,
+        origin.longitude,
+      );
+      final destinationMovedMeters = Geolocator.distanceBetween(
+        _lastRouteDestination!.latitude,
+        _lastRouteDestination!.longitude,
+        destination.latitude,
+        destination.longitude,
+      );
+      if (movedMeters < 20 && destinationMovedMeters < 5) {
+        return;
+      }
+    }
+
+    final apiKey = _directionsApiKey();
+    if (apiKey.isEmpty) {
+      return;
+    }
+
+    _loadingRouteSnapshot = true;
+    try {
+      final route = await _fetchTrackingRoute(
+        origin: origin,
+        destination: destination,
+        apiKey: apiKey,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _routeSnapshot = route);
+      _lastRouteFetchedAt = now;
+      _lastRouteOrigin = origin;
+      _lastRouteDestination = destination;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+    } finally {
+      _loadingRouteSnapshot = false;
+    }
+  }
+
+  String _directionsApiKey() {
+    return switch (Theme.of(context).platform) {
+      TargetPlatform.iOS => _iosDirectionsApiKey,
+      _ => _androidDirectionsApiKey,
+    };
+  }
+
+  Future<_TrackingRouteSnapshot> _fetchTrackingRoute({
+    required LatLng origin,
+    required LatLng destination,
+    required String apiKey,
+  }) async {
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', <String, String>{
+      'origin': '${origin.latitude},${origin.longitude}',
+      'destination': '${destination.latitude},${destination.longitude}',
+      'mode': 'driving',
+      'key': apiKey,
+    });
+    final response = await http.get(uri);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Could not load route right now.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Unexpected directions response.');
+    }
+    final routes = (decoded['routes'] as List?) ?? const [];
+    if (routes.isEmpty) {
+      throw Exception('No route found.');
+    }
+    final route = Map<String, dynamic>.from(routes.first as Map);
+    final polyline = Map<String, dynamic>.from((route['overview_polyline'] as Map?) ?? const {});
+    final legs = (route['legs'] as List?) ?? const [];
+    final firstLeg = legs.isEmpty ? const <String, dynamic>{} : Map<String, dynamic>.from(legs.first as Map);
+    final distance = Map<String, dynamic>.from((firstLeg['distance'] as Map?) ?? const {});
+    final duration = Map<String, dynamic>.from((firstLeg['duration'] as Map?) ?? const {});
+    return _TrackingRouteSnapshot(
+      polylinePoints: _decodeGooglePolyline('${polyline['points'] ?? ''}'),
+      distanceLabel: '${distance['text'] ?? ''}'.trim(),
+      durationLabel: '${duration['text'] ?? ''}'.trim(),
+    );
+  }
+
+  List<LatLng> _decodeGooglePolyline(String encoded) {
+    if (encoded.isEmpty) {
+      return const <LatLng>[];
+    }
+    final points = <LatLng>[];
+    int index = 0;
+    int lat = 0;
+    int lng = 0;
+    while (index < encoded.length) {
+      int shift = 0;
+      int result = 0;
+      int byte;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+      shift = 0;
+      result = 0;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+      points.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return points;
+  }
+
+  Future<void> _verifyStartWorkOtp() async {
+    final status = _status;
+    final otp = _startWorkOtpController.text.trim();
+    if (status == null || status.bookingId <= 0 || _verifyingStart) {
+      return;
+    }
+    if (!_sixDigitOtpRegex.hasMatch(otp)) {
+      setState(() => _startOtpError = 'Enter the 6-digit OTP shared by labour.');
+      return;
+    }
+    setState(() {
+      _verifyingStart = true;
+      _startOtpError = null;
+    });
+    try {
+      await _UserAppApi.verifyBookingOtp(
+        bookingId: status.bookingId,
+        purpose: 'START_WORK',
+        otpCode: otp,
+      );
+      _startWorkOtpController.clear();
+      await _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Work is now in progress.')),
+        );
+      }
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        setState(() => _startOtpError = error.message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _verifyingStart = false);
+      }
+    }
+  }
+
+  Future<void> _generateCompleteWorkOtp() async {
+    final status = _status;
+    if (status == null || status.bookingId <= 0 || _generatingCompleteOtp) {
+      return;
+    }
+    setState(() => _generatingCompleteOtp = true);
+    try {
+      final otp = await _UserAppApi.generateBookingOtp(
+        bookingId: status.bookingId,
+        purpose: 'COMPLETE_WORK',
+      );
+      if (mounted) {
+        setState(() => _completeWorkOtpCode = otp);
+      }
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _generatingCompleteOtp = false);
+      }
+    }
+  }
+
+  Future<void> _requestMutualCancelOtp() async {
+    final status = _status;
+    if (status == null || status.bookingId <= 0 || _requestingMutualCancel) {
+      return;
+    }
+    setState(() {
+      _requestingMutualCancel = true;
+      _mutualCancelOtpError = null;
+    });
+    try {
+      await _UserAppApi.generateBookingOtp(
+        bookingId: status.bookingId,
+        purpose: 'MUTUAL_CANCEL',
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _mutualCancelRequested = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mutual cancel OTP sent to labour.')),
+      );
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        setState(() => _mutualCancelOtpError = error.message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _requestingMutualCancel = false);
+      }
+    }
+  }
+
+  Future<void> _verifyMutualCancelOtp() async {
+    final status = _status;
+    final otp = _mutualCancelOtpController.text.trim();
+    if (status == null || status.bookingId <= 0 || _verifyingMutualCancel) {
+      return;
+    }
+    if (!_sixDigitOtpRegex.hasMatch(otp)) {
+      setState(() => _mutualCancelOtpError = 'Enter the 6-digit OTP shared by labour.');
+      return;
+    }
+    setState(() {
+      _verifyingMutualCancel = true;
+      _mutualCancelOtpError = null;
+    });
+    try {
+      await _UserAppApi.verifyBookingOtp(
+        bookingId: status.bookingId,
+        purpose: 'MUTUAL_CANCEL',
+        otpCode: otp,
+      );
+      _mutualCancelOtpController.clear();
+      await _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Booking cancelled mutually.')),
+        );
+      }
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        setState(() => _mutualCancelOtpError = error.message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _verifyingMutualCancel = false);
+      }
+    }
+  }
+
+  Future<void> _cancelAfterReachDeadline() async {
+    final status = _status;
+    if (status == null || status.bookingId <= 0 || !_canCancelAfterReachDeadline(status) || _cancellingNoShow) {
+      return;
+    }
+    setState(() => _cancellingNoShow = true);
+    try {
+      await _UserAppApi.cancelBookingByUser(
+        bookingId: status.bookingId,
+        reason: 'Provider did not reach within the configured reach timeline.',
+      );
+      await _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Booking cancelled because labour did not reach in time.')),
+        );
+      }
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _cancellingNoShow = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _status;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.78,
+      minChildSize: 0.5,
+      maxChildSize: 0.94,
+      builder: (context, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F2EC),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: status == null
+            ? _emptyState(controller)
+            : ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 54,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4C6BA),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _header(status),
+                  const SizedBox(height: 14),
+                  if (_loading) const LinearProgressIndicator(minHeight: 3),
+                  if (status.canMakePayment) _paymentPendingAction(status),
+                  if (!status.canMakePayment && status.bookingId <= 0) _waitingForAcceptanceCard(status),
+                  if (!status.canMakePayment && status.bookingId > 0) ...[
+                    if (status.bookingStatus.toUpperCase() == 'IN_PROGRESS') ...[
+                      _completionOtpCard(status),
+                      const SizedBox(height: 12),
+                    ],
+                    _detailsCard(status),
+                    const SizedBox(height: 12),
+                    _liveLocationCard(status),
+                    const SizedBox(height: 12),
+                    _arrivalOtpCard(status),
+                    const SizedBox(height: 12),
+                    if (status.bookingStatus.toUpperCase() != 'IN_PROGRESS') ...[
+                      _completionOtpCard(status),
+                      const SizedBox(height: 12),
+                    ],
+                    _cancelCard(status),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _waitingForAcceptanceCard(_ActiveBookingStatus status) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Waiting for labour response',
+            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Request ID: ${status.requestCode.trim().isEmpty ? '#${status.requestId}' : status.requestCode}',
+            style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'We will show payment, tracking and OTP controls after labour accepts this request.',
+            style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : _reload,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Refresh status'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyState(ScrollController controller) {
+    return ListView(
+      controller: controller,
+      padding: const EdgeInsets.all(24),
+      children: const [
+        SizedBox(height: 24),
+        Icon(Icons.check_circle_rounded, color: Color(0xFF7AA81E), size: 54),
+        SizedBox(height: 12),
+        Text(
+          'No live booking right now.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+        ),
+      ],
+    );
+  }
+
+  Widget _header(_ActiveBookingStatus status) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF22314D), Color(0xFF3E587D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Row(
+        children: [
+          _ActiveBookingAvatar(status: status, size: 58),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _providerTitle(status),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _statusLabel(status),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.84),
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentPendingAction(_ActiveBookingStatus status) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Confirm your booking',
+            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Pay booking charges to lock this ${status.bookingType.toLowerCase()} request.',
+            style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700),
+          ),
+          if (status.paymentDueAt != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Payment due by ${_timeOnly(status.paymentDueAt)}',
+              style: const TextStyle(color: Color(0xFFCB6E5B), fontWeight: FontWeight.w900),
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton(
+            onPressed: _paying
+                ? null
+                : () async {
+                    setState(() => _paying = true);
+                    await widget.onPayNow(status);
+                    if (mounted) {
+                      setState(() => _paying = false);
+                    }
+                  },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFCB6E5B),
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            ),
+            child: _paying
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.6,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text('Make payment'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailsCard(_ActiveBookingStatus status) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        children: [
+          _infoRow('Booking ID', status.bookingCode.trim().isEmpty ? '#${status.bookingId}' : status.bookingCode),
+          _infoRow('Labour name', _providerTitle(status)),
+          _infoRow('Labour phone', status.providerPhone.trim().isEmpty ? 'Visible after payment' : status.providerPhone),
+          _infoRow('Booking type', _pricingModelLabel(status)),
+          _infoRow(
+            'Labour amount',
+            status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
+                ? status.totalAcceptedQuotedPriceAmount
+                : (status.quotedPriceAmount.trim().isEmpty ? 'As quoted' : status.quotedPriceAmount),
+          ),
+          _infoRow(
+            'Booking fees',
+            status.totalAcceptedBookingChargeAmount.trim().isNotEmpty
+                ? status.totalAcceptedBookingChargeAmount
+                : 'Pending',
+          ),
+          if (status.distanceLabel.trim().isNotEmpty) _infoRow('Distance', status.distanceLabel),
+        ],
+      ),
+    );
+  }
+
+  Widget _liveLocationCard(_ActiveBookingStatus status) {
+    final providerLocation = _providerTrackingLatLng(status);
+    final destinationLocation = _destinationTrackingLatLng(status);
+    final hasMap = providerLocation != null || destinationLocation != null;
+    final routeDistanceLabel = _trackingRouteDistanceLabel(status);
+    final routeEtaLabel = _trackingRouteEtaLabel();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Live trip tracking',
+            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            providerLocation != null
+                ? 'Blue pin is labour. Rose pin is your selected location.'
+                : 'Your location is fixed. Labour live movement will appear once the device starts syncing.',
+            style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+          ),
+          if (routeDistanceLabel != null) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE9F7FF),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0xFFB9DDF3)),
+                  ),
+                  child: Text(
+                    'Route $routeDistanceLabel',
+                    style: const TextStyle(color: Color(0xFF14516E), fontWeight: FontWeight.w900),
+                  ),
+                ),
+                if (routeEtaLabel != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEFE7),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFF1C6B4)),
+                    ),
+                    child: Text(
+                      'ETA $routeEtaLabel',
+                      style: const TextStyle(color: Color(0xFF9A432E), fontWeight: FontWeight.w900),
+                    ),
+                  ),
+              ],
+            ),
+          ] else if (_loadingRouteSnapshot) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'Calculating the best route...',
+              style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700),
+            ),
+          ],
+          const SizedBox(height: 10),
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: hasMap ? () => _openFullMap(status) : null,
+            child: Container(
+              height: 138,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDE3DA),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE0D1C7)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: hasMap
+                  ? GoogleMap(
+                      initialCameraPosition: _trackingCameraPosition(status),
+                      markers: _trackingMarkers(status),
+                      polylines: _trackingPolylines(status),
+                      zoomControlsEnabled: false,
+                      myLocationButtonEnabled: false,
+                    )
+                  : const Center(
+                      child: Text(
+                        'Live location will appear once labour syncs location.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700),
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _arrivalOtpCard(_ActiveBookingStatus status) {
+    final bookingStatus = status.bookingStatus.toUpperCase();
+    final canEnterOtp = bookingStatus == 'ARRIVED';
+    final alreadyStarted = bookingStatus == 'IN_PROGRESS';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            alreadyStarted ? 'Work in progress' : 'Confirm labour arrival',
+            style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            alreadyStarted
+                ? 'Arrival is confirmed and work has started.'
+                : canEnterOtp
+                    ? 'Enter the OTP shared by labour to start the work.'
+                    : 'OTP entry unlocks after labour marks that they reached your location.',
+            style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+          ),
+          if (!alreadyStarted) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _startWorkOtpController,
+              enabled: canEnterOtp && !_verifyingStart,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: 'XXXXXX',
+                errorText: _startOtpError,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: canEnterOtp && !_verifyingStart ? _verifyStartWorkOtp : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF7AA81E),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(_verifyingStart ? 'Verifying...' : 'Confirm arrival and start work'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _completionOtpCard(_ActiveBookingStatus status) {
+    if (status.bookingStatus.toUpperCase() != 'IN_PROGRESS') {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Completion OTP',
+            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          if (_completeWorkOtpCode != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF22314D),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                _completeWorkOtpCode!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28, letterSpacing: 5),
+              ),
+            )
+          else
+            const Text(
+              'When work is done, generate this OTP and share it with labour to close the booking.',
+              style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+            ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: _generatingCompleteOtp ? null : _generateCompleteWorkOtp,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFCB6E5B),
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: Text(_generatingCompleteOtp ? 'Generating...' : 'Generate completion OTP'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cancelCard(_ActiveBookingStatus status) {
+    final bookingStatus = status.bookingStatus.toUpperCase();
+    final showNoShowCancel = bookingStatus == 'PAYMENT_COMPLETED';
+    final showMutualCancel = bookingStatus == 'IN_PROGRESS';
+    final canNoShowCancel = _canCancelAfterReachDeadline(status);
+    if (!showNoShowCancel && !showMutualCancel && !_mutualCancelRequested && _mutualCancelOtpError == null) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            showMutualCancel ? 'Mutual cancellation' : 'Cancel if labour does not reach',
+            style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          if (showNoShowCancel) ...[
+            Text(
+              canNoShowCancel
+                  ? 'The reach timeline has passed. You can cancel because labour did not reach your location.'
+                  : 'This button will unlock after the admin-configured reach timeline.',
+              style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: canNoShowCancel && !_cancellingNoShow ? _cancelAfterReachDeadline : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFB03737),
+                minimumSize: const Size.fromHeight(46),
+                side: BorderSide(color: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFFD8C7BC)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(_cancellingNoShow ? 'Cancelling...' : _cancelButtonLabel(status)),
+            ),
+          ],
+          if (showMutualCancel) ...[
+            const Text(
+              'Use this only when both you and labour agree to stop the work. Booking charges will not be refunded after work starts.',
+              style: TextStyle(color: Color(0xFF9B433B), fontWeight: FontWeight.w800, height: 1.3),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: !_requestingMutualCancel ? _requestMutualCancelOtp : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFB03737),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(_requestingMutualCancel ? 'Requesting...' : 'Request mutual cancel OTP'),
+            ),
+          ],
+          if (showMutualCancel && (_mutualCancelRequested || _mutualCancelOtpError != null)) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _mutualCancelOtpController,
+              enabled: !_verifyingMutualCancel,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: 'OTP from labour',
+                errorText: _mutualCancelOtpError,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton(
+                onPressed: _verifyingMutualCancel ? null : _verifyMutualCancelOtp,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFB03737),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(46),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text(_verifyingMutualCancel ? 'Cancelling...' : 'Confirm mutual cancellation')),
+          ],
+        ],
+      ),
+    );
+  }
+
+  BoxDecoration _whiteCardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: const Color(0xFFE8DCD6)),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0x0F22314D),
+          blurRadius: 18,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFF8C7E73), fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _canCancelAfterReachDeadline(_ActiveBookingStatus status) {
+    final reachByAt = status.reachByAt;
+    return status.bookingStatus.toUpperCase() == 'PAYMENT_COMPLETED' &&
+        reachByAt != null &&
+        !DateTime.now().isBefore(reachByAt);
+  }
+
+  String _cancelButtonLabel(_ActiveBookingStatus status) {
+    final reachByAt = status.reachByAt;
+    if (_canCancelAfterReachDeadline(status)) {
+      return 'Cancel because labour did not reach';
+    }
+    if (reachByAt != null) {
+      return 'Cancel enabled after ${_timeOnly(reachByAt)}';
+    }
+    return 'Cancel enabled after admin reach timeline';
+  }
+
+  String _providerTitle(_ActiveBookingStatus status) {
+    final name = status.providerName.trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service provider' : 'Labour';
+  }
+
+  String _statusLabel(_ActiveBookingStatus status) {
+    final bookingStatus = status.bookingStatus.toUpperCase();
+    return switch (bookingStatus) {
+      'PAYMENT_COMPLETED' => 'Payment done. Labour is on the way.',
+      'ARRIVED' => 'Labour reached. Enter OTP to start work.',
+      'IN_PROGRESS' => 'Work in progress.',
+      'COMPLETED' => 'Booking completed.',
+      _ => status.canMakePayment ? 'Accepted. Payment is pending.' : _titleCase(status.requestStatus),
+    };
+  }
+
+  String _pricingModelLabel(_ActiveBookingStatus status) {
+    final raw = status.labourPricingModel.trim().toUpperCase();
+    if (raw == 'HALF_DAY') {
+      return 'Half Day';
+    }
+    if (raw == 'FULL_DAY') {
+      return 'Full Day';
+    }
+    return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service visit' : 'Labour booking';
+  }
+
+  String _timeOnly(DateTime? value) {
+    if (value == null) {
+      return '';
+    }
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  void _openFullMap(_ActiveBookingStatus status) {
+    if (_providerTrackingLatLng(status) == null && _destinationTrackingLatLng(status) == null) {
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.72,
+          child: Stack(
+            children: [
+              GoogleMap(
+                initialCameraPosition: _trackingCameraPosition(status),
+                markers: _trackingMarkers(status),
+                polylines: _trackingPolylines(status),
+                myLocationButtonEnabled: false,
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  LatLng? _providerTrackingLatLng(_ActiveBookingStatus status) {
+    final lat = status.providerLatitude;
+    final lng = status.providerLongitude;
+    if (lat == null || lng == null) {
+      return null;
+    }
+    return LatLng(lat, lng);
+  }
+
+  LatLng? _destinationTrackingLatLng(_ActiveBookingStatus status) {
+    final lat = status.destinationLatitude;
+    final lng = status.destinationLongitude;
+    if (lat == null || lng == null) {
+      return null;
+    }
+    return LatLng(lat, lng);
+  }
+
+  CameraPosition _trackingCameraPosition(_ActiveBookingStatus status) {
+    final provider = _providerTrackingLatLng(status);
+    final destination = _destinationTrackingLatLng(status);
+    if (provider != null && destination != null) {
+      return CameraPosition(
+        target: LatLng(
+          (provider.latitude + destination.latitude) / 2,
+          (provider.longitude + destination.longitude) / 2,
+        ),
+        zoom: 12.8,
+      );
+    }
+    final focus = provider ?? destination ?? const LatLng(26.8467, 80.9462);
+    return CameraPosition(target: focus, zoom: 15.8);
+  }
+
+  Set<Marker> _trackingMarkers(_ActiveBookingStatus status) {
+    final markers = <Marker>{};
+    final provider = _providerTrackingLatLng(status);
+    final destination = _destinationTrackingLatLng(status);
+    if (provider != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('provider_live_location'),
+          position: provider,
+          infoWindow: InfoWindow(title: _providerTitle(status), snippet: 'Live labour location'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        ),
+      );
+    }
+    if (destination != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('destination_location'),
+          position: destination,
+          infoWindow: const InfoWindow(title: 'Your location'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        ),
+      );
+    }
+    return markers;
+  }
+
+  Set<Polyline> _trackingPolylines(_ActiveBookingStatus status) {
+    final provider = _providerTrackingLatLng(status);
+    final destination = _destinationTrackingLatLng(status);
+    if (provider == null || destination == null) {
+      return const <Polyline>{};
+    }
+    final routePoints = _routeSnapshot?.polylinePoints ?? const <LatLng>[];
+    return <Polyline>{
+      Polyline(
+        polylineId: const PolylineId('provider_to_destination'),
+        points: routePoints.length >= 2 ? routePoints : <LatLng>[provider, destination],
+        width: 5,
+        color: const Color(0xFFCB6E5B),
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+      ),
+    };
+  }
+
+  String? _trackingRouteDistanceLabel(_ActiveBookingStatus status) {
+    final routeDistance = _routeSnapshot?.distanceLabel.trim() ?? '';
+    if (routeDistance.isNotEmpty) {
+      return routeDistance;
+    }
+    final provider = _providerTrackingLatLng(status);
+    final destination = _destinationTrackingLatLng(status);
+    if (provider == null || destination == null) {
+      return null;
+    }
+    final distanceMeters = Geolocator.distanceBetween(
+      provider.latitude,
+      provider.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+    final distanceKm = distanceMeters / 1000;
+    if (distanceKm >= 10) {
+      return '${distanceKm.toStringAsFixed(0)} km';
+    }
+    return '${distanceKm.toStringAsFixed(1)} km';
+  }
+
+  String? _trackingRouteEtaLabel() {
+    final value = _routeSnapshot?.durationLabel.trim() ?? '';
+    return value.isEmpty ? null : value;
+  }
+}
+
+class _TrackingRouteSnapshot {
+  const _TrackingRouteSnapshot({
+    required this.polylinePoints,
+    required this.distanceLabel,
+    required this.durationLabel,
+  });
+
+  final List<LatLng> polylinePoints;
+  final String distanceLabel;
+  final String durationLabel;
 }
 
 class _HomeLocationOptionTile extends StatelessWidget {
@@ -4318,4 +7288,109 @@ class _HomeLocationOptionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CurvedBodyTransition extends StatelessWidget {
+  const _CurvedBodyTransition({
+    required this.colors,
+    this.compact = false,
+    this.foreground,
+    this.foregroundHeight = 0,
+  });
+
+  final List<Color> colors;
+  final bool compact;
+  final Widget? foreground;
+  final double foregroundHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasForeground = foreground != null;
+    final transitionHeight = hasForeground ? foregroundHeight + 34 : (compact ? 54.0 : 84.0);
+    final waveHeight = compact ? 44.0 : 72.0;
+
+    return SizedBox(
+      height: transitionHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colors.first,
+                    colors[1],
+                    colors[2],
+                    colors[2],
+                  ],
+                  stops: const [0, 0.36, 0.84, 1],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -24,
+            right: -24,
+            bottom: 0,
+            child: ClipPath(
+              clipper: _HeaderWaveClipper(),
+              child: Container(
+                height: waveHeight,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 20,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (hasForeground)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 8,
+              child: foreground!,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path()..lineTo(0, size.height * 0.82);
+    path.cubicTo(
+      size.width * 0.20,
+      size.height * 0.82,
+      size.width * 0.30,
+      size.height * 0.18,
+      size.width * 0.50,
+      size.height * 0.18,
+    );
+    path.cubicTo(
+      size.width * 0.70,
+      size.height * 0.18,
+      size.width * 0.80,
+      size.height * 0.82,
+      size.width,
+      size.height * 0.82,
+    );
+    path
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }

@@ -17,27 +17,27 @@ List<Color> _headerGradient(_HomeMode mode) {
   switch (mode) {
     case _HomeMode.all:
       return const [
-        Color(0xFFDCEAFF),
-        Color(0xFFEDF5FF),
-        Color(0xFFFBFDFF),
+        Color(0xFF7EACEB),
+        Color(0xFFA7C9F4),
+        Color(0xFFD7E9FF),
       ];
     case _HomeMode.labour:
       return const [
-        Color(0xFFFFEDB8),
-        Color(0xFFFFF4D4),
-        Color(0xFFFFFCF1),
+        Color(0xFFD0A948),
+        Color(0xFFE7CB7E),
+        Color(0xFFFFEDC5),
       ];
     case _HomeMode.service:
       return const [
-        Color(0xFFFFD7E0),
-        Color(0xFFFFE8EE),
-        Color(0xFFFFFBFC),
+        Color(0xFFD97896),
+        Color(0xFFEAAABD),
+        Color(0xFFFFDFE9),
       ];
     case _HomeMode.shop:
       return const [
-        Color(0xFFDDF4DF),
-        Color(0xFFEAF8EB),
-        Color(0xFFFCFEFC),
+        Color(0xFF82BB8C),
+        Color(0xFFB2D5B8),
+        Color(0xFFDDF0DF),
       ];
   }
 }
@@ -93,7 +93,7 @@ class _HomeHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Icon(Icons.location_on_rounded, color: Color(0xFF202435), size: 18),
+          const Icon(Icons.location_on_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
@@ -104,7 +104,7 @@ class _HomeHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF202435),
+                    color: Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     fontFamily: 'SF Pro Display',
@@ -116,7 +116,7 @@ class _HomeHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: const Color(0xFF202435).withValues(alpha: 0.72),
+                    color: Colors.white.withValues(alpha: 0.82),
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'SF Pro Display',
@@ -132,11 +132,11 @@ class _HomeHeader extends StatelessWidget {
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2.1,
-                color: Color(0xFF202435),
+                color: Colors.white,
               ),
             )
           else
-            const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF202435), size: 20),
+            const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 20),
         ],
       ),
     );
@@ -221,7 +221,7 @@ class _PinnedSearchHeaderState extends State<_PinnedSearchHeader> {
                         alignment: Alignment.center,
                         child: const Icon(
                           Icons.person_outline_rounded,
-                          color: Color(0xFF202435),
+                          color: Colors.white,
                           size: 29,
                         ),
                       ),
@@ -253,7 +253,7 @@ class _HeaderNotificationIcon extends StatelessWidget {
             alignment: Alignment.center,
             child: Icon(
               Icons.notifications_none_rounded,
-              color: Color(0xFF202435),
+              color: Colors.white,
               size: 28,
             ),
           ),
@@ -296,7 +296,7 @@ class _HeaderCircleIcon extends StatelessWidget {
     return SizedBox(
       width: 30,
       height: 30,
-      child: Icon(icon, color: const Color(0xFF202435), size: 28),
+      child: Icon(icon, color: Colors.white, size: 28),
     );
   }
 }
@@ -329,7 +329,7 @@ class _ModeSwitcher extends StatelessWidget {
             bottom: 0,
             child: Container(
               height: 1.5,
-              color: _modeTint(mode),
+              color: Colors.white.withValues(alpha: 0.72),
             ),
           ),
           ListView.builder(
@@ -348,10 +348,8 @@ class _ModeSwitcher extends StatelessWidget {
                   child: CustomPaint(
                     painter: _CategoryTabBorderPainter(
                       label: card.$2,
-                      color: _modeTint(mode),
-                      fillColor: card.$1 == _HomeMode.all && selected
-                          ? Colors.white
-                          : _headerGradient(mode).first,
+                      color: Colors.white,
+                      fillColor: Colors.transparent,
                       selected: selected,
                     ),
                     child: Container(
@@ -368,7 +366,7 @@ class _ModeSwitcher extends StatelessWidget {
                         child: Text(
                           card.$2,
                           style: TextStyle(
-                            color: const Color(0xFF202435),
+                            color: Colors.white,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.8,
                             fontSize: selected ? 12.8 : 12.2,

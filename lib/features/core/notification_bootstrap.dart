@@ -30,6 +30,7 @@ class _NotificationBootstrap {
         return;
       }
       await _UserAppApi.deactivatePushToken(token);
+      await _UserAppApi.deactivateBookingPushToken(token);
     } catch (_) {
       // Ignore logout cleanup if Firebase is not configured on this build.
     }
@@ -56,13 +57,20 @@ class _NotificationBootstrap {
       if (token == null || token.trim().isEmpty) {
         return;
       }
+      final deviceToken = await _LocalSessionStore.ensureDeviceToken();
       await _UserAppApi.registerPushToken(
         pushToken: token,
-        deviceToken: await _LocalSessionStore.ensureDeviceToken(),
+        deviceToken: deviceToken,
         platform: _platform,
         pushProvider: 'FCM',
         appVersion: '1.0.0+1',
         osVersion: _compactOsVersion(),
+      );
+      await _UserAppApi.registerBookingPushToken(
+        pushToken: token,
+        deviceToken: deviceToken,
+        platform: _platform,
+        pushProvider: 'FCM',
       );
       await _ensureMessageListeners(messaging);
       _tokenRefreshSubscription ??= messaging.onTokenRefresh.listen((freshToken) {
@@ -94,13 +102,20 @@ class _NotificationBootstrap {
   }
 
   static Future<void> _registerRefreshedToken(String freshToken) async {
+    final deviceToken = await _LocalSessionStore.ensureDeviceToken();
     await _UserAppApi.registerPushToken(
       pushToken: freshToken,
-      deviceToken: await _LocalSessionStore.ensureDeviceToken(),
+      deviceToken: deviceToken,
       platform: _platform,
       pushProvider: 'FCM',
       appVersion: '1.0.0+1',
       osVersion: _compactOsVersion(),
+    );
+    await _UserAppApi.registerBookingPushToken(
+      pushToken: freshToken,
+      deviceToken: deviceToken,
+      platform: _platform,
+      pushProvider: 'FCM',
     );
   }
 
@@ -123,6 +138,14 @@ class _NotificationBootstrap {
 }
 
 class _NotificationEvent {
+  static const Set<String> _allowedUserBookingTypes = <String>{
+    'BOOKING_ACCEPTED',
+    'BOOKING_PAYMENT_SUCCESS',
+    'BOOKING_WORK_STARTED',
+    'BOOKING_COMPLETED',
+    'BOOKING_CANCELLED',
+  };
+
   const _NotificationEvent({
     required this.title,
     required this.body,
@@ -144,11 +167,26 @@ class _NotificationEvent {
     );
   }
 
+  String get type => (data['type'] ?? '').trim().toUpperCase();
+
   bool get isOrderRelated =>
-      data.containsKey('orderId') || data.containsKey('orderCode');
+      data.containsKey('orderId') ||
+      data.containsKey('orderCode') ||
+      type.startsWith('SHOP_ORDER_');
 
   bool get isBookingRelated =>
-      data.containsKey('bookingId') || data.containsKey('bookingCode');
+      data.containsKey('bookingId') ||
+      data.containsKey('bookingCode') ||
+      data.containsKey('requestId') ||
+      data.containsKey('requestCode') ||
+      type.startsWith('BOOKING_');
+
+  bool get isVisibleInUserApp {
+    if (!isBookingRelated) {
+      return true;
+    }
+    return _allowedUserBookingTypes.contains(type);
+  }
 
   bool get hasVisibleContent => title.isNotEmpty || body.isNotEmpty;
 }

@@ -46,9 +46,7 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
     }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => savedPhoneNumber == null || savedUserId == null
-            ? const LoginPage()
-            : UserHomePage(phoneNumber: savedPhoneNumber),
+        builder: (_) => UserHomePage(phoneNumber: savedPhoneNumber),
       ),
     );
   }
@@ -160,65 +158,77 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
                         const Spacer(),
                         SizedBox(
                           height: 300,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 18,
-                                child: Container(
-                                  height: 84,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.white.withValues(alpha: 0.08),
-                                        Colors.black.withValues(alpha: 0.18),
-                                      ],
+                          child: LayoutBuilder(
+                            builder: (context, scene) {
+                              final cardWidth = (scene.maxWidth * 0.30).clamp(88.0, 112.0);
+                              final cardHeight = cardWidth * 1.43;
+                              return Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 18,
+                                    child: Container(
+                                      height: 84,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.white.withValues(alpha: 0.08),
+                                            Colors.black.withValues(alpha: 0.18),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
                                     ),
-                                    borderRadius: BorderRadius.circular(999),
                                   ),
-                                ),
-                              ),
-                              Positioned(
-                                left: 8,
-                                bottom: 34,
-                                child: _LaunchSceneCard(
-                                  title: 'LABOUR',
-                                  subtitle: 'Working now',
-                                  accent: const Color(0xFFF2A13D),
-                                  icon: Icons.engineering_rounded,
-                                  progress: labourMotion.value,
-                                  tilt: -0.08,
-                                ),
-                              ),
-                              Positioned(
-                                left: 120,
-                                bottom: 46,
-                                child: _LaunchSceneCard(
-                                  title: 'SERVICE',
-                                  subtitle: 'Serving live',
-                                  accent: const Color(0xFF5C8FD8),
-                                  icon: Icons.handyman_rounded,
-                                  progress: serviceMotion.value,
-                                  tilt: 0.03,
-                                ),
-                              ),
-                              Positioned(
-                                right: 8,
-                                bottom: 34,
-                                child: _LaunchSceneCard(
-                                  title: 'SHOP',
-                                  subtitle: 'Launching now',
-                                  accent: const Color(0xFF4DAF50),
-                                  icon: Icons.storefront_rounded,
-                                  progress: shopMotion.value,
-                                  tilt: 0.08,
-                                ),
-                              ),
-                            ],
+                                  Positioned(
+                                    left: 4,
+                                    bottom: 34,
+                                    child: _LaunchSceneCard(
+                                      title: 'LABOUR',
+                                      subtitle: 'Working now',
+                                      accent: const Color(0xFFF2A13D),
+                                      icon: Icons.engineering_rounded,
+                                      progress: labourMotion.value,
+                                      tilt: -0.08,
+                                      width: cardWidth,
+                                      height: cardHeight,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: (scene.maxWidth - cardWidth) / 2,
+                                    bottom: 56,
+                                    child: _LaunchSceneCard(
+                                      title: 'SERVICE',
+                                      subtitle: 'Serving live',
+                                      accent: const Color(0xFF5C8FD8),
+                                      icon: Icons.handyman_rounded,
+                                      progress: serviceMotion.value,
+                                      tilt: 0.03,
+                                      width: cardWidth,
+                                      height: cardHeight,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 4,
+                                    bottom: 34,
+                                    child: _LaunchSceneCard(
+                                      title: 'SHOP',
+                                      subtitle: 'Launching now',
+                                      accent: const Color(0xFF4DAF50),
+                                      icon: Icons.storefront_rounded,
+                                      progress: shopMotion.value,
+                                      tilt: 0.08,
+                                      width: cardWidth,
+                                      height: cardHeight,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(height: 22),
@@ -233,10 +243,110 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
       ),
     );
   }
+
+}
+
+class _LaunchSceneCard extends StatelessWidget {
+  const _LaunchSceneCard({
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.icon,
+    required this.progress,
+    required this.tilt,
+    required this.width,
+    required this.height,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final IconData icon;
+  final double progress;
+  final double tilt;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final eased = Curves.easeOutBack.transform(progress.clamp(0.0, 1.0));
+    return Transform.translate(
+      offset: Offset(0, (1 - eased) * 42),
+      child: Transform.rotate(
+        angle: tilt * (1 - (eased * 0.45)),
+        child: Opacity(
+          opacity: eased.clamp(0.0, 1.0),
+          child: Container(
+            width: width,
+            height: height,
+            padding: EdgeInsets.fromLTRB(width * 0.12, height * 0.10, width * 0.12, height * 0.12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(width * 0.22),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: 0.94),
+                  Colors.white.withValues(alpha: 0.78),
+                ],
+              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.38)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF18213A).withValues(alpha: 0.16),
+                  blurRadius: width * 0.22,
+                  offset: Offset(0, height * 0.13),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: width * 0.34,
+                  height: width * 0.34,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(width * 0.12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, color: accent, size: width * 0.18),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: const Color(0xFF22314D),
+                    fontSize: width * 0.16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                SizedBox(height: height * 0.03),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: const Color(0xFF5F6E83),
+                    fontSize: width * 0.10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({
+    super.key,
+    this.embeddedFlow = false,
+  });
+
+  final bool embeddedFlow;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -262,14 +372,18 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
+      final verified = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
           builder: (_) => OtpVerificationPage(
             phoneNumber: cleanedPhone,
             requestId: otpDispatch.requestId,
+            embeddedFlow: widget.embeddedFlow,
           ),
         ),
       );
+      if (verified == true && mounted && widget.embeddedFlow) {
+        Navigator.of(context).pop(true);
+      }
     } on _UserAppApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -351,201 +465,180 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxHeight < 780 || constraints.maxWidth < 390;
-          final horizontalPadding = constraints.maxWidth < 360 ? 16.0 : 22.0;
-          final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-          final keyboardVisible = keyboardInset > 0;
-          final heroHeight = keyboardVisible
-              ? (compact ? 188.0 : 224.0)
-              : (constraints.maxHeight * (compact ? 0.44 : 0.50))
-                  .clamp(320.0, compact ? 390.0 : 460.0)
-                  .toDouble();
-          final quickIconSize = compact ? 42.0 : 48.0;
-
-          return Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFD78268), Color(0xFFDF7DA0), Color(0xFFF7F2EC)],
-                stops: [0, 0.56, 0.56],
-              ),
-            ),
-            child: SafeArea(
-              child: AnimatedPadding(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.only(bottom: keyboardVisible ? 10 : 0),
-                child: Column(
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      width: double.infinity,
-                      height: heroHeight,
-                      child: _TopDiscoveryHero(
-                        title: 'DISCOVER LABOUR,\nSERVICES & SHOPS\nNEAR YOU',
-                        subtitle:
-                            'Book nearby help, services and local shops in one simple flow.',
-                        compact: compact,
-                      ),
+      backgroundColor: const Color(0xFFF7F2EC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFF8F3),
+              Color(0xFFF3E5DB),
+              Color(0xFFFFFBF8),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.fromLTRB(18, 18, 18, keyboardInset > 0 ? keyboardInset + 16 : 18),
+            child: Center(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: const Color(0xFFE8DED7)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1A2030).withValues(alpha: 0.08),
+                          blurRadius: 28,
+                          offset: const Offset(0, 16),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        color: const Color(0xFFF7F2EC),
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            horizontalPadding,
-                            keyboardVisible ? 10 : (compact ? 14 : 18),
-                            horizontalPadding,
-                            compact ? 10 : 14,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                            Center(
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                spacing: compact ? 10 : 14,
-                                runSpacing: compact ? 10 : 14,
-                                children: [
-                                  _LoginQuickIcon(
-                                    icon: Icons.engineering_rounded,
-                                    accent: const Color(0xFFF2A13D),
-                                    size: quickIconSize,
-                                  ),
-                                  _LoginQuickIcon(
-                                    icon: Icons.handyman_rounded,
-                                    accent: const Color(0xFFCB6E5B),
-                                    size: quickIconSize,
-                                  ),
-                                  _LoginQuickIcon(
-                                    icon: Icons.local_grocery_store_rounded,
-                                    accent: const Color(0xFF4DAF50),
-                                    size: quickIconSize,
-                                  ),
-                                  _LoginQuickIcon(
-                                    icon: Icons.local_pharmacy_rounded,
-                                    accent: const Color(0xFF1FB8A4),
-                                    size: quickIconSize,
-                                  ),
-                                  _LoginQuickIcon(
-                                    icon: Icons.restaurant_rounded,
-                                    accent: const Color(0xFFFF954A),
-                                    size: quickIconSize,
-                                  ),
-                                ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFEFEA),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFEBD8CF)),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.phone_android_rounded,
+                                color: Color(0xFFCB6E5B),
+                                size: 24,
                               ),
                             ),
-                            SizedBox(height: compact ? 10 : 12),
-                            Center(
+                            const SizedBox(width: 12),
+                            Expanded(
                               child: Text(
-                                'Log in or sign up',
-                                textAlign: TextAlign.center,
+                                'Login to continue',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleLarge?.copyWith(
-                                  fontSize: compact ? 17 : 19,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF29314A),
+                                  color: const Color(0xFF22314D),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 22,
                                 ),
                               ),
                             ),
-                            SizedBox(height: compact ? 10 : 12),
-                            _PhoneInputField(
-                              controller: _phoneController,
-                              compact: compact,
-                            ),
-                            SizedBox(height: compact ? 10 : 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _isSendingOtp ? null : _continueToOtp,
-                                style: ElevatedButton.styleFrom(
-                                  elevation: 0,
-                                  backgroundColor: const Color(0xFFCB6E5B),
-                                  foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(vertical: compact ? 14 : 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  textStyle: TextStyle(
-                                    fontSize: compact ? 15 : 17,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                            if (widget.embeddedFlow)
+                              IconButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF7EFEA),
+                                  foregroundColor: const Color(0xFF22314D),
                                 ),
-                                child: Text(_isSendingOtp ? 'Sending OTP...' : 'Continue'),
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Enter your phone number to continue securely.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF6D7A91),
+                            height: 1.42,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _PhoneInputField(
+                          controller: _phoneController,
+                          compact: false,
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isSendingOtp ? null : _continueToOtp,
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: const Color(0xFFCB6E5B),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                            SizedBox(height: compact ? 12 : 16),
-                            if (!keyboardVisible)
-                              Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'By continuing, you agree to our',
-                                      textAlign: TextAlign.center,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: const Color(0xFF7A736A),
-                                        fontSize: compact ? 12 : 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      alignment: WrapAlignment.center,
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: [
-                                        _PolicyLink(
-                                          label: 'Terms of Service',
-                                          onTap: () => _showPolicySheet(
-                                            'Terms of Service',
-                                            'Use of the platform means you agree to provide valid details, maintain lawful conduct, and respect provider and shop service rules. Bookings, cancellations, penalties, refunds and payment timelines will follow the app policies shown during checkout.',
-                                          ),
-                                        ),
-                                        _PolicyLink(
-                                          label: 'Privacy Policy',
-                                          onTap: () => _showPolicySheet(
-                                            'Privacy Policy',
-                                            'We use your phone number, device details, saved addresses and booking activity to help you sign in, place bookings, receive updates and improve trust and safety. Sensitive details are handled only for service delivery, support and compliance.',
-                                          ),
-                                        ),
-                                        _PolicyLink(
-                                          label: 'Content Policy',
-                                          onTap: () => _showPolicySheet(
-                                            'Content Policy',
-                                            'Users, providers and shops must not upload misleading, abusive, unsafe or illegal content. Fraudulent listings, fake bookings, offensive media and harmful behavior can result in suspension or permanent removal from the platform.',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                            child: Text(_isSendingOtp ? 'Sending OTP...' : 'Continue'),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Center(
+                          child: Text(
+                            'By continuing, you agree to our',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFF7A736A),
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Center(
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _PolicyLink(
+                                label: 'Terms of Service',
+                                onTap: () => _showPolicySheet(
+                                  'Terms of Service',
+                                  'Use of the platform means you agree to provide valid details, maintain lawful conduct, and respect provider and shop service rules. Bookings, cancellations, penalties, refunds and payment timelines will follow the app policies shown during checkout.',
                                 ),
-                              )
-                            else
-                              const Spacer(),
-                            const SizedBox(height: 6),
-                            const Center(child: _MadeWithLoveFooter()),
-                            const SizedBox(height: 0),
+                              ),
+                              _PolicyLink(
+                                label: 'Privacy Policy',
+                                onTap: () => _showPolicySheet(
+                                  'Privacy Policy',
+                                  'We use your phone number, device details, saved addresses and booking activity to help you sign in, place bookings, receive updates and improve trust and safety. Sensitive details are handled only for service delivery, support and compliance.',
+                                ),
+                              ),
+                              _PolicyLink(
+                                label: 'Content Policy',
+                                onTap: () => _showPolicySheet(
+                                  'Content Policy',
+                                  'Users, providers and shops must not upload misleading, abusive, unsafe or illegal content. Fraudulent listings, fake bookings, offensive media and harmful behavior can result in suspension or permanent removal from the platform.',
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        const Center(child: _MadeWithLoveFooter()),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
-
 }
 
 class OtpVerificationPage extends StatefulWidget {
@@ -553,10 +646,12 @@ class OtpVerificationPage extends StatefulWidget {
     super.key,
     required this.phoneNumber,
     required this.requestId,
+    this.embeddedFlow = false,
   });
 
   final String phoneNumber;
   final String requestId;
+  final bool embeddedFlow;
 
   @override
   State<OtpVerificationPage> createState() => _OtpVerificationPageState();
@@ -741,6 +836,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     if (!mounted) {
       return;
     }
+    if (widget.embeddedFlow) {
+      Navigator.of(context).pop(true);
+      return;
+    }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) => UserHomePage(phoneNumber: widget.phoneNumber),
@@ -758,247 +857,414 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 780 || constraints.maxWidth < 390;
           final horizontalPadding = constraints.maxWidth < 360 ? 16.0 : 22.0;
-          final heroHeight = compact ? 280.0 : 340.0;
-          final digitWidth = constraints.maxWidth < 360 ? 40.0 : (compact ? 44.0 : 48.0);
+          final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+          final otpSpacing = compact ? 6.0 : 8.0;
 
           return Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFD78268), Color(0xFFDF7DA0), Color(0xFFF7F2EC)],
-                stops: [0, 0.48, 0.48],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1C2742),
+                  Color(0xFFCB6E5B),
+                  Color(0xFFDF7DA0),
+                ],
+                stops: [0, 0.56, 1],
               ),
             ),
             child: SafeArea(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: heroHeight,
-                        child: Stack(
-                          children: [
-                            _TopDiscoveryHero(
-                              title: 'VERIFY YOUR\nNUMBER',
-                              subtitle:
-                                  'Enter the 6-digit code sent to +91 ${widget.phoneNumber}. Your account will be ready in seconds.',
-                              compact: compact,
-                            ),
-                            Positioned(
-                              left: compact ? 14 : 22,
-                              top: compact ? 12 : 18,
-                              child: IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(alpha: 0.14),
-                                  foregroundColor: Colors.white,
-                                ),
-                                icon: const Icon(Icons.arrow_back_rounded),
-                              ),
-                            ),
-                          ],
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(horizontalPadding, compact ? 8 : 12, horizontalPadding, 18),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(alpha: 0.14),
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.arrow_back_rounded),
                         ),
-                      ),
-                      Container(
-                        width: double.infinity,
-                        color: const Color(0xFFF7F2EC),
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(horizontalPadding, compact ? 20 : 24, horizontalPadding, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Center(
-                                child: Text(
-                                  'OTP Verification',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontSize: compact ? 20 : 24,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+                          ),
+                          child: const Text(
+                            'OTP Verification',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, compact ? 16 : 22),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: compact ? 62 : 70,
+                          height: compact ? 62 : 70,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+                          ),
+                          child: Icon(
+                            Icons.shield_rounded,
+                            color: Colors.white,
+                            size: compact ? 28 : 32,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Enter the code we sent',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            height: 1.04,
+                            fontSize: compact ? 26 : 29,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'We sent a 6-digit verification code to +91 ${widget.phoneNumber}.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.84),
+                            height: 1.35,
+                            fontSize: compact ? 13 : 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            height: compact ? 96 : 112,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.14),
+                                  const Color(0xFFFFE8DF).withValues(alpha: 0.38),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0, 0.48, 1],
                               ),
-                              const SizedBox(height: 10),
-                              Center(
-                                child: Text(
-                                  'Use 123456 for now',
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: const Color(0xFFCB6E5B),
-                                    fontSize: compact ? 13 : 14,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
+                            ),
+                          ),
+                        ),
+                        Positioned.fill(
+                          top: compact ? 22 : 28,
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0xFFFFF8F3),
+                                  Color(0xFFF7F2EC),
+                                  Colors.white,
+                                ],
+                                stops: [0, 0.34, 1],
                               ),
-                              SizedBox(height: compact ? 18 : 22),
-                              Center(
-                                child: Wrap(
-                                  alignment: WrapAlignment.center,
-                                  spacing: compact ? 8 : 10,
-                                  runSpacing: 10,
-                                  children: List.generate(
-                                    6,
-                                    (index) => _OtpDigitBox(
-                                      controller: _otpControllers[index],
-                                      focusNode: _focusNodes[index],
-                                      onChanged: (value) => _onOtpChanged(index, value),
-                                      width: digitWidth,
-                                      compact: compact,
-                                    ),
-                                  ),
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF18213A).withValues(alpha: 0.08),
+                                  blurRadius: 28,
+                                  offset: const Offset(0, -8),
                                 ),
+                              ],
+                            ),
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                compact ? 18 : 22,
+                                horizontalPadding,
+                                24 + keyboardInset,
                               ),
-                              const SizedBox(height: 16),
-                              if (_errorText != null)
-                                Container(
-                                  width: double.infinity,
-                                  margin: const EdgeInsets.only(bottom: 14),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFE6E8),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: const Color(0xFFFFB7C0)),
-                                  ),
-                                  child: Text(
-                                    _errorText!,
-                                    style: const TextStyle(
-                                      color: Color(0xFFC53B52),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 16, vertical: compact ? 12 : 14),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(color: const Color(0xFFE3DBD3)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: compact ? 36 : 40,
-                                      height: compact ? 36 : 40,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Center(
+                                    child: Container(
+                                      width: 54,
+                                      height: 5,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFCB6E5B).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Icon(
-                                        Icons.sms_outlined,
-                                        color: const Color(0xFFCB6E5B),
-                                        size: compact ? 18 : 20,
+                                        color: const Color(0xFFD7CEC4),
+                                        borderRadius: BorderRadius.circular(999),
                                       ),
                                     ),
-                                    SizedBox(width: compact ? 10 : 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '+91 ${widget.phoneNumber}',
-                                            style: TextStyle(
-                                              color: const Color(0xFF171717),
-                                              fontSize: compact ? 14 : 16,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            'Use this number to complete sign in.',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: const Color(0xFF7C756E),
-                                              fontSize: compact ? 11.5 : 12.5,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.of(context).pop(),
-                                      child: const Text('Edit'),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                  SizedBox(height: compact ? 18 : 20),
+                            Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 14 : 16,
+                                vertical: compact ? 12 : 14,
                               ),
-                              const SizedBox(height: 14),
-                              Column(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(color: const Color(0xFFE6DCD2)),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x14000000),
+                                    blurRadius: 18,
+                                    offset: Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: compact ? 42 : 48,
+                                    height: compact ? 42 : 48,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFF9E2DA), Color(0xFFFFF5F0)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Icon(
+                                      Icons.sms_outlined,
+                                      color: const Color(0xFFCB6E5B),
+                                      size: compact ? 20 : 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '+91 ${widget.phoneNumber}',
+                                          style: TextStyle(
+                                            color: const Color(0xFF171717),
+                                            fontSize: compact ? 14 : 16,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Use 123456 for now',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: const Color(0xFFCB6E5B),
+                                            fontSize: compact ? 11.5 : 12.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(),
+                                    child: const Text('Edit'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: compact ? 18 : 22),
+                            Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.fromLTRB(
+                                compact ? 14 : 18,
+                                compact ? 14 : 16,
+                                compact ? 14 : 18,
+                                compact ? 14 : 16,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFFFBF8), Color(0xFFFDF3EE)],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                                borderRadius: BorderRadius.circular(26),
+                                border: Border.all(color: const Color(0xFFF0DDD4)),
+                              ),
+                              child: Column(
                                 children: [
                                   Text(
-                                    "Didn't receive the code?",
+                                    'Verification code',
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      color: const Color(0xFF29314A),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Enter all 6 digits to continue.',
                                     textAlign: TextAlign.center,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: const Color(0xFF766E67),
-                                      fontSize: compact ? 12 : 13,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: const Color(0xFF7A736A),
+                                      fontSize: compact ? 11.5 : 12.5,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton(
-                                      onPressed: _canResend ? _handleResendOtp : null,
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFFCB6E5B),
-                                        disabledForegroundColor: const Color(0xFFB69B91),
-                                        side: BorderSide(
-                                          color: _canResend
-                                              ? const Color(0xFFCB6E5B)
-                                              : const Color(0xFFE3DBD3),
+                                  SizedBox(height: compact ? 14 : 16),
+                                  LayoutBuilder(
+                                    builder: (context, otpConstraints) {
+                                      final digitWidth =
+                                          ((otpConstraints.maxWidth - (otpSpacing * 5)) / 6)
+                                              .clamp(38.0, compact ? 44.0 : 50.0);
+                                      return Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: List.generate(6, (index) {
+                                          return Padding(
+                                            padding: EdgeInsets.only(
+                                              left: index == 0 ? 0 : otpSpacing,
+                                            ),
+                                            child: _OtpDigitBox(
+                                              controller: _otpControllers[index],
+                                              focusNode: _focusNodes[index],
+                                              onChanged: (value) => _onOtpChanged(index, value),
+                                              width: digitWidth,
+                                              compact: compact,
+                                            ),
+                                          );
+                                        }),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_errorText != null) ...[
+                              const SizedBox(height: 14),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFE6E8),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFFFB7C0)),
+                                ),
+                                child: Text(
+                                  _errorText!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFC53B52),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            SizedBox(height: compact ? 16 : 18),
+                            Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 14 : 16,
+                                vertical: compact ? 12 : 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(color: const Color(0xFFE5DBD1)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Didn't receive the code?",
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: const Color(0xFF29314A),
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                         ),
-                                        backgroundColor: _canResend
-                                            ? const Color(0xFFFFF6F1)
-                                            : const Color(0xFFF4EEEA),
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: compact ? 11 : 12,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          _canResend
+                                              ? 'You can request a fresh OTP now.'
+                                              : 'Resend available in $_formattedCountdown',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: const Color(0xFF7A736A),
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(14),
-                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  FilledButton.tonal(
+                                    onPressed: _canResend ? _handleResendOtp : null,
+                                    style: FilledButton.styleFrom(
+                                      foregroundColor: const Color(0xFFCB6E5B),
+                                      backgroundColor: _canResend
+                                          ? const Color(0xFFFFF1EB)
+                                          : const Color(0xFFF2ECE8),
+                                      disabledForegroundColor: const Color(0xFFB69B91),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
                                       ),
-                                      child: Text(
-                                        _canResend
-                                            ? 'Resend OTP'
-                                            : 'Resend OTP in $_formattedCountdown',
-                                        style: TextStyle(
-                                          fontSize: compact ? 12.5 : 13.5,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
+                                    ),
+                                    child: Text(
+                                      _canResend ? 'Resend' : _formattedCountdown,
+                                      style: const TextStyle(fontWeight: FontWeight.w800),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 20),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _isVerifying || !_canVerify ? null : _verifyOtp,
-                                  style: ElevatedButton.styleFrom(
-                                    elevation: 0,
-                                    backgroundColor: const Color(0xFFCB6E5B),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(vertical: compact ? 12 : 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    textStyle: TextStyle(
-                                      fontSize: compact ? 14 : 15.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _isVerifying || !_canVerify ? null : _verifyOtp,
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor: const Color(0xFFCB6E5B),
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: compact ? 14 : 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
-                                  child: Text(_isVerifying ? 'Verifying...' : 'Verify OTP'),
+                                  textStyle: TextStyle(
+                                    fontSize: compact ? 14 : 15.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
+                                child: Text(_isVerifying ? 'Verifying...' : 'Verify OTP'),
                               ),
-                            ],
+                            ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           );
@@ -1007,826 +1273,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     );
   }
 
-}
-
-class _TopDiscoveryHero extends StatelessWidget {
-  const _TopDiscoveryHero({
-    required this.title,
-    required this.subtitle,
-    this.compact = false,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final titleSize = compact ? 25.0 : 31.0;
-    final subtitleSize = compact ? 12.5 : 14.0;
-    final horizontalPadding = compact ? 20.0 : 24.0;
-    final topPadding = compact ? 16.0 : 20.0;
-    final maxTextWidth = compact ? 246.0 : 292.0;
-
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFD78268),
-            Color(0xFFDF7DA0),
-            Color(0xFF5C8FD8),
-          ],
-          stops: [0, 0.5, 1],
-        ),
-      ),
-      child: Stack(
-        children: [
-          const Positioned.fill(child: _HeroBackgroundPattern()),
-          Positioned(
-            left: -40,
-            top: -18,
-            child: Container(
-              width: 170,
-              height: 170,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.16),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const Positioned(
-            left: 34,
-            top: 154,
-            child: _HeroLeafSpark(angle: -0.64),
-          ),
-          const Positioned(
-            right: 34,
-            top: 146,
-            child: _HeroLeafSpark(angle: 0.58),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.10),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.22),
-                  ],
-                  stops: const [0, 0.42, 1],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, topPadding, horizontalPadding, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontSize: titleSize,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: compact ? -0.8 : -1.1,
-                    height: compact ? 1.0 : 1.02,
-                    shadows: const [
-                      Shadow(
-                        color: Color(0x38000000),
-                        blurRadius: 16,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: compact ? 8 : 10),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxTextWidth),
-                  child: Text(
-                    subtitle,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.88),
-                      height: 1.34,
-                      fontSize: subtitleSize,
-                      fontWeight: FontWeight.w600,
-                      shadows: const [
-                        Shadow(
-                          color: Color(0x24000000),
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LaunchSceneCard extends StatelessWidget {
-  const _LaunchSceneCard({
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-    required this.icon,
-    required this.progress,
-    required this.tilt,
-  });
-
-  final String title;
-  final String subtitle;
-  final Color accent;
-  final IconData icon;
-  final double progress;
-  final double tilt;
-
-  @override
-  Widget build(BuildContext context) {
-    final lifted = 26 * (1 - progress);
-    return Transform.translate(
-      offset: Offset(0, lifted),
-      child: Transform.rotate(
-        angle: tilt,
-        child: Opacity(
-          opacity: progress.clamp(0, 1),
-          child: SizedBox(
-            width: 102,
-            height: 146,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 14,
-                  right: 14,
-                  bottom: 0,
-                  child: Container(
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.24),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 22,
-                  right: 22,
-                  bottom: 10,
-                  child: Container(
-                    height: 18,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.22),
-                          accent.withValues(alpha: 0.78),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 18,
-                  right: 18,
-                  bottom: 28,
-                  child: Container(
-                    height: 72,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.24),
-                          accent,
-                          Color.lerp(accent, Colors.black, 0.18)!,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.16),
-                          blurRadius: 14,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 34),
-                  ),
-                ),
-                Positioned(
-                  left: 2,
-                  right: 2,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Color(0xFFFFFEF8), Color(0xFFF3E8DA)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.88)),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            color: accent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFF5E584F),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-
-class _HeroBackgroundPattern extends StatelessWidget {
-  const _HeroBackgroundPattern();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          children: [
-            Positioned(
-              left: -38,
-              top: -56,
-              child: _HeroBackdropSpot(
-                size: 172,
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-            Positioned(
-              right: -54,
-              top: 18,
-              child: _HeroBackdropSpot(
-                size: 154,
-                color: const Color(0xFFFFE4C9).withValues(alpha: 0.16),
-              ),
-            ),
-            Positioned(
-              left: -26,
-              right: -26,
-              bottom: -8,
-              child: Transform.rotate(
-                angle: -0.045,
-                child: Container(
-                  height: 130,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFC66D5A), Color(0xFFD48E78)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              child: Container(
-                height: 210,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.36),
-                      Colors.black.withValues(alpha: 0.18),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const Positioned(
-              left: 24,
-              top: 266,
-              child: _SceneBubble(
-                icon: Icons.engineering_rounded,
-                accent: Color(0xFFF2A13D),
-                width: 74,
-                height: 82,
-              ),
-            ),
-            const Positioned(
-              left: 96,
-              top: 326,
-              child: _SceneBubble(
-                icon: Icons.plumbing_rounded,
-                accent: Color(0xFF4E9EFF),
-                width: 58,
-                height: 66,
-              ),
-            ),
-            const Positioned(
-              right: 18,
-              top: 272,
-              child: _SceneBubble(
-                icon: Icons.storefront_rounded,
-                accent: Color(0xFF53B55E),
-                width: 82,
-                height: 92,
-              ),
-            ),
-            const Positioned(
-              right: 126,
-              top: 260,
-              child: _SceneBubble(
-                icon: Icons.local_pharmacy_rounded,
-                accent: Color(0xFF1FB8A4),
-                width: 50,
-                height: 56,
-              ),
-            ),
-            const Positioned(
-              left: 176,
-              top: 338,
-              child: _SceneBubble(
-                icon: Icons.restaurant_rounded,
-                accent: Color(0xFFFF954A),
-                width: 62,
-                height: 70,
-              ),
-            ),
-            const Positioned(
-              left: 216,
-              top: 252,
-              child: _SceneBubble(
-                icon: Icons.two_wheeler_rounded,
-                accent: Color(0xFF3F63FF),
-                width: 44,
-                height: 50,
-              ),
-            ),
-            const Positioned(
-              left: 252,
-              top: 346,
-              child: _SceneBubble(
-                icon: Icons.directions_car_filled_rounded,
-                accent: Color(0xFFE55A57),
-                width: 54,
-                height: 58,
-              ),
-            ),
-            const Positioned(
-              left: 124,
-              top: 256,
-              child: _SceneBubble(
-                icon: Icons.electric_rickshaw_rounded,
-                accent: Color(0xFF2EBF6E),
-                width: 42,
-                height: 48,
-              ),
-            ),
-            const Positioned(
-              left: 22,
-              top: 214,
-              child: _HeroCallout(
-                label: 'Labour',
-                icon: Icons.engineering_rounded,
-                accent: Color(0xFFF2A13D),
-                width: 104,
-                angle: -0.10,
-              ),
-            ),
-            const Positioned(
-              left: 134,
-              top: 204,
-              child: _HeroCallout(
-                label: 'Repairs',
-                icon: Icons.plumbing_rounded,
-                accent: Color(0xFF4E9EFF),
-                width: 110,
-                angle: 0.05,
-              ),
-            ),
-            const Positioned(
-              right: 20,
-              top: 202,
-              child: _HeroCallout(
-                label: 'All in one',
-                icon: Icons.auto_awesome_rounded,
-                accent: Color(0xFF5C8FD8),
-                width: 124,
-                angle: 0.08,
-              ),
-            ),
-            const Positioned(
-              left: 28,
-              top: 378,
-              child: _HeroCallout(
-                label: 'Pharmacy',
-                icon: Icons.local_pharmacy_rounded,
-                accent: Color(0xFF1FB8A4),
-                width: 118,
-                angle: -0.05,
-              ),
-            ),
-            const Positioned(
-              left: 154,
-              top: 394,
-              child: _HeroCallout(
-                label: 'Dining',
-                icon: Icons.restaurant_rounded,
-                accent: Color(0xFFFF954A),
-                width: 106,
-                angle: 0.04,
-              ),
-            ),
-            const Positioned(
-              left: 26,
-              top: 432,
-              child: _HeroCallout(
-                label: 'Groceries',
-                icon: Icons.local_grocery_store_rounded,
-                accent: Color(0xFF4DAF50),
-                width: 124,
-                angle: -0.08,
-              ),
-            ),
-            const Positioned(
-              left: 166,
-              top: 448,
-              child: _HeroCallout(
-                label: 'Service',
-                icon: Icons.handyman_rounded,
-                accent: Color(0xFFCB6E5B),
-                width: 112,
-                angle: 0.06,
-              ),
-            ),
-            const Positioned(
-              right: 18,
-              top: 428,
-              child: _HeroCallout(
-                label: 'Auto',
-                icon: Icons.electric_rickshaw_rounded,
-                accent: Color(0xFF2EBF6E),
-                width: 98,
-                angle: 0.09,
-              ),
-            ),
-            Positioned(
-              left: -20,
-              right: -20,
-              bottom: -14,
-              child: Container(
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.08),
-                      Colors.black.withValues(alpha: 0.18),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _HeroBackdropSpot extends StatelessWidget {
-  const _HeroBackdropSpot({
-    required this.size,
-    required this.color,
-  });
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color, Colors.transparent],
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroLeafSpark extends StatelessWidget {
-  const _HeroLeafSpark({required this.angle});
-
-  final double angle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: angle,
-      child: Container(
-        width: 18,
-        height: 34,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFC9F352), Color(0xFF5A9D19)],
-          ),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(18),
-            topRight: Radius.circular(4),
-            bottomLeft: Radius.circular(4),
-            bottomRight: Radius.circular(18),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFB8E444).withValues(alpha: 0.42),
-              blurRadius: 12,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SceneBubble extends StatelessWidget {
-  const _SceneBubble({
-    required this.icon,
-    required this.accent,
-    required this.width,
-    required this.height,
-  });
-
-  final IconData icon;
-  final Color accent;
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Stack(
-        children: [
-          Positioned(
-            left: width * 0.12,
-            right: width * 0.12,
-            bottom: 0,
-            child: Container(
-              height: height * 0.12,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.24),
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.16),
-                    blurRadius: 16,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: width * 0.2,
-            right: width * 0.2,
-            bottom: height * 0.08,
-            child: Container(
-              height: height * 0.18,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.18),
-                    accent.withValues(alpha: 0.52),
-                    accent.withValues(alpha: 0.8),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-          Positioned(
-            left: width * 0.24,
-            right: width * 0.24,
-            bottom: height * 0.18,
-            child: Container(
-              height: height * 0.42,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.24),
-                    accent.withValues(alpha: 0.92),
-                    Color.lerp(accent, Colors.black, 0.18)!,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(width),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: width * 0.22,
-              ),
-            ),
-          ),
-          Positioned(
-            left: width * 0.32,
-            right: width * 0.32,
-            bottom: height * 0.54,
-            child: Container(
-              height: height * 0.05,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroCallout extends StatelessWidget {
-  const _HeroCallout({
-    required this.label,
-    required this.icon,
-    required this.accent,
-    required this.width,
-    this.angle = 0,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color accent;
-  final double width;
-  final double angle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: angle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: width,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFFFFEF8), Color(0xFFF4EBDD)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x24000000),
-                  blurRadius: 14,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 13, color: accent),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      fontStyle: FontStyle.italic,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(left: 22),
-            width: 4,
-            height: 18,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0E7DA),
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IndiaFlagGlyph extends StatelessWidget {
-  const _IndiaFlagGlyph();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 16,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFE1D8CF)),
-      ),
-      child: Column(
-        children: [
-          Expanded(child: Container(color: const Color(0xFFFF9B2F))),
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(color: Colors.white),
-                Container(
-                  width: 4,
-                  height: 4,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2A5EB7),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(child: Container(color: const Color(0xFF1A9C43))),
-        ],
-      ),
-    );
-  }
 }
 
 class _PhoneInputField extends StatelessWidget {
@@ -1840,55 +1286,68 @@ class _PhoneInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = compact ? 54.0 : 58.0;
+    final height = compact ? 56.0 : 62.0;
     final textSize = compact ? 14.0 : 15.0;
     final hintSize = compact ? 13.0 : 14.0;
 
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2DAD0)),
+        color: const Color(0xFFFFFBF8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE6D9CF)),
       ),
-      padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const _IndiaFlagGlyph(),
-          SizedBox(width: compact ? 8 : 10),
-          Text(
-            'IN',
-            style: TextStyle(
-              color: const Color(0xFF6B655F),
-              fontSize: compact ? 11.5 : 12.5,
-              fontWeight: FontWeight.w700,
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 7 : 8,
+              vertical: compact ? 7 : 8,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5EEE8),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _IndiaFlagGlyph(),
+                SizedBox(width: compact ? 6 : 7),
+                Text(
+                  '+91',
+                  style: TextStyle(
+                    color: const Color(0xFF272727),
+                    fontWeight: FontWeight.w800,
+                    fontSize: textSize,
+                  ),
+                ),
+              ],
             ),
           ),
           SizedBox(width: compact ? 8 : 10),
-          Container(width: 1, height: 24, color: const Color(0xFFE0D7CE)),
-          SizedBox(width: compact ? 8 : 10),
           Text(
-            '+91',
+            '|',
             style: TextStyle(
-              color: const Color(0xFF272727),
-              fontWeight: FontWeight.w700,
-              fontSize: textSize,
+              color: const Color(0xFFD6C8BD),
+              fontWeight: FontWeight.w600,
+              fontSize: compact ? 18 : 20,
             ),
           ),
-          SizedBox(width: compact ? 8 : 10),
-          Container(width: 1, height: 24, color: const Color(0xFFE0D7CE)),
           SizedBox(width: compact ? 8 : 10),
           Expanded(
             child: TextField(
               controller: controller,
               keyboardType: TextInputType.phone,
+              textAlignVertical: TextAlignVertical.center,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(10),
               ],
               style: TextStyle(
                 fontSize: textSize,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: const Color(0xFF1D1D1D),
               ),
               decoration: InputDecoration(
@@ -1927,24 +1386,18 @@ class _OtpDigitBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(compact ? 18 : 22);
+    final radius = BorderRadius.circular(compact ? 18 : 20);
     return Container(
       width: width,
       decoration: BoxDecoration(
         borderRadius: radius,
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFFFF8F3),
-          ],
-        ),
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE7D7CD)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFCB6E5B).withValues(alpha: 0.10),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: const Color(0xFFCB6E5B).withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -1964,10 +1417,10 @@ class _OtpDigitBox extends StatelessWidget {
           counterText: '',
           filled: true,
           fillColor: Colors.transparent,
-          hintText: 'X',
+          hintText: '-',
           hintStyle: TextStyle(
-            color: const Color(0xFF1B1B1B).withValues(alpha: 0.24),
-            fontSize: compact ? 20 : 24,
+            color: const Color(0xFF1B1B1B).withValues(alpha: 0.22),
+            fontSize: compact ? 18 : 22,
             fontWeight: FontWeight.w800,
           ),
           contentPadding: EdgeInsets.symmetric(vertical: compact ? 14 : 18),
@@ -2002,46 +1455,91 @@ class _PolicyLink extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF303030),
-              fontWeight: FontWeight.w700,
-              decoration: TextDecoration.underline,
-              decorationColor: const Color(0xFF303030),
-            ),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7EFEA),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFE6D9CF)),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF4F4740),
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+        ),
       ),
     );
   }
 }
 
-class _LoginQuickIcon extends StatelessWidget {
-  const _LoginQuickIcon({
-    required this.icon,
-    required this.accent,
-    this.size = 54,
-  });
-
-  final IconData icon;
-  final Color accent;
-  final double size;
+class _IndiaFlagGlyph extends StatelessWidget {
+  const _IndiaFlagGlyph();
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = size * 0.44;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFFE9DDD1)),
-      ),
-      child: Icon(
-        icon,
-        size: iconSize,
-        color: accent,
-      ),
+    return const SizedBox(
+      width: 28,
+      height: 20,
+      child: CustomPaint(painter: _IndiaFlagPainter()),
     );
   }
+}
+
+class _IndiaFlagPainter extends CustomPainter {
+  const _IndiaFlagPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radius = Radius.circular(size.height * 0.22);
+    final flagRect = Offset.zero & size;
+    final clip = RRect.fromRectAndRadius(flagRect, radius);
+    canvas.save();
+    canvas.clipRRect(clip);
+
+    final stripeHeight = size.height / 3;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, stripeHeight),
+      Paint()..color = const Color(0xFFFF8F1F),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, stripeHeight, size.width, stripeHeight),
+      Paint()..color = Colors.white,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, stripeHeight * 2, size.width, stripeHeight),
+      Paint()..color = const Color(0xFF128807),
+    );
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final wheelRadius = size.height * 0.15;
+    final wheelPaint = Paint()
+      ..color = const Color(0xFF1A3F95)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+    canvas.drawCircle(center, wheelRadius, wheelPaint);
+    for (var i = 0; i < 8; i++) {
+      final angle = i * 3.141592653589793 / 4;
+      final end = Offset(
+        center.dx + wheelRadius * 0.9 * math.cos(angle),
+        center.dy + wheelRadius * 0.9 * math.sin(angle),
+      );
+      canvas.drawLine(center, end, wheelPaint);
+    }
+
+    canvas.restore();
+    canvas.drawRRect(
+      clip,
+      Paint()
+        ..color = const Color(0xFFBFC5CA)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

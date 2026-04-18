@@ -68,8 +68,8 @@ class _ModeFilterRow extends StatelessWidget {
                             color: disabled
                                 ? const Color(0xFF9CA3AF)
                                 : active
-                                    ? selectedTextColor
-                                    : const Color(0xFF202435),
+                                    ? const Color(0xFF202435)
+                                    : const Color(0xFF202435).withValues(alpha: 0.78),
                             fontWeight: active ? FontWeight.w800 : FontWeight.w700,
                             fontSize: 10.2,
                             height: 1,

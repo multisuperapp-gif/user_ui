@@ -13,6 +13,54 @@ class _UserAppApi {
     return Uri.parse(normalized);
   }
 
+  static Uri get _bookingPaymentBaseUri {
+    const configured = String.fromEnvironment(
+      'BOOKING_PAYMENT_BASE_URL',
+      defaultValue: '',
+    );
+    final fallback = configured.isNotEmpty
+        ? configured
+        : _deriveSiblingServiceBaseUrl(
+            String.fromEnvironment('USER_API_BASE_URL', defaultValue: ''),
+            fallback: 'http://44.217.176.56:8084',
+            port: 8084,
+          );
+    final normalized = fallback.endsWith('/') ? fallback.substring(0, fallback.length - 1) : fallback;
+    return Uri.parse(normalized);
+  }
+
+  static String _deriveSiblingServiceBaseUrl(
+    String configuredBaseUrl, {
+    required String fallback,
+    required int port,
+  }) {
+    if (configuredBaseUrl.trim().isEmpty) {
+      return fallback;
+    }
+    final normalized = configuredBaseUrl.endsWith('/') ? configuredBaseUrl.substring(0, configuredBaseUrl.length - 1) : configuredBaseUrl;
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || uri.host.trim().isEmpty) {
+      return fallback;
+    }
+    return uri.replace(
+      port: port,
+      path: '',
+      query: null,
+      fragment: null,
+    ).toString();
+  }
+
+  static String _publicFileUrl(String objectKey) {
+    final trimmed = objectKey.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    return _authBaseUri.replace(
+      path: '/public/files/view',
+      queryParameters: <String, String>{'objectKey': trimmed},
+    ).toString();
+  }
+
   static Future<_OtpDispatchResult> sendUserOtp(String phoneNumber) async {
     final response = await _postAbsolute(
       _authBaseUri.replace(path: '/user/auth/send-otp'),
@@ -108,6 +156,44 @@ class _UserAppApi {
     return data
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapUserAddress(Map<String, dynamic>.from(raw)))
+        .toList(growable: false);
+  }
+
+  static Future<List<_ServiceCountryOption>> fetchServiceCountries() async {
+    final response = await _getAbsolute(
+      _authBaseUri.replace(path: '/locations/countries'),
+    );
+    final data = (response['data'] as List? ?? const []);
+    return data
+        .whereType<Map<dynamic, dynamic>>()
+        .map(
+          (raw) => _ServiceCountryOption(
+            id: (raw['id'] as num?)?.toInt() ?? 0,
+            name: '${raw['name'] ?? ''}'.trim(),
+          ),
+        )
+        .where((entry) => entry.id > 0 && entry.name.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static Future<List<_ServiceStateOption>> fetchServiceStates({required int countryId}) async {
+    final response = await _getAbsolute(
+      _authBaseUri.replace(
+        path: '/locations/states',
+        queryParameters: <String, String>{'countryId': '$countryId'},
+      ),
+    );
+    final data = (response['data'] as List? ?? const []);
+    return data
+        .whereType<Map<dynamic, dynamic>>()
+        .map(
+          (raw) => _ServiceStateOption(
+            id: (raw['id'] as num?)?.toInt() ?? 0,
+            countryId: (raw['countryId'] as num?)?.toInt() ?? 0,
+            name: '${raw['name'] ?? ''}'.trim(),
+          ),
+        )
+        .where((entry) => entry.id > 0 && entry.countryId > 0 && entry.name.isNotEmpty)
         .toList(growable: false);
   }
 
@@ -253,6 +339,34 @@ class _UserAppApi {
       },
     );
   }
+
+  static Future<void> registerBookingPushToken({
+    required String pushToken,
+    required String deviceToken,
+    required String platform,
+    required String pushProvider,
+  }) async {
+    await _postAbsoluteAuthenticated(
+      _bookingPaymentBaseUri.replace(path: '/booking-notifications/push-tokens'),
+      body: <String, dynamic>{
+        'deviceToken': deviceToken,
+        'platform': platform,
+        'pushProvider': pushProvider,
+        'appContext': 'USER_APP',
+        'pushToken': pushToken,
+      },
+    );
+  }
+
+  static Future<void> deactivateBookingPushToken(String pushToken) async {
+    await _patchAbsoluteAuthenticated(
+      _bookingPaymentBaseUri.replace(path: '/booking-notifications/push-tokens/deactivate'),
+      body: <String, dynamic>{
+        'pushToken': pushToken,
+      },
+    );
+  }
+
 
   static Future<_CheckoutPreviewData> previewCheckout({
     String fulfillmentType = 'DELIVERY',
@@ -442,7 +556,7 @@ class _UserAppApi {
   }) async {
     final response = await _get(
       '/public/labour/landing',
-      authenticated: true,
+      authenticated: await _hasUsableSession(),
       queryParameters: {
         if (categoryId != null) 'categoryId': '$categoryId',
         if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
@@ -470,30 +584,106 @@ class _UserAppApi {
     );
   }
 
+  static Future<_RemoteLabourBookingPolicy> fetchLabourBookingPolicy() async {
+    final response = await _get(
+      '/public/labour/booking-policy',
+      authenticated: false,
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final bookingCharge = _percent(data['bookingChargePercent']);
+    return _RemoteLabourBookingPolicy(
+      bookingChargePerLabour: bookingCharge.isEmpty ? '5%' : bookingCharge,
+      currencyCode: '${data['currencyCode'] ?? 'INR'}',
+      maxGroupLabourCount: (data['maxGroupLabourCount'] as num?)?.toInt() ?? 7,
+    );
+  }
+
   static Future<_RemoteLabourBookingResult> bookLabourDirect({
     required _DiscoveryItem item,
     required String bookingPeriod,
+    int? addressId,
   }) async {
     if (item.backendLabourId == null) {
       throw const _UserAppApiException('This labour profile is not connected to the backend yet.');
     }
+    final body = <String, dynamic>{
+      'labourId': item.backendLabourId,
+      'categoryId': item.backendCategoryId,
+      'bookingPeriod': bookingPeriod,
+    };
+    if (addressId != null) {
+      body['addressId'] = addressId;
+    }
     final response = await _post(
       '/labour/bookings/direct',
       authenticated: true,
-      body: <String, dynamic>{
-        'labourId': item.backendLabourId,
-        'categoryId': item.backendCategoryId,
-        'bookingPeriod': bookingPeriod,
-      },
+      body: body,
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     return _RemoteLabourBookingResult(
+      requestId: (data['requestId'] as num?)?.toInt() ?? 0,
+      requestCode: '${data['requestCode'] ?? ''}',
+      requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      quotedPriceAmount: _money(data['quotedPriceAmount']),
+      labourName: '${data['labourName'] ?? item.title}',
+    );
+  }
+
+  static Future<_RemoteLabourBookingRequestStatus> fetchLabourBookingRequestStatus(
+    int requestId,
+  ) async {
+    final response = await _get(
+      '/labour/booking-requests/$requestId',
+      authenticated: true,
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _RemoteLabourBookingRequestStatus(
+      requestId: (data['requestId'] as num?)?.toInt() ?? requestId,
+      requestCode: '${data['requestCode'] ?? ''}',
+      requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      providerName: '${data['providerName'] ?? ''}',
+      providerPhone: '${data['providerPhone'] ?? ''}',
+      quotedPriceAmount: _money(data['quotedPriceAmount']),
+      totalAcceptedQuotedPriceAmount: _money(data['totalAcceptedQuotedPriceAmount']),
+      totalAcceptedBookingChargeAmount: _money(data['totalAcceptedBookingChargeAmount']),
+      distanceLabel: _distance(data['distanceKm']),
+      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+      acceptedProviderCount: (data['acceptedProviderCount'] as num?)?.toInt() ?? 0,
+      pendingProviderCount: (data['pendingProviderCount'] as num?)?.toInt() ?? 0,
       bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
       bookingCode: '${data['bookingCode'] ?? ''}',
-      paymentId: (data['paymentId'] as num?)?.toInt() ?? 0,
+      bookingStatus: '${data['bookingStatus'] ?? ''}',
+      paymentStatus: '${data['paymentStatus'] ?? ''}',
+      canMakePayment: (data['canMakePayment'] as bool?) ?? false,
+    );
+  }
+
+  static Future<_RemoteLabourBookingPaymentResult> initiateLabourBookingPayment(
+    int requestId,
+  ) async {
+    final response = await _post(
+      '/labour/booking-requests/$requestId/payment/initiate',
+      authenticated: true,
+      body: const <String, dynamic>{},
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _RemoteLabourBookingPaymentResult(
+      bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
+      bookingCode: '${data['bookingCode'] ?? ''}',
       paymentCode: '${data['paymentCode'] ?? ''}',
-      payableAmount: _money(data['payableAmount']),
-      labourName: '${data['labourName'] ?? item.title}',
+      amountLabel: _money(data['amount']),
+      currencyCode: '${data['currencyCode'] ?? 'INR'}',
+    );
+  }
+
+  static Future<void> cancelLabourBookingRequest(
+    int requestId, {
+    required String reason,
+  }) async {
+    await _post(
+      '/labour/booking-requests/$requestId/cancel',
+      authenticated: true,
+      body: <String, dynamic>{'reason': reason},
     );
   }
 
@@ -519,6 +709,8 @@ class _UserAppApi {
       requestCode: '${data['requestCode'] ?? ''}',
       availableCandidates: (data['availableCandidates'] as num?)?.toInt() ?? 0,
       requestedCount: (data['requestedCount'] as num?)?.toInt() ?? labourCount,
+      bookingChargePerLabour: _percent(data['bookingChargePercent']),
+      estimatedLabourAmount: _money(data['estimatedLabourAmount']),
       platformAmountDue: _money(data['platformAmountDue']),
     );
   }
@@ -532,7 +724,6 @@ class _UserAppApi {
   }) async {
     final response = await _get(
       '/public/service/landing',
-      authenticated: true,
       queryParameters: {
         if (categoryId != null) 'categoryId': '$categoryId',
         if (subcategoryId != null) 'subcategoryId': '$subcategoryId',
@@ -560,28 +751,161 @@ class _UserAppApi {
 
   static Future<_RemoteServiceBookingResult> bookServiceDirect({
     required _DiscoveryItem item,
+    int? addressId,
   }) async {
     if (item.backendServiceProviderId == null) {
       throw const _UserAppApiException('This service provider is not connected to the backend yet.');
     }
+    final body = <String, dynamic>{
+      'providerId': item.backendServiceProviderId,
+      'categoryId': item.backendCategoryId,
+      'subcategoryId': item.backendSubcategoryId,
+    };
+    if (addressId != null) {
+      body['addressId'] = addressId;
+    }
     final response = await _post(
       '/service/bookings/direct',
       authenticated: true,
-      body: <String, dynamic>{
-        'providerId': item.backendServiceProviderId,
-        'categoryId': item.backendCategoryId,
-        'subcategoryId': item.backendSubcategoryId,
-      },
+      body: body,
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     return _RemoteServiceBookingResult(
-      bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
-      bookingCode: '${data['bookingCode'] ?? ''}',
-      paymentId: (data['paymentId'] as num?)?.toInt() ?? 0,
-      paymentCode: '${data['paymentCode'] ?? ''}',
-      payableAmount: _money(data['payableAmount']),
+      requestId: (data['requestId'] as num?)?.toInt() ?? 0,
+      requestCode: '${data['requestCode'] ?? ''}',
+      requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      quotedPriceAmount: _money(data['quotedPriceAmount']),
       providerName: '${data['providerName'] ?? item.title}',
       serviceName: '${data['serviceName'] ?? item.subtitle}',
+    );
+  }
+
+  static Future<_RemoteServiceBookingRequestStatus> fetchServiceBookingRequestStatus(
+    int requestId,
+  ) async {
+    final response = await _get(
+      '/service/booking-requests/$requestId',
+      authenticated: true,
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _RemoteServiceBookingRequestStatus(
+      requestId: (data['requestId'] as num?)?.toInt() ?? requestId,
+      requestCode: '${data['requestCode'] ?? ''}',
+      requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      providerName: '${data['providerName'] ?? ''}',
+      providerPhone: '${data['providerPhone'] ?? ''}',
+      quotedPriceAmount: _money(data['quotedPriceAmount']),
+      distanceLabel: _distance(data['distanceKm']),
+      bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
+      bookingCode: '${data['bookingCode'] ?? ''}',
+      bookingStatus: '${data['bookingStatus'] ?? ''}',
+      paymentStatus: '${data['paymentStatus'] ?? ''}',
+      canMakePayment: (data['canMakePayment'] as bool?) ?? false,
+    );
+  }
+
+  static Future<_RemoteServiceBookingPaymentResult> initiateServiceBookingPayment(
+    int requestId,
+  ) async {
+    final response = await _post(
+      '/service/booking-requests/$requestId/payment/initiate',
+      authenticated: true,
+      body: const <String, dynamic>{},
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _RemoteServiceBookingPaymentResult(
+      bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
+      bookingCode: '${data['bookingCode'] ?? ''}',
+      paymentCode: '${data['paymentCode'] ?? ''}',
+      amountLabel: _money(data['amount']),
+      currencyCode: '${data['currencyCode'] ?? 'INR'}',
+    );
+  }
+
+  static Future<_ActiveBookingStatus?> fetchLatestActiveBookingStatus() async {
+    final response = await _getAbsolute(
+      _bookingPaymentBaseUri.replace(path: '/booking-requests/active/latest'),
+      authenticated: true,
+    );
+    final raw = response['data'];
+    if (raw is! Map) {
+      return null;
+    }
+    final data = Map<String, dynamic>.from(raw);
+    final requestIdValue = (data['requestId'] as num?)?.toInt() ?? 0;
+    if (requestIdValue <= 0) {
+      return null;
+    }
+    final bookingStatus = '${data['bookingStatus'] ?? ''}';
+    final paymentStatus = '${data['paymentStatus'] ?? ''}';
+    return _ActiveBookingStatus(
+      requestId: requestIdValue,
+      requestCode: '${data['requestCode'] ?? ''}',
+      bookingType: '${data['bookingType'] ?? ''}',
+      requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      providerName: '${data['providerName'] ?? ''}',
+      providerPhone: '${data['providerPhone'] ?? ''}',
+      quotedPriceAmount: _money(data['quotedPriceAmount']),
+      totalAcceptedQuotedPriceAmount: _money(data['totalAcceptedQuotedPriceAmount']),
+      totalAcceptedBookingChargeAmount: _money(data['totalAcceptedBookingChargeAmount']),
+      distanceLabel: _distance(data['distanceKm']),
+      providerPhotoUrl: _publicFileUrl('${data['providerPhotoObjectKey'] ?? ''}'),
+      providerLatitude: _parseDouble(data['providerLatitude']),
+      providerLongitude: _parseDouble(data['providerLongitude']),
+      destinationLatitude: _parseDouble(data['destinationLatitude']),
+      destinationLongitude: _parseDouble(data['destinationLongitude']),
+      paymentDueAt: _parseDateTime(data['paymentDueAt']),
+      reachByAt: _parseDateTime(data['reachByAt']),
+      labourPricingModel: '${data['labourPricingModel'] ?? ''}',
+      bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
+      bookingCode: '${data['bookingCode'] ?? ''}',
+      bookingStatus: bookingStatus,
+      paymentStatus: paymentStatus,
+      canMakePayment: bookingStatus.toUpperCase() == 'PAYMENT_PENDING' &&
+          (paymentStatus.isEmpty || paymentStatus.toUpperCase() == 'UNPAID'),
+    );
+  }
+
+  static Future<void> verifyBookingOtp({
+    required int bookingId,
+    required String purpose,
+    required String otpCode,
+  }) async {
+    await _postAbsoluteAuthenticated(
+      _bookingPaymentBaseUri.replace(path: '/bookings/otp/verify'),
+      body: {
+        'bookingId': bookingId,
+        'purpose': purpose,
+        'otpCode': otpCode,
+      },
+    );
+  }
+
+  static Future<String> generateBookingOtp({
+    required int bookingId,
+    required String purpose,
+  }) async {
+    final response = await _postAbsoluteAuthenticated(
+      _bookingPaymentBaseUri.replace(path: '/bookings/otp/generate'),
+      body: {
+        'bookingId': bookingId,
+        'purpose': purpose,
+      },
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return '${data['otpCode'] ?? ''}';
+  }
+
+  static Future<void> cancelBookingByUser({
+    required int bookingId,
+    required String reason,
+  }) async {
+    await _postAbsoluteAuthenticated(
+      _bookingPaymentBaseUri.replace(path: '/bookings/cancel/user'),
+      body: {
+        'bookingId': bookingId,
+        'reason': reason,
+      },
     );
   }
 
@@ -1161,6 +1485,15 @@ class _UserAppApi {
     return _decodeResponse(response);
   }
 
+  static Future<Map<String, dynamic>> _getAbsolute(
+    Uri uri, {
+    bool authenticated = false,
+  }) async {
+    final headers = await _headers(authenticated: authenticated);
+    final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    return _decodeResponse(response);
+  }
+
   static Future<Map<String, dynamic>> _post(
     String path, {
     required Map<String, dynamic> body,
@@ -1237,6 +1570,12 @@ class _UserAppApi {
     return headers;
   }
 
+  static Future<bool> _hasUsableSession() async {
+    final userId = await _LocalSessionStore.readUserId();
+    final accessToken = await _LocalSessionStore.readAccessToken();
+    return userId != null && accessToken != null && accessToken.trim().isNotEmpty;
+  }
+
   static Future<Map<String, dynamic>> _postAbsolute(
     Uri uri, {
     required Map<String, dynamic> body,
@@ -1245,6 +1584,36 @@ class _UserAppApi {
         .post(
           uri,
           headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 8));
+    return _decodeResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> _postAbsoluteAuthenticated(
+    Uri uri, {
+    required Map<String, dynamic> body,
+  }) async {
+    final headers = await _headers(authenticated: true, includeJson: true);
+    final response = await http
+        .post(
+          uri,
+          headers: headers,
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 8));
+    return _decodeResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> _patchAbsoluteAuthenticated(
+    Uri uri, {
+    required Map<String, dynamic> body,
+  }) async {
+    final headers = await _headers(authenticated: true, includeJson: true);
+    final response = await http
+        .patch(
+          uri,
+          headers: headers,
           body: jsonEncode(body),
         )
         .timeout(const Duration(seconds: 8));
@@ -1340,7 +1709,9 @@ class _UserAppApi {
       addressLine2: '${raw['addressLine2'] ?? ''}',
       landmark: '${raw['landmark'] ?? ''}',
       city: '${raw['city'] ?? ''}',
+      stateId: (raw['stateId'] as num?)?.toInt(),
       state: '${raw['state'] ?? ''}',
+      countryId: (raw['countryId'] as num?)?.toInt(),
       country: '${raw['country'] ?? ''}',
       postalCode: '${raw['postalCode'] ?? ''}',
       latitude: double.tryParse('${raw['latitude'] ?? ''}') ?? 0,
@@ -1437,6 +1808,8 @@ class _UserAppApi {
   static _DiscoveryItem _mapLabourProfile(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Labour'}';
     final hourly = _money(raw['hourlyRate']);
+    final halfDay = _money(raw['halfDayRate']);
+    final fullDay = _money(raw['fullDayRate']);
     final availableNow = (raw['availableNow'] as bool?) ?? false;
     final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
     final disabledLabel = switch (availabilityStatus) {
@@ -1450,14 +1823,17 @@ class _UserAppApi {
       accent: const Color(0xFFF2A13D),
       icon: Icons.engineering_rounded,
       price: hourly.isEmpty ? '₹0/hr' : '$hourly/hr',
-      rating: _rating(raw['rating']),
+      rating: ((raw['completedJobs'] as num?)?.toInt() ?? 0) > 0 ? _rating(raw['rating']) : '',
       distance: _distance(raw['distanceKm']),
       extra: '${(raw['completedJobs'] as num?)?.toInt() ?? 0} jobs done',
       maskedPhone: '${raw['maskedPhone'] ?? ''}',
       backendLabourId: (raw['labourId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
+      profileImageUrl: _publicFileUrl('${raw['photoObjectKey'] ?? ''}'),
       isDisabled: !availableNow,
       disabledLabel: disabledLabel,
+      labourHalfDayPrice: halfDay,
+      labourFullDayPrice: fullDay,
     );
   }
 
@@ -1907,6 +2283,24 @@ class _UserAppApi {
         : '₹${amount.toStringAsFixed(2)}';
   }
 
+  static String _percent(Object? value) {
+    if (value == null) {
+      return '';
+    }
+    final numeric = switch (value) {
+      num number => number.toDouble(),
+      String text => double.tryParse(text.trim()),
+      _ => null,
+    };
+    if (numeric == null) {
+      return '';
+    }
+    if (numeric.truncateToDouble() == numeric) {
+      return '${numeric.toStringAsFixed(0)}%';
+    }
+    return '${numeric.toStringAsFixed(2)}%';
+  }
+
   static double _amountValue(Object? value) {
     return double.tryParse('${value ?? ''}') ?? 0;
   }
@@ -1958,7 +2352,7 @@ class _UserAppApi {
   static String _rating(Object? value) {
     final parsed = double.tryParse('$value');
     if (parsed == null || parsed <= 0) {
-      return '4.0';
+      return '';
     }
     return parsed.toStringAsFixed(1);
   }
@@ -1988,12 +2382,75 @@ class _UserAppApi {
     return DateTime.tryParse(raw)?.toLocal();
   }
 
+  static double? _parseDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    final raw = '${value ?? ''}'.trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+    return double.tryParse(raw);
+  }
+
   static DateTime? _parseDate(String raw) {
     if (raw.trim().isEmpty) {
       return null;
     }
     return DateTime.tryParse(raw);
   }
+}
+
+class _ActiveBookingStatus {
+  const _ActiveBookingStatus({
+    required this.requestId,
+    required this.requestCode,
+    required this.bookingType,
+    required this.requestStatus,
+    required this.providerName,
+    required this.providerPhone,
+    required this.quotedPriceAmount,
+    required this.totalAcceptedQuotedPriceAmount,
+    required this.totalAcceptedBookingChargeAmount,
+    required this.distanceLabel,
+    required this.providerPhotoUrl,
+    required this.providerLatitude,
+    required this.providerLongitude,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
+    required this.paymentDueAt,
+    required this.reachByAt,
+    required this.labourPricingModel,
+    required this.bookingId,
+    required this.bookingCode,
+    required this.bookingStatus,
+    required this.paymentStatus,
+    required this.canMakePayment,
+  });
+
+  final int requestId;
+  final String requestCode;
+  final String bookingType;
+  final String requestStatus;
+  final String providerName;
+  final String providerPhone;
+  final String quotedPriceAmount;
+  final String totalAcceptedQuotedPriceAmount;
+  final String totalAcceptedBookingChargeAmount;
+  final String distanceLabel;
+  final String providerPhotoUrl;
+  final double? providerLatitude;
+  final double? providerLongitude;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
+  final DateTime? paymentDueAt;
+  final DateTime? reachByAt;
+  final String labourPricingModel;
+  final int bookingId;
+  final String bookingCode;
+  final String bookingStatus;
+  final String paymentStatus;
+  final bool canMakePayment;
 }
 
 class _RemoteCartState {
@@ -2046,7 +2503,9 @@ class _UserAddressData {
     required this.addressLine2,
     required this.landmark,
     required this.city,
+    required this.stateId,
     required this.state,
+    required this.countryId,
     required this.country,
     required this.postalCode,
     required this.latitude,
@@ -2060,7 +2519,9 @@ class _UserAddressData {
   final String addressLine2;
   final String landmark;
   final String city;
+  final int? stateId;
   final String state;
+  final int? countryId;
   final String country;
   final String postalCode;
   final double latitude;
@@ -2086,7 +2547,9 @@ class _UserAddressInput {
     required this.addressLine2,
     required this.landmark,
     required this.city,
+    required this.stateId,
     required this.state,
+    required this.countryId,
     required this.country,
     required this.postalCode,
     required this.latitude,
@@ -2099,7 +2562,9 @@ class _UserAddressInput {
   final String addressLine2;
   final String landmark;
   final String city;
+  final int? stateId;
   final String state;
+  final int? countryId;
   final String country;
   final String postalCode;
   final double latitude;
@@ -2113,9 +2578,9 @@ class _UserAddressInput {
       'addressLine2': addressLine2.isEmpty ? null : addressLine2,
       'landmark': landmark.isEmpty ? null : landmark,
       'city': city,
-      'stateId': null,
+      'stateId': stateId,
       'state': state,
-      'countryId': null,
+      'countryId': countryId,
       'country': country,
       'postalCode': postalCode,
       'latitude': latitude,
@@ -2123,6 +2588,28 @@ class _UserAddressInput {
       'isDefault': isDefault,
     };
   }
+}
+
+class _ServiceCountryOption {
+  const _ServiceCountryOption({
+    required this.id,
+    required this.name,
+  });
+
+  final int id;
+  final String name;
+}
+
+class _ServiceStateOption {
+  const _ServiceStateOption({
+    required this.id,
+    required this.countryId,
+    required this.name,
+  });
+
+  final int id;
+  final int countryId;
+  final String name;
 }
 
 class _RemoteNotificationItem {

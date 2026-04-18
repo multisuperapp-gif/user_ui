@@ -48,6 +48,7 @@ class _AddressesPageState extends State<_AddressesPage> {
     final input = await showModalBottomSheet<_UserAddressInput>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AddressEditorSheet(existing: existing),
     );
@@ -386,6 +387,12 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
   double? _selectedLatitude;
   double? _selectedLongitude;
   String? _selectedMapLabel;
+  bool _loadingLocationMasters = true;
+  String? _locationMasterError;
+  List<_ServiceCountryOption> _countries = const <_ServiceCountryOption>[];
+  List<_ServiceStateOption> _states = const <_ServiceStateOption>[];
+  _ServiceCountryOption? _selectedCountry;
+  _ServiceStateOption? _selectedState;
 
   @override
   void initState() {
@@ -403,6 +410,7 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
     _selectedLatitude = existing?.latitude;
     _selectedLongitude = existing?.longitude;
     _selectedMapLabel = existing?.fullAddress;
+    unawaited(_loadLocationMasters());
   }
 
   @override
@@ -416,6 +424,229 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
     _countryController.dispose();
     _postalController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadLocationMasters() async {
+    setState(() {
+      _loadingLocationMasters = true;
+      _locationMasterError = null;
+    });
+    try {
+      final countries = await _UserAppApi.fetchServiceCountries();
+      if (!mounted) {
+        return;
+      }
+      _countries = countries;
+      final existing = widget.existing;
+      final fallbackCountry = countries.firstWhere(
+        (entry) => entry.name.toLowerCase() == 'india',
+        orElse: () => countries.isNotEmpty ? countries.first : const _ServiceCountryOption(id: 0, name: ''),
+      );
+      _selectedCountry = _resolveCountry(
+            id: existing?.countryId,
+            name: existing?.country,
+          ) ??
+          (fallbackCountry.id > 0 ? fallbackCountry : null);
+      _countryController.text = _selectedCountry?.name ?? '';
+      await _loadStatesForCountry(
+        _selectedCountry?.id,
+        desiredStateId: existing?.stateId,
+        desiredStateName: existing?.state,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingLocationMasters = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _locationMasterError = '$error'.replaceFirst('Exception: ', '');
+        _loadingLocationMasters = false;
+      });
+    }
+  }
+
+  Future<void> _loadStatesForCountry(
+    int? countryId, {
+    int? desiredStateId,
+    String? desiredStateName,
+  }) async {
+    if (countryId == null || countryId <= 0) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _states = const <_ServiceStateOption>[];
+        _selectedState = null;
+      });
+      return;
+    }
+    final states = await _UserAppApi.fetchServiceStates(countryId: countryId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _states = states;
+      _selectedState = _resolveState(
+        list: states,
+        id: desiredStateId,
+        name: desiredStateName,
+      );
+    });
+    _stateController.text = _selectedState?.name ?? '';
+  }
+
+  _ServiceCountryOption? _resolveCountry({int? id, String? name}) {
+    for (final country in _countries) {
+      if (id != null && country.id == id) {
+        return country;
+      }
+      if (name != null && country.name.toLowerCase() == name.trim().toLowerCase()) {
+        return country;
+      }
+    }
+    return null;
+  }
+
+  _ServiceStateOption? _resolveState({
+    required List<_ServiceStateOption> list,
+    int? id,
+    String? name,
+  }) {
+    for (final state in list) {
+      if (id != null && state.id == id) {
+        return state;
+      }
+      if (name != null && state.name.toLowerCase() == name.trim().toLowerCase()) {
+        return state;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _selectCountry() async {
+    if (_countries.isEmpty) {
+      return;
+    }
+    final selected = await _showLocationOptionSheet<_ServiceCountryOption>(
+      context,
+      title: 'Select country',
+      items: _countries,
+      selectedValue: _selectedCountry,
+      itemLabel: (entry) => entry.name,
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    if (_selectedCountry?.id == selected.id) {
+      return;
+    }
+    setState(() {
+      _selectedCountry = selected;
+      _selectedState = null;
+      _states = const <_ServiceStateOption>[];
+      _locationMasterError = null;
+    });
+    _countryController.text = selected.name;
+    _stateController.clear();
+    try {
+      await _loadStatesForCountry(selected.id);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _locationMasterError = '$error'.replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _selectState() async {
+    if (_selectedCountry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select country first.')),
+      );
+      return;
+    }
+    if (_states.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No states were loaded for the selected country yet.')),
+      );
+      return;
+    }
+    final selected = await _showLocationOptionSheet<_ServiceStateOption>(
+      context,
+      title: 'Select state',
+      items: _states,
+      selectedValue: _selectedState,
+      itemLabel: (entry) => entry.name,
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _selectedState = selected;
+    });
+    _stateController.text = selected.name;
+  }
+
+  Future<void> _searchState() async {
+    if (_selectedCountry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select country first.')),
+      );
+      return;
+    }
+    if (_states.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No states are loaded to search yet.')),
+      );
+      return;
+    }
+    final selected = await showSearch<_ServiceStateOption?>(
+      context: context,
+      delegate: _StateSearchDelegate(
+        states: _states,
+        initialSelection: _selectedState,
+      ),
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _selectedState = selected;
+    });
+    _stateController.text = selected.name;
+  }
+
+  Future<void> _syncSelectionsFromNames({
+    String? countryName,
+    String? stateName,
+  }) async {
+    final resolvedCountry = _resolveCountry(name: countryName);
+    if (resolvedCountry == null) {
+      return;
+    }
+    final countryChanged = _selectedCountry?.id != resolvedCountry.id;
+    setState(() {
+      _selectedCountry = resolvedCountry;
+      if (countryChanged) {
+        _selectedState = null;
+        _states = const <_ServiceStateOption>[];
+      }
+    });
+    _countryController.text = resolvedCountry.name;
+    if (countryChanged) {
+      _stateController.clear();
+    }
+    await _loadStatesForCountry(
+      resolvedCountry.id,
+      desiredStateName: stateName,
+    );
   }
 
   Future<void> _pickFromMap() async {
@@ -444,12 +675,12 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
     if (selected.city?.isNotEmpty == true) {
       _cityController.text = selected.city!;
     }
-    if (selected.state?.isNotEmpty == true) {
-      _stateController.text = selected.state!;
-    }
-    if (selected.country?.isNotEmpty == true) {
-      _countryController.text = selected.country!;
-    }
+    unawaited(
+      _syncSelectionsFromNames(
+        countryName: selected.country,
+        stateName: selected.state,
+      ),
+    );
     if (selected.postalCode?.isNotEmpty == true) {
       _postalController.text = selected.postalCode!;
     }
@@ -472,8 +703,10 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
         addressLine2: _line2Controller.text.trim(),
         landmark: _landmarkController.text.trim(),
         city: _cityController.text.trim(),
-        state: _stateController.text.trim(),
-        country: _countryController.text.trim(),
+        stateId: _selectedState?.id,
+        state: _selectedState?.name.trim() ?? '',
+        countryId: _selectedCountry?.id,
+        country: _selectedCountry?.name.trim() ?? '',
         postalCode: _postalController.text.trim(),
         latitude: _selectedLatitude!,
         longitude: _selectedLongitude!,
@@ -485,8 +718,9 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final topInset = MediaQuery.sizeOf(context).height * 0.03;
     return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
+      padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
       child: Container(
         decoration: const BoxDecoration(
           color: Color(0xFFF7F2EC),
@@ -512,9 +746,24 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
                         ),
                       ),
                       const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x14000000),
+                              blurRadius: 12,
+                              offset: Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                          color: const Color(0xFF22314D),
+                          tooltip: 'Cancel',
+                        ),
                       ),
                     ],
                   ),
@@ -539,14 +788,37 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _AddressInputField(controller: _stateController, label: 'State', validator: _requiredField),
+                        child: _SelectableAddressField(
+                          label: 'Country',
+                          controller: _countryController,
+                          hint: _loadingLocationMasters ? 'Loading countries...' : 'Select country',
+                          validator: (value) => value == null || value.trim().isEmpty ? 'Required' : null,
+                          onTap: _loadingLocationMasters ? null : _selectCountry,
+                          enabled: !_loadingLocationMasters,
+                        ),
                       ),
                     ],
                   ),
                   Row(
                     children: [
                       Expanded(
-                        child: _AddressInputField(controller: _countryController, label: 'Country', validator: _requiredField),
+                        child: _SelectableAddressField(
+                          label: 'State',
+                          controller: _stateController,
+                          hint: _selectedCountry == null
+                              ? 'Select country first'
+                              : _loadingLocationMasters
+                                  ? 'Loading states...'
+                                  : 'Select state',
+                          validator: (value) => value == null || value.trim().isEmpty ? 'Required' : null,
+                          onTap: _loadingLocationMasters ? null : _selectState,
+                          enabled: !_loadingLocationMasters,
+                          trailing: IconButton(
+                            onPressed: _loadingLocationMasters ? null : _searchState,
+                            icon: const Icon(Icons.search_rounded),
+                            tooltip: 'Search state',
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -559,6 +831,38 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
                       ),
                     ],
                   ),
+                  if (_locationMasterError != null) ...[
+                    const SizedBox(height: 2),
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3EE),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFFD5C7)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: Color(0xFFCB6E5B)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _locationMasterError!,
+                              style: const TextStyle(
+                                color: Color(0xFF8A4B40),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _loadLocationMasters,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Container(
                     width: double.infinity,
@@ -701,6 +1005,220 @@ class _AddressInputField extends StatelessWidget {
   }
 }
 
+class _SelectableAddressField extends StatelessWidget {
+  const _SelectableAddressField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.onTap,
+    required this.enabled,
+    this.validator,
+    this.trailing,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final VoidCallback? onTap;
+  final bool enabled;
+  final String? Function(String?)? validator;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        readOnly: true,
+        onTap: enabled ? onTap : null,
+        validator: validator,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          filled: true,
+          fillColor: enabled ? Colors.white : const Color(0xFFF0ECE7),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide.none,
+          ),
+          suffixIcon: trailing ??
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF22314D),
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<T?> _showLocationOptionSheet<T>(
+  BuildContext context, {
+  required String title,
+  required List<T> items,
+  required String Function(T item) itemLabel,
+  T? selectedValue,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    useSafeArea: true,
+    builder: (_) => Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF7F2EC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final selected = selectedValue == item;
+                  return Material(
+                    color: selected ? const Color(0xFFFFE7DF) : Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      title: Text(
+                        itemLabel(item),
+                        style: const TextStyle(
+                          color: Color(0xFF22314D),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      trailing: selected
+                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFFCB6E5B))
+                          : null,
+                      onTap: () => Navigator.of(context).pop(item),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _StateSearchDelegate extends SearchDelegate<_ServiceStateOption?> {
+  _StateSearchDelegate({
+    required List<_ServiceStateOption> states,
+    this.initialSelection,
+  }) : _states = List<_ServiceStateOption>.from(states);
+
+  final List<_ServiceStateOption> _states;
+  final _ServiceStateOption? initialSelection;
+
+  @override
+  String get searchFieldLabel => 'Search state';
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          onPressed: () => query = '',
+          icon: const Icon(Icons.close_rounded),
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      onPressed: () => close(context, null),
+      icon: const Icon(Icons.arrow_back_rounded),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildList(context);
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return _buildList(context);
+  }
+
+  Widget _buildList(BuildContext context) {
+    final normalizedQuery = query.trim().toLowerCase();
+    final filtered = normalizedQuery.isEmpty
+        ? _states
+        : _states.where((entry) => entry.name.toLowerCase().contains(normalizedQuery)).toList(growable: false);
+    if (filtered.isEmpty) {
+      return const Center(
+        child: Text(
+          'No matching state found.',
+          style: TextStyle(
+            color: Color(0xFF6E7B91),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      itemCount: filtered.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final item = filtered[index];
+        final selected = initialSelection?.id == item.id;
+        return Material(
+          color: selected ? const Color(0xFFFFE7DF) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          child: ListTile(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Text(
+              item.name,
+              style: const TextStyle(
+                color: Color(0xFF22314D),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            trailing: selected
+                ? const Icon(Icons.check_circle_rounded, color: Color(0xFFCB6E5B))
+                : null,
+            onTap: () => close(context, item),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _AddressMapSelection {
   const _AddressMapSelection({
     required this.latitude,
@@ -768,6 +1286,7 @@ class _UserAddressMapPickerPage extends StatefulWidget {
 
 class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
   late LatLng _selectedPosition;
+  GoogleMapController? _mapController;
   bool _isResolvingCurrentLocation = false;
   bool _isResolvingAddress = false;
   String? _locationHint;
@@ -778,14 +1297,14 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
     super.initState();
     if (widget.initialLatitude != null && widget.initialLongitude != null) {
       _selectedPosition = LatLng(widget.initialLatitude!, widget.initialLongitude!);
-      unawaited(_resolveSelectedAddress());
     } else {
       _selectedPosition = LatLng(
         double.parse(_defaultMapLatitude),
         double.parse(_defaultMapLongitude),
       );
-      unawaited(_loadCurrentLocation());
     }
+    unawaited(_resolveSelectedAddress());
+    unawaited(_loadCurrentLocation());
   }
 
   void _setSelectedPosition(LatLng position) {
@@ -793,7 +1312,23 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
       _selectedPosition = position;
       _selectedPlacemark = null;
     });
+    unawaited(_moveCamera(position));
     unawaited(_resolveSelectedAddress());
+  }
+
+  Future<void> _moveCamera(LatLng position) async {
+    final controller = _mapController;
+    if (controller == null) {
+      return;
+    }
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: position,
+          zoom: 16,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -802,14 +1337,28 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
       _locationHint = null;
     });
     try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location is turned off. You can still place the pin manually on the map.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is not enabled. You can still place the pin manually on the map.');
+      }
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) {
         return;
       }
+      final livePosition = LatLng(position.latitude, position.longitude);
       setState(() {
-        _selectedPosition = LatLng(position.latitude, position.longitude);
+        _selectedPosition = livePosition;
+        _selectedPlacemark = null;
         _isResolvingCurrentLocation = false;
       });
+      await _moveCamera(livePosition);
       unawaited(_resolveSelectedAddress());
     } catch (error) {
       if (!mounted) {
@@ -967,6 +1516,10 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: GoogleMap(
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                      unawaited(_moveCamera(_selectedPosition));
+                    },
                     initialCameraPosition: CameraPosition(
                       target: _selectedPosition,
                       zoom: 16,
