@@ -141,6 +141,7 @@ class _NotificationEvent {
   static const Set<String> _allowedUserBookingTypes = <String>{
     'BOOKING_ACCEPTED',
     'BOOKING_PAYMENT_SUCCESS',
+    'BOOKING_PROVIDER_ARRIVED',
     'BOOKING_WORK_STARTED',
     'BOOKING_COMPLETED',
     'BOOKING_CANCELLED',
@@ -189,4 +190,53 @@ class _NotificationEvent {
   }
 
   bool get hasVisibleContent => title.isNotEmpty || body.isNotEmpty;
+}
+
+class _BookingUpdateSoundPlayer {
+  static Uint8List? _bytes;
+
+  static bool shouldPlayForUserEvent(String type) {
+    switch (type.trim().toUpperCase()) {
+      case 'BOOKING_ACCEPTED':
+      case 'BOOKING_PAYMENT_SUCCESS':
+      case 'BOOKING_PROVIDER_ARRIVED':
+      case 'BOOKING_CANCELLED':
+      case 'BOOKING_COMPLETED':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static Future<void> play() async {
+    final player = AudioPlayer(playerId: 'user-booking-update-${DateTime.now().microsecondsSinceEpoch}');
+    try {
+      _bytes ??= (await rootBundle.load('assets/audio/skins_theme_short.mp3')).buffer.asUint8List();
+      await player.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            audioMode: AndroidAudioMode.normal,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.notification,
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          ),
+          iOS: AudioContextConfig(
+            route: AudioContextConfigRoute.system,
+            focus: AudioContextConfigFocus.gain,
+            respectSilence: false,
+          ).buildIOS(),
+        ),
+      );
+      await player.setPlayerMode(PlayerMode.mediaPlayer);
+      await player.setReleaseMode(ReleaseMode.release);
+      await player.setVolume(1.0);
+      await player.play(
+        BytesSource(_bytes!, mimeType: 'audio/mpeg'),
+      );
+    } catch (_) {
+      SystemSound.play(SystemSoundType.alert);
+    } finally {
+      unawaited(player.dispose());
+    }
+  }
 }

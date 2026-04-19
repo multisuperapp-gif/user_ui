@@ -207,6 +207,16 @@ class _UserAppApi {
     return _mapUserAddress(data);
   }
 
+  static Future<_UserAddressData> createTemporaryBookingAddress(_UserAddressInput input) async {
+    final response = await _post(
+      '/profile/addresses/temporary-booking',
+      authenticated: true,
+      body: input.toJson(),
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _mapUserAddress(data);
+  }
+
   static Future<_UserAddressData> updateAddress(int addressId, _UserAddressInput input) async {
     final response = await _put(
       '/profile/addresses/$addressId',
@@ -823,15 +833,27 @@ class _UserAppApi {
   }
 
   static Future<_ActiveBookingStatus?> fetchLatestActiveBookingStatus() async {
+    final statuses = await fetchActiveBookingStatuses();
+    return statuses.isEmpty ? null : statuses.first;
+  }
+
+  static Future<List<_ActiveBookingStatus>> fetchActiveBookingStatuses() async {
     final response = await _getAbsolute(
-      _bookingPaymentBaseUri.replace(path: '/booking-requests/active/latest'),
+      _bookingPaymentBaseUri.replace(path: '/booking-requests/active'),
       authenticated: true,
     );
     final raw = response['data'];
-    if (raw is! Map) {
-      return null;
+    if (raw is! List) {
+      return const <_ActiveBookingStatus>[];
     }
-    final data = Map<String, dynamic>.from(raw);
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map((entry) => _mapActiveBookingStatus(Map<String, dynamic>.from(entry)))
+        .whereType<_ActiveBookingStatus>()
+        .toList(growable: false);
+  }
+
+  static _ActiveBookingStatus? _mapActiveBookingStatus(Map<String, dynamic> data) {
     final requestIdValue = (data['requestId'] as num?)?.toInt() ?? 0;
     if (requestIdValue <= 0) {
       return null;
@@ -1834,6 +1856,14 @@ class _UserAppApi {
       disabledLabel: disabledLabel,
       labourHalfDayPrice: halfDay,
       labourFullDayPrice: fullDay,
+      labourCategoryPricing: [
+        _LabourCategoryPricing(
+          categoryId: (raw['categoryId'] as num?)?.toInt(),
+          label: category,
+          halfDayPrice: halfDay,
+          fullDayPrice: fullDay,
+        ),
+      ],
     );
   }
 

@@ -557,6 +557,7 @@ class _LiveBookingsPageState extends State<_LiveBookingsPage> {
                                   TextField(
                                     controller: _startWorkOtpController,
                                     keyboardType: TextInputType.number,
+                                    scrollPadding: const EdgeInsets.only(bottom: 220),
                                     maxLength: 6,
                                     onChanged: (_) {
                                       if (_startWorkOtpError != null) {

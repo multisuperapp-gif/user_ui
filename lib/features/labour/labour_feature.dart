@@ -1189,6 +1189,7 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                 child: TextField(
                   controller: _priceController,
                   keyboardType: TextInputType.number,
+                  scrollPadding: const EdgeInsets.only(bottom: 220),
                   onChanged: widget.onMaxPriceChanged,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.currency_rupee_rounded, color: Color(0xFFCB6E5B)),
@@ -1823,6 +1824,7 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                       : TextField(
                           controller: _controller,
                           keyboardType: TextInputType.number,
+                          scrollPadding: const EdgeInsets.only(bottom: 220),
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           onChanged: widget.onChanged,
                           cursorColor: widget.color,

@@ -5,6 +5,20 @@ enum _HomeMode { all, labour, service, shop }
 enum _LabourViewMode { individual, group }
 enum _ShopBrowseMode { itemWise, shopWise }
 
+class _LabourCategoryPricing {
+  const _LabourCategoryPricing({
+    required this.categoryId,
+    required this.label,
+    this.halfDayPrice = '',
+    this.fullDayPrice = '',
+  });
+
+  final int? categoryId;
+  final String label;
+  final String halfDayPrice;
+  final String fullDayPrice;
+}
+
 class _DiscoveryItem {
   const _DiscoveryItem({
     required this.title,
@@ -29,6 +43,7 @@ class _DiscoveryItem {
     this.disabledLabel = '',
     this.labourHalfDayPrice = '',
     this.labourFullDayPrice = '',
+    this.labourCategoryPricing = const [],
   });
 
   final String title;
@@ -53,6 +68,7 @@ class _DiscoveryItem {
   final String disabledLabel;
   final String labourHalfDayPrice;
   final String labourFullDayPrice;
+  final List<_LabourCategoryPricing> labourCategoryPricing;
 
   _DiscoveryItem copyWith({
     String? title,
@@ -77,6 +93,7 @@ class _DiscoveryItem {
     String? disabledLabel,
     String? labourHalfDayPrice,
     String? labourFullDayPrice,
+    List<_LabourCategoryPricing>? labourCategoryPricing,
   }) {
     return _DiscoveryItem(
       title: title ?? this.title,
@@ -101,6 +118,7 @@ class _DiscoveryItem {
       disabledLabel: disabledLabel ?? this.disabledLabel,
       labourHalfDayPrice: labourHalfDayPrice ?? this.labourHalfDayPrice,
       labourFullDayPrice: labourFullDayPrice ?? this.labourFullDayPrice,
+      labourCategoryPricing: labourCategoryPricing ?? this.labourCategoryPricing,
     );
   }
 }

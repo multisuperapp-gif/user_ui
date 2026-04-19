@@ -991,6 +991,7 @@ class _AddressInputField extends StatelessWidget {
         controller: controller,
         validator: validator,
         keyboardType: keyboardType,
+        scrollPadding: const EdgeInsets.only(bottom: 220),
         decoration: InputDecoration(
           labelText: label,
           filled: true,

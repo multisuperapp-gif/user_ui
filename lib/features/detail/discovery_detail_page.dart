@@ -19,7 +19,7 @@ class _DiscoveryDetailPage extends StatefulWidget {
   final bool isFavourited;
   final VoidCallback onWishlistToggle;
   final VoidCallback onFavouriteToggle;
-  final Future<void> Function(String? labourBookingPeriod) onPrimaryAction;
+  final Future<bool> Function(String? labourBookingPeriod, int? labourCategoryId) onPrimaryAction;
 
   @override
   State<_DiscoveryDetailPage> createState() => _DiscoveryDetailPageState();
@@ -27,13 +27,16 @@ class _DiscoveryDetailPage extends StatefulWidget {
 
 class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   String? _selectedLabourBookingPeriod;
+  int? _selectedLabourCategoryId;
   late bool _isAuthenticated;
+  bool _labourBookedLocally = false;
   bool _primaryActionBusy = false;
 
   @override
   void initState() {
     super.initState();
     _isAuthenticated = widget.isAuthenticated;
+    _selectedLabourCategoryId = _labourCategoryOptions.firstOrNull?.categoryId ?? widget.item.backendCategoryId;
     unawaited(_refreshAuthStateFromSession());
   }
 
@@ -42,6 +45,12 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isAuthenticated != widget.isAuthenticated) {
       _isAuthenticated = widget.isAuthenticated;
+    }
+    if (oldWidget.item.backendLabourId != widget.item.backendLabourId ||
+        oldWidget.item.labourCategoryPricing != widget.item.labourCategoryPricing) {
+      _labourBookedLocally = false;
+      _selectedLabourCategoryId = _labourCategoryOptions.firstOrNull?.categoryId ?? widget.item.backendCategoryId;
+      _selectedLabourBookingPeriod = null;
     }
   }
 
@@ -86,9 +95,27 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   bool get _isNearbyLabour =>
       widget.mode == _HomeMode.labour && (_distanceKm != null && _distanceKm! <= 1.0);
 
-  bool get _labourUnavailable => widget.mode == _HomeMode.labour && widget.item.isDisabled;
+  bool get _labourUnavailable =>
+      widget.mode == _HomeMode.labour && (widget.item.isDisabled || _labourBookedLocally);
+
+  List<_LabourCategoryPricing> get _labourCategoryOptions {
+    if (widget.item.labourCategoryPricing.isNotEmpty) {
+      return widget.item.labourCategoryPricing;
+    }
+    return [
+      _LabourCategoryPricing(
+        categoryId: widget.item.backendCategoryId,
+        label: widget.item.subtitle,
+        halfDayPrice: widget.item.labourHalfDayPrice,
+        fullDayPrice: widget.item.labourFullDayPrice,
+      ),
+    ];
+  }
 
   String get _labourUnavailableLabel {
+    if (_labourBookedLocally) {
+      return 'Booked';
+    }
     final label = widget.item.disabledLabel.trim();
     return label.isEmpty ? 'Booked' : label;
   }
@@ -243,7 +270,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
           ),
           if (mode == _HomeMode.labour) ...[
             const SizedBox(height: 10),
-            _labourBookingPeriodSelector(),
+            _labourCategorySelector(),
             if (_labourUnavailable) ...[
               const SizedBox(height: 10),
               Container(
@@ -371,10 +398,24 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                         );
                         return;
                       }
+                      if (mode == _HomeMode.labour && _selectedLabourCategoryId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select the work category to book labour.')),
+                        );
+                        return;
+                      }
                       setState(() => _primaryActionBusy = true);
                       try {
-                        await widget.onPrimaryAction(_selectedLabourBookingPeriod);
+                        final bookingLocked = await widget.onPrimaryAction(
+                          _selectedLabourBookingPeriod,
+                          _selectedLabourCategoryId,
+                        );
                         await _refreshAuthStateFromSession();
+                        if (mounted && mode == _HomeMode.labour && bookingLocked) {
+                          setState(() {
+                            _labourBookedLocally = true;
+                          });
+                        }
                       } finally {
                         if (mounted) {
                           setState(() => _primaryActionBusy = false);
@@ -461,9 +502,10 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     );
   }
 
-  Widget _labourBookingPeriodSelector() {
+  Widget _labourCategorySelector() {
+    final options = _labourCategoryOptions;
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -473,7 +515,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Select booking duration',
+            'Select work category and duration',
             style: TextStyle(
               color: Color(0xFF22314D),
               fontSize: 13,
@@ -481,94 +523,172 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               height: 1,
             ),
           ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              _labourBookingPeriodOption(
-                label: 'Half Day',
-                value: _halfDayRate(widget.item),
-                icon: Icons.wb_twilight_rounded,
-                color: const Color(0xFFF2A13D),
-              ),
-              const SizedBox(width: 10),
-              _labourBookingPeriodOption(
-                label: 'Full Day',
-                value: _fullDayRate(widget.item),
-                icon: Icons.wb_sunny_rounded,
-                color: const Color(0xFFCB6E5B),
-              ),
-            ],
+          const SizedBox(height: 10),
+          const Text(
+            'Choose the category first, then select Half Day or Full Day pricing for that exact work.',
+            style: TextStyle(
+              color: Color(0xFF66748C),
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+              height: 1.3,
+            ),
           ),
+          const SizedBox(height: 12),
+          ...options.map((pricing) {
+            final categorySelected = pricing.categoryId == _selectedLabourCategoryId;
+            final halfSelected = categorySelected && _selectedLabourBookingPeriod == 'Half Day';
+            final fullSelected = categorySelected && _selectedLabourBookingPeriod == 'Full Day';
+            final halfUnavailable = _priceLabelOrUnavailable(pricing.halfDayPrice) == 'Not available';
+            final fullUnavailable = _priceLabelOrUnavailable(pricing.fullDayPrice) == 'Not available';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: categorySelected ? const Color(0xFFFFF5EF) : const Color(0xFFFFFAF7),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: categorySelected ? const Color(0xFFCB6E5B) : const Color(0xFFE8DCD6),
+                    width: categorySelected ? 1.5 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            pricing.label,
+                            style: const TextStyle(
+                              color: Color(0xFF22314D),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (categorySelected)
+                          const Icon(Icons.check_circle_rounded, color: Color(0xFFCB6E5B), size: 20),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _labourCategoryPriceTile(
+                            categoryId: pricing.categoryId,
+                            label: 'Half Day',
+                            value: _priceLabelOrUnavailable(pricing.halfDayPrice),
+                            icon: Icons.wb_twilight_rounded,
+                            color: const Color(0xFFF2A13D),
+                            selected: halfSelected,
+                            unavailable: halfUnavailable,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _labourCategoryPriceTile(
+                            categoryId: pricing.categoryId,
+                            label: 'Full Day',
+                            value: _priceLabelOrUnavailable(pricing.fullDayPrice),
+                            icon: Icons.wb_sunny_rounded,
+                            color: const Color(0xFFCB6E5B),
+                            selected: fullSelected,
+                            unavailable: fullUnavailable,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _labourBookingPeriodOption({
+  Widget _labourCategoryPriceTile({
+    required int? categoryId,
     required String label,
     required String value,
     required IconData icon,
     required Color color,
+    required bool selected,
+    required bool unavailable,
   }) {
-    final selected = _selectedLabourBookingPeriod == label;
-    final optionUnavailable = value.trim().toLowerCase() == 'not available';
-    return Expanded(
-      child: GestureDetector(
-        onTap: _labourUnavailable || optionUnavailable ? null : () => setState(() => _selectedLabourBookingPeriod = label),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(
-            color: _labourUnavailable || optionUnavailable
-                ? const Color(0xFFF5F1ED)
-                : (selected ? color.withValues(alpha: 0.16) : const Color(0xFFFFFAF7)),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _labourUnavailable || optionUnavailable
-                  ? const Color(0xFFE8DCD6)
-                  : (selected ? color : const Color(0xFFE8DCD6)),
-              width: selected ? 1.6 : 1,
-            ),
+    return GestureDetector(
+      onTap: _labourUnavailable || unavailable
+          ? null
+          : () => setState(() {
+                _selectedLabourCategoryId = categoryId;
+                _selectedLabourBookingPeriod = label;
+              }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: _labourUnavailable || unavailable
+              ? const Color(0xFFF5F1ED)
+              : (selected ? color.withValues(alpha: 0.16) : Colors.white),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _labourUnavailable || unavailable
+                ? const Color(0xFFE8DCD6)
+                : (selected ? color : const Color(0xFFE8DCD6)),
+            width: selected ? 1.6 : 1,
           ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: selected ? color : const Color(0xFF22314D),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        height: 1,
-                      ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? color : const Color(0xFF22314D),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        color: Color(0xFF22314D),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                      ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: Color(0xFF22314D),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      height: 1.15,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              if (selected)
-                Icon(Icons.check_circle_rounded, color: color, size: 17),
-            ],
-          ),
+            ),
+            if (selected)
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 1),
+                child: Icon(Icons.check_circle_rounded, color: color, size: 17),
+              ),
+          ],
         ),
       ),
     );
+  }
+
+  String _priceLabelOrUnavailable(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed == '₹0') {
+      return 'Not available';
+    }
+    return trimmed;
   }
 
 }

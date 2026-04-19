@@ -486,7 +486,8 @@ class _LoginPageState extends State<LoginPage> {
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
             padding: EdgeInsets.fromLTRB(18, 18, 18, keyboardInset > 0 ? keyboardInset + 16 : 18),
-            child: Center(
+            child: Align(
+              alignment: keyboardInset > 0 ? Alignment.topCenter : Alignment.center,
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 child: ConstrainedBox(
@@ -1340,6 +1341,7 @@ class _PhoneInputField extends StatelessWidget {
             child: TextField(
               controller: controller,
               keyboardType: TextInputType.phone,
+              scrollPadding: const EdgeInsets.only(bottom: 220),
               textAlignVertical: TextAlignVertical.center,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
@@ -1407,6 +1409,7 @@ class _OtpDigitBox extends StatelessWidget {
         onChanged: onChanged,
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
+        scrollPadding: const EdgeInsets.only(bottom: 220),
         maxLength: 1,
         style: TextStyle(
           fontSize: compact ? 20 : 24,
