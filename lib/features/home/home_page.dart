@@ -79,6 +79,7 @@ class _UserHomePageState extends State<UserHomePage> {
   List<_ActiveBookingStatus> _activeBookingStatuses = const <_ActiveBookingStatus>[];
   int _activeBookingIndex = 0;
   Offset _activeBookingPopupOffset = Offset.zero;
+  bool _activeBookingPopupPositionInitialized = false;
   bool _activeBookingPopupDragMoved = false;
   List<_UserAddressData> _savedAddresses = const <_UserAddressData>[];
   _HomeLocationChoice? _currentLocationChoice;
@@ -137,9 +138,11 @@ class _UserHomePageState extends State<UserHomePage> {
   bool _initialHomeSetupRunning = false;
   bool _localCartNeedsSync = false;
   bool _guestLocationPromptShown = false;
+  String _headerProfilePhotoDataUri = '';
   String? _sessionPhoneNumber;
   StreamSubscription<_NotificationEvent>? _notificationEventSubscription;
   int _discoveryBatchInFlightCount = 0;
+  bool _initialDiscoveryBatchResolved = false;
 
   static const int _fashionProductBatchSize = 20;
   static const int _fashionProductTotalCount = 120;
@@ -185,6 +188,7 @@ class _UserHomePageState extends State<UserHomePage> {
     _activeBookingStatuses = statuses;
     if (_activeBookingStatuses.isEmpty) {
       _activeBookingIndex = 0;
+      _activeBookingPopupPositionInitialized = false;
       return;
     }
     _activeBookingIndex = _activeBookingIndex.clamp(0, _activeBookingStatuses.length - 1);
@@ -215,8 +219,22 @@ class _UserHomePageState extends State<UserHomePage> {
     _setActiveBookingStatuses(updated);
   }
 
+  void _markLabourBookedLocally(int labourId) {
+    setState(() {
+      for (var index = 0; index < _labourRemoteProfiles.length; index++) {
+        final item = _labourRemoteProfiles[index];
+        if (item.backendLabourId == labourId) {
+          _labourRemoteProfiles[index] = item.copyWith(
+            isDisabled: true,
+            disabledLabel: 'Booked',
+          );
+        }
+      }
+    });
+  }
 
-Future<void> _hydrateRemoteState({bool silent = true}) async {
+
+  Future<void> _hydrateRemoteState({bool silent = true}) async {
   if (_remoteSyncInFlight) {
     return;
   }
@@ -233,13 +251,16 @@ Future<void> _hydrateRemoteState({bool silent = true}) async {
     final remoteProducts = await _UserAppApi.fetchHomeTopProducts();
     _RemoteCartState? remoteCart;
     List<_ActiveBookingStatus> activeBookings = const <_ActiveBookingStatus>[];
+    String profilePhotoDataUri = '';
     if (_isAuthenticated) {
       final results = await Future.wait<dynamic>([
         _UserAppApi.fetchCart(),
         _loadActiveBookingStatusesSafe(),
+        _loadProfilePhotoPreviewSafe(),
       ]);
       remoteCart = results[0] as _RemoteCartState;
       activeBookings = results[1] as List<_ActiveBookingStatus>;
+      profilePhotoDataUri = results[2] as String;
     }
     if (!mounted) {
       return;
@@ -255,6 +276,7 @@ Future<void> _hydrateRemoteState({bool silent = true}) async {
           ..addAll(remoteCart.items);
         _localCartNeedsSync = false;
       }
+      _headerProfilePhotoDataUri = _isAuthenticated ? profilePhotoDataUri : '';
       _setActiveBookingStatuses(_isAuthenticated ? activeBookings : const <_ActiveBookingStatus>[]);
       _homeBootstrapError = null;
     });
@@ -318,7 +340,7 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
       } else if (event.isBookingRelated) {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => const _LiveBookingsPage(),
+            builder: (_) => const _MyBookingsPage(),
           ),
         );
         await _hydrateRemoteState(silent: true);
@@ -418,6 +440,15 @@ Future<void> _refreshSessionPhoneFromStore() async {
   });
 }
 
+Future<String> _loadProfilePhotoPreviewSafe() async {
+  try {
+    final profile = await _UserAppApi.fetchProfile();
+    return profile.profilePhotoDataUri.trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 Future<bool> _ensureAuthenticated() async {
   if (_isAuthenticated) {
     return true;
@@ -496,7 +527,7 @@ Future<void> _initializeHomeRequirements() async {
     _initialHomeSetupRunning = true;
     try {
       await _enforceHomePermissions();
-      await _loadHomeLocationOptions();
+      await _loadHomeLocationOptions(forceCurrentSelection: true);
       if (!_isAuthenticated && !_guestLocationPromptShown && mounted) {
         _guestLocationPromptShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -526,7 +557,7 @@ Future<void> _initializeHomeRequirements() async {
   }
 
 
-Future<void> _loadHomeLocationOptions() async {
+Future<void> _loadHomeLocationOptions({bool forceCurrentSelection = false}) async {
   if (mounted) {
     setState(() {
       _homeLocationLoading = true;
@@ -550,20 +581,25 @@ Future<void> _loadHomeLocationOptions() async {
       return;
     }
     final previousSelection = _selectedLocationChoice;
-    _HomeLocationChoice? selectedLocation = previousSelection;
-    if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
-      final selectedAddress = addresses.where((item) => item.id == selectedLocation!.addressId).firstOrNull;
-      if (selectedAddress != null) {
-        selectedLocation = _locationChoiceFromAddress(selectedAddress);
-      } else {
-        selectedLocation = null;
-      }
-    } else if (selectedLocation?.isCurrentLocation == true) {
+    _HomeLocationChoice? selectedLocation;
+    if (forceCurrentSelection && currentLocation != null) {
       selectedLocation = currentLocation;
+    } else {
+      selectedLocation = previousSelection;
+      if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
+        final selectedAddress = addresses.where((item) => item.id == selectedLocation!.addressId).firstOrNull;
+        if (selectedAddress != null) {
+          selectedLocation = _locationChoiceFromAddress(selectedAddress);
+        } else {
+          selectedLocation = null;
+        }
+      } else if (selectedLocation?.isCurrentLocation == true) {
+        selectedLocation = currentLocation;
+      }
+      selectedLocation ??= currentLocation;
+      selectedLocation ??= addresses.where((item) => item.isDefault).map(_locationChoiceFromAddress).firstOrNull;
+      selectedLocation ??= addresses.map(_locationChoiceFromAddress).firstOrNull;
     }
-    selectedLocation ??= currentLocation;
-    selectedLocation ??= addresses.where((item) => item.isDefault).map(_locationChoiceFromAddress).firstOrNull;
-    selectedLocation ??= addresses.map(_locationChoiceFromAddress).firstOrNull;
     setState(() {
       _savedAddresses = addresses;
       _currentLocationChoice = currentLocation;
@@ -769,15 +805,17 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       if (mounted) {
         setState(() {
           _discoveryBatchInFlightCount = math.max(0, _discoveryBatchInFlightCount - 1);
+          _initialDiscoveryBatchResolved = true;
         });
       } else {
         _discoveryBatchInFlightCount = math.max(0, _discoveryBatchInFlightCount - 1);
+        _initialDiscoveryBatchResolved = true;
       }
     }
   }
 
   Future<void> _refreshVisiblePage() async {
-    await _loadHomeLocationOptions();
+    await _loadHomeLocationOptions(forceCurrentSelection: true);
     await _refreshNotificationPreview(silent: true);
     await _loadLabourBookingPolicy();
     await _hydrateRemoteState(silent: false);
@@ -1487,6 +1525,21 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
     for (final category in _labourRemoteCategories) {
       if (category.label == label) {
         return category.backendCategoryId;
+      }
+    }
+    return null;
+  }
+
+  String? _labourCategoryLabelForId(int? categoryId) {
+    if (categoryId == null) {
+      return null;
+    }
+    for (final category in _labourRemoteCategories) {
+      if (category.backendCategoryId == categoryId) {
+        final label = category.label.trim();
+        if (label.isNotEmpty && label.toLowerCase() != 'all labour') {
+          return label;
+        }
       }
     }
     return null;
@@ -2891,6 +2944,7 @@ Widget? _buildServiceStateSliver() {
     const pinnedFilterHeaderHeight = 58.0;
 
     _ensureShopSelectionIsVisible();
+    final showActiveBookingPopup = _activeBookingStatus != null && (_mode == _HomeMode.all || _mode == _HomeMode.labour);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -2899,27 +2953,29 @@ Widget? _buildServiceStateSliver() {
           statusBarColor: Colors.transparent,
           systemStatusBarContrastEnforced: false,
         ),
-        child: Column(
+        child: Stack(
           children: [
-            Container(
-              height: topInset,
-              color: _headerGradient(_mode).first,
-            ),
-            Expanded(
-              child: RefreshIndicator.adaptive(
-                onRefresh: _refreshVisiblePage,
-                color: const Color(0xFFCB6E5B),
-                child: SafeArea(
-                  top: false,
-                  bottom: false,
-                  child: Container(
-                    color: Colors.white,
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
-                      slivers: [
+            Column(
+              children: [
+                Container(
+                  height: topInset,
+                  color: _headerGradient(_mode).first,
+                ),
+                Expanded(
+                  child: RefreshIndicator.adaptive(
+                    onRefresh: _refreshVisiblePage,
+                    color: const Color(0xFFCB6E5B),
+                    child: SafeArea(
+                      top: false,
+                      bottom: false,
+                      child: Container(
+                        color: Colors.white,
+                        child: CustomScrollView(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          slivers: [
                     SliverToBoxAdapter(
                       child: Container(
                         color: _headerGradient(_mode).first,
@@ -2955,11 +3011,12 @@ Widget? _buildServiceStateSliver() {
                             controller: _searchController,
                             hint: _searchHint,
                             tint: _modeTint(_mode),
-                            onNotificationTap: _openNotificationsPage,
-                            onProfileTap: _openProfilePage,
-                            onCartTap: _openCartPage,
-                            unreadNotificationCount: _notificationUnreadCount,
-                          ),
+                          onNotificationTap: _openNotificationsPage,
+                          onProfileTap: _openProfilePage,
+                          onCartTap: _openCartPage,
+                          unreadNotificationCount: _notificationUnreadCount,
+                          profilePhotoDataUri: _headerProfilePhotoDataUri,
+                        ),
                         ),
                       ),
                     ),
@@ -3060,11 +3117,14 @@ Widget? _buildServiceStateSliver() {
                       ),
                     ),
                       ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
+            if (showActiveBookingPopup) _buildActiveBookingFloatingCard(),
           ],
         ),
       ),
@@ -3073,11 +3133,6 @@ Widget? _buildServiceStateSliver() {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (_activeBookingStatus != null && (_mode == _HomeMode.all || _mode == _HomeMode.labour))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildActiveBookingFloatingCard(),
-            ),
           if (_showScrollToTop)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -3147,16 +3202,32 @@ Widget? _buildServiceStateSliver() {
     final canShowPrevious = _activeBookingIndex > 0;
     final canShowNext = _activeBookingIndex < _activeBookingStatuses.length - 1;
     final screenSize = MediaQuery.sizeOf(context);
-    final maxLeftShift = math.max(0.0, screenSize.width - 120);
-    final maxUpShift = math.max(0.0, screenSize.height - 220);
-    final boundedOffset = Offset(
-      _activeBookingPopupOffset.dx.clamp(-maxLeftShift, 12.0).toDouble(),
-      _activeBookingPopupOffset.dy.clamp(-maxUpShift, 12.0).toDouble(),
-    );
     final width = math.min(screenSize.width * 0.84, 360.0);
+    const cardHeight = 108.0;
+    final topInset = MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final minLeft = 12.0;
+    final maxLeft = math.max(minLeft, screenSize.width - width - 12);
+    final minTop = topInset + 12;
+    final defaultTop = math.max(
+      minTop,
+      screenSize.height - bottomInset - cardHeight - 112,
+    );
+    final maxTop = math.max(minTop, screenSize.height - bottomInset - cardHeight - 12);
+    final boundedLeft = (_activeBookingPopupPositionInitialized
+            ? _activeBookingPopupOffset.dx
+            : maxLeft)
+        .clamp(minLeft, maxLeft)
+        .toDouble();
+    final boundedTop = (_activeBookingPopupPositionInitialized
+            ? _activeBookingPopupOffset.dy
+            : defaultTop)
+        .clamp(minTop, maxTop)
+        .toDouble();
 
-    return Transform.translate(
-      offset: boundedOffset,
+    return Positioned(
+      left: boundedLeft,
+      top: boundedTop,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onPanStart: (_) {
@@ -3166,9 +3237,10 @@ Widget? _buildServiceStateSliver() {
           _activeBookingPopupDragMoved = true;
           setState(() {
             _activeBookingPopupOffset = Offset(
-              (_activeBookingPopupOffset.dx + details.delta.dx).clamp(-maxLeftShift, 12.0).toDouble(),
-              (_activeBookingPopupOffset.dy + details.delta.dy).clamp(-maxUpShift, 12.0).toDouble(),
+              (boundedLeft + details.delta.dx).clamp(minLeft, maxLeft).toDouble(),
+              (boundedTop + details.delta.dy).clamp(minTop, maxTop).toDouble(),
             );
+            _activeBookingPopupPositionInitialized = true;
           });
         },
         onHorizontalDragEnd: (details) {
@@ -3828,7 +3900,7 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       );
     }
 
-    if (!hasAnyLiveSection && !_anyHomeRemoteLoading) {
+    if (_initialDiscoveryBatchResolved && !hasAnyLiveSection && !_anyHomeRemoteLoading) {
       slivers.add(
         _buildAreaComingSoonSliver(
           icon: Icons.location_city_rounded,
@@ -4375,6 +4447,17 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     if (item.backendLabourId == null) {
       return item;
     }
+    if (item.labourCategoryPricing.length > 1) {
+      final selectedPricing = item.labourCategoryPricing.firstWhere(
+        (pricing) => pricing.categoryId == item.backendCategoryId,
+        orElse: () => item.labourCategoryPricing.first,
+      );
+      return item.copyWith(
+        subtitle: selectedPricing.label.trim().isEmpty ? item.subtitle : selectedPricing.label.trim(),
+        labourHalfDayPrice: selectedPricing.halfDayPrice,
+        labourFullDayPrice: selectedPricing.fullDayPrice,
+      );
+    }
     final matchingProfiles = _labourRemoteProfiles
         .where((profile) => profile.backendLabourId == item.backendLabourId)
         .toList(growable: false);
@@ -4384,24 +4467,57 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     final categoryPricing = <_LabourCategoryPricing>[];
     final seenCategoryIds = <int?>{};
     for (final profile in matchingProfiles) {
-      final pricing = profile.labourCategoryPricing.isNotEmpty
-          ? profile.labourCategoryPricing.first
-          : _LabourCategoryPricing(
-              categoryId: profile.backendCategoryId,
-              label: profile.subtitle,
-              halfDayPrice: profile.labourHalfDayPrice,
-              fullDayPrice: profile.labourFullDayPrice,
-            );
+      final pricing = profile.labourCategoryPricing
+              .where((entry) => entry.categoryId == profile.backendCategoryId)
+              .firstOrNull ??
+          profile.labourCategoryPricing.firstOrNull ??
+          _LabourCategoryPricing(
+            categoryId: profile.backendCategoryId,
+            label: profile.subtitle,
+            halfDayPrice: profile.labourHalfDayPrice,
+            fullDayPrice: profile.labourFullDayPrice,
+          );
+      final normalizedLabel =
+          _labourCategoryLabelForId(pricing.categoryId) ??
+          _labourCategoryLabelForId(profile.backendCategoryId) ??
+          pricing.label.trim().split(',').map((part) => part.trim()).firstWhere(
+                (part) => part.isNotEmpty,
+                orElse: () => profile.subtitle.trim(),
+              );
       if (seenCategoryIds.add(pricing.categoryId)) {
-        categoryPricing.add(pricing);
+        categoryPricing.add(
+          _LabourCategoryPricing(
+            categoryId: pricing.categoryId,
+            label: normalizedLabel,
+            halfDayPrice: pricing.halfDayPrice,
+            fullDayPrice: pricing.fullDayPrice,
+          ),
+        );
       }
     }
     final selectedCategory = matchingProfiles.firstWhere(
       (profile) => profile.backendCategoryId == item.backendCategoryId,
       orElse: () => matchingProfiles.first,
     );
+    final selectedCategoryLabel =
+        _labourCategoryLabelForId(selectedCategory.backendCategoryId) ??
+        categoryPricing
+            .where((pricing) => pricing.categoryId == selectedCategory.backendCategoryId)
+            .map((pricing) => pricing.label.trim())
+            .firstWhere((label) => label.isNotEmpty, orElse: () => selectedCategory.subtitle);
+    final selectedPricing = categoryPricing.firstWhere(
+      (pricing) => pricing.categoryId == selectedCategory.backendCategoryId,
+      orElse: () => categoryPricing.firstOrNull ?? _LabourCategoryPricing(
+        categoryId: selectedCategory.backendCategoryId,
+        label: selectedCategoryLabel,
+        halfDayPrice: selectedCategory.labourHalfDayPrice,
+        fullDayPrice: selectedCategory.labourFullDayPrice,
+      ),
+    );
     return selectedCategory.copyWith(
-      subtitle: categoryPricing.map((pricing) => pricing.label).join(', '),
+      subtitle: selectedCategoryLabel,
+      labourHalfDayPrice: selectedPricing.halfDayPrice,
+      labourFullDayPrice: selectedPricing.fullDayPrice,
       labourCategoryPricing: categoryPricing,
     );
   }
@@ -5224,6 +5340,15 @@ Future<bool> _handlePrimaryAction(
       if (!mounted || !confirmed) {
         return false;
       }
+      final selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+      if (selectedLocation != null && !_isLabourWithinSelectedRange(item, selectedLocation)) {
+        final radiusKm = item.labourRadiusKm;
+        final radiusLabel = radiusKm == null || radiusKm <= 0
+            ? ''
+            : ' within ${radiusKm.toStringAsFixed(radiusKm >= 10 ? 0 : 1)} km';
+        _showCartSnack('Labour is out of range for this address. Please choose a nearer address or another labour$radiusLabel.');
+        return false;
+      }
       final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour();
       if (!mounted) {
         return false;
@@ -5246,6 +5371,9 @@ Future<bool> _handlePrimaryAction(
           status: status,
         );
         return false;
+      }
+      if (item.backendLabourId != null) {
+        _markLabourBookedLocally(item.backendLabourId!);
       }
       bookingLocked = true;
       final shouldPay = await _showAcceptedLabourDialog(
@@ -5297,8 +5425,24 @@ Future<bool> _handlePrimaryAction(
         }
         _showCartSnack(error.message);
       }
-      return bookingLocked;
     }
+    return bookingLocked;
+  }
+
+  bool _isLabourWithinSelectedRange(_DiscoveryItem item, _HomeLocationChoice selectedLocation) {
+    final radiusKm = item.labourRadiusKm;
+    final workLatitude = item.labourWorkLatitude;
+    final workLongitude = item.labourWorkLongitude;
+    if (radiusKm == null || radiusKm <= 0 || workLatitude == null || workLongitude == null) {
+      return true;
+    }
+    final distanceMeters = Geolocator.distanceBetween(
+      workLatitude,
+      workLongitude,
+      selectedLocation.latitude,
+      selectedLocation.longitude,
+    );
+    return distanceMeters <= (radiusKm * 1000);
   }
 
   bool _isLabourAvailabilityChangedError(String message) {
@@ -6316,6 +6460,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   static const String _iosDirectionsApiKey = 'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
   final TextEditingController _startWorkOtpController = TextEditingController();
   final TextEditingController _mutualCancelOtpController = TextEditingController();
+  BitmapDescriptor? _providerScooterMarkerIcon;
   _ActiveBookingStatus? _status;
   Timer? _liveTrackingPollTimer;
   Timer? _countdownUiTimer;
@@ -6331,10 +6476,12 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   bool _verifyingMutualCancel = false;
   bool _cancellingNoShow = false;
   bool _paying = false;
+  bool _reviewDialogOpen = false;
   String? _startOtpError;
   String? _mutualCancelOtpError;
   String? _completeWorkOtpCode;
   bool _mutualCancelRequested = false;
+  final Set<int> _reviewPromptedBookingIds = <int>{};
 
   @override
   void initState() {
@@ -6342,6 +6489,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     _status = widget.initialStatus;
     _syncLiveTrackingPolling();
     _syncCountdownTimer();
+    unawaited(_loadProviderScooterMarkerIcon());
     unawaited(_refreshTrackingRoute(force: true));
   }
 
@@ -6365,10 +6513,71 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     return null;
   }
 
-  Future<void> _reload() async {
+  Future<_ActiveBookingStatus?> _loadMatchingHistoryStatus() async {
+    final currentRequestId = _status?.requestId ?? widget.initialStatus.requestId;
+    final statuses = await _UserAppApi.fetchBookingHistoryStatuses();
+    for (final status in statuses) {
+      if (status.requestId == currentRequestId) {
+        return status;
+      }
+    }
+    return null;
+  }
+
+  String _reviewHistoryStatus(_ActiveBookingStatus status) {
+    final explicit = status.historyStatus.trim().toUpperCase();
+    if (explicit.isNotEmpty) {
+      return explicit;
+    }
+    final bookingStatus = status.bookingStatus.trim().toUpperCase();
+    if (bookingStatus == 'CANCELLED' && status.paymentStatus.trim().toUpperCase() == 'FAILED') {
+      return 'PAYMENT_FAILED';
+    }
+    return bookingStatus;
+  }
+
+  bool _canPromptForReview(_ActiveBookingStatus? status) {
+    if (status == null || status.bookingId <= 0 || status.reviewSubmitted) {
+      return false;
+    }
+    final normalized = _reviewHistoryStatus(status);
+    return normalized == 'COMPLETED' || normalized == 'CANCELLED';
+  }
+
+  Future<void> _maybePromptForReview(_ActiveBookingStatus? status) async {
+    if (!_canPromptForReview(status) || !mounted || _reviewDialogOpen) {
+      return;
+    }
+    final bookingId = status!.bookingId;
+    if (_reviewPromptedBookingIds.contains(bookingId)) {
+      return;
+    }
+    _reviewPromptedBookingIds.add(bookingId);
+    _reviewDialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => _BookingReviewDialog(
+        status: status,
+        onSubmit: (rating, comment) => _UserAppApi.submitBookingReview(
+          bookingId: status.bookingId,
+          rating: rating,
+          comment: comment,
+        ),
+      ),
+    );
+    _reviewDialogOpen = false;
+  }
+
+  Future<void> _reload({bool promptForReview = false}) async {
     setState(() => _loading = true);
     try {
+      final previousStatus = _status;
       final latest = await _loadMatchingStatus();
+      _ActiveBookingStatus? reviewCandidate;
+      if (promptForReview || (latest == null && previousStatus?.bookingId != null && previousStatus!.bookingId > 0)) {
+        reviewCandidate = await _loadMatchingHistoryStatus();
+      }
       if (!mounted) {
         return;
       }
@@ -6384,11 +6593,22 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       _syncCountdownTimer();
       unawaited(_refreshTrackingRoute(force: true));
       widget.onStatusChanged(latest);
+      if (promptForReview || reviewCandidate != null) {
+        await _maybePromptForReview(reviewCandidate);
+      }
     } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
+  }
+
+  Future<void> _loadProviderScooterMarkerIcon() async {
+    final marker = await _buildScooterMapMarker();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _providerScooterMarkerIcon = marker);
   }
 
   bool _shouldPollLiveTracking(_ActiveBookingStatus? status) {
@@ -6441,7 +6661,12 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
 
   Future<void> _reloadLiveTrackingSilently() async {
     try {
+      final previousStatus = _status;
       final latest = await _loadMatchingStatus();
+      _ActiveBookingStatus? reviewCandidate;
+      if (latest == null && previousStatus?.bookingId != null && previousStatus!.bookingId > 0) {
+        reviewCandidate = await _loadMatchingHistoryStatus();
+      }
       if (!mounted) {
         return;
       }
@@ -6454,6 +6679,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       _syncLiveTrackingPolling();
       unawaited(_refreshTrackingRoute());
       widget.onStatusChanged(latest);
+      if (reviewCandidate != null) {
+        await _maybePromptForReview(reviewCandidate);
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -6717,7 +6945,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         otpCode: otp,
       );
       _mutualCancelOtpController.clear();
-      await _reload();
+      await _reload(promptForReview: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Booking cancelled mutually.')),
@@ -6745,7 +6973,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         bookingId: status.bookingId,
         reason: 'Provider did not reach within the configured reach timeline.',
       );
-      await _reload();
+      await _reload(promptForReview: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Booking cancelled because labour did not reach in time.')),
@@ -6774,7 +7002,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       builder: (context, controller) => AnimatedPadding(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(bottom: keyboardInset),
+        padding: EdgeInsets.only(bottom: keyboardInset > 0 ? 8 : 0),
         child: Container(
           decoration: const BoxDecoration(
             color: Color(0xFFF7F2EC),
@@ -6789,7 +7017,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                     18,
                     12,
                     18,
-                    keyboardInset > 0 ? keyboardInset + 28 : 28,
+                    28,
                   ),
                   children: [
                     Center(
@@ -7141,7 +7369,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               controller: _startWorkOtpController,
               enabled: canEnterOtp && !_verifyingStart,
               keyboardType: TextInputType.number,
-              scrollPadding: const EdgeInsets.only(bottom: 220),
+              scrollPadding: const EdgeInsets.only(bottom: 24),
               maxLength: 6,
               decoration: InputDecoration(
                 counterText: '',
@@ -7301,7 +7529,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               controller: _mutualCancelOtpController,
               enabled: !_verifyingMutualCancel,
               keyboardType: TextInputType.number,
-              scrollPadding: const EdgeInsets.only(bottom: 220),
+              scrollPadding: const EdgeInsets.only(bottom: 24),
               maxLength: 6,
               decoration: InputDecoration(
                 counterText: '',
@@ -7449,10 +7677,43 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       return;
     }
     final fallbackTarget = providerLocation ?? destinationLocation ?? const LatLng(26.8467, 80.9462);
-    final etaLabel = _trackingRouteEtaLabel() ?? 'estimated time';
+    final etaLabel = _trackingRouteEtaLabel() ?? '';
     final distanceLabel = _trackingRouteDistanceLabel(status) ?? '';
     final destinationName = _trackingDestinationName(status);
-    final floatingCardLabel = distanceLabel.isNotEmpty ? 'Arriving in $etaLabel • $distanceLabel' : 'Arriving in $etaLabel';
+    GoogleMapController? dialogMapController;
+
+    Future<void> focusTrackingRoute() async {
+      final controller = dialogMapController;
+      if (controller == null) {
+        return;
+      }
+      if (providerLocation != null && destinationLocation != null) {
+        final southWest = LatLng(
+          math.min(providerLocation.latitude, destinationLocation.latitude),
+          math.min(providerLocation.longitude, destinationLocation.longitude),
+        );
+        final northEast = LatLng(
+          math.max(providerLocation.latitude, destinationLocation.latitude),
+          math.max(providerLocation.longitude, destinationLocation.longitude),
+        );
+        await controller.animateCamera(
+          CameraUpdate.newLatLngBounds(
+            LatLngBounds(southwest: southWest, northeast: northEast),
+            80,
+          ),
+        );
+        return;
+      }
+      final focus = providerLocation ?? destinationLocation;
+      if (focus != null) {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(target: focus, zoom: 15.6),
+          ),
+        );
+      }
+    }
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) => Dialog(
@@ -7528,18 +7789,20 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 28,
+                        fontSize: 17,
                         letterSpacing: -0.4,
                         height: 1.0,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      etaLabel.trim().isNotEmpty ? 'Arriving in $etaLabel' : 'Arriving in estimated time',
+                      etaLabel.trim().isNotEmpty
+                          ? 'Arriving in $etaLabel'
+                          : (distanceLabel.isNotEmpty ? distanceLabel : 'Live route updating'),
                       style: const TextStyle(
                         color: Color(0xFFE9FFE9),
                         fontWeight: FontWeight.w800,
-                        fontSize: 15.5,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -7550,6 +7813,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                 child: Stack(
                   children: [
                     GoogleMap(
+                      onMapCreated: (controller) {
+                        dialogMapController = controller;
+                        unawaited(focusTrackingRoute());
+                      },
                       initialCameraPosition: CameraPosition(
                         target: providerLocation != null && destinationLocation != null
                             ? LatLng(
@@ -7566,12 +7833,34 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       polylines: _trackingPolylines(status),
                     ),
                     Positioned(
-                      left: 18,
                       top: 18,
-                      child: _AnimatedUserTrackingCycleCard(
-                        destinationName: destinationName,
-                        statusLabel: floatingCardLabel,
-                        maxWidth: MediaQuery.sizeOf(dialogContext).width * 0.56,
+                      right: 18,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => unawaited(focusTrackingRoute()),
+                          borderRadius: BorderRadius.circular(999),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.my_location_rounded,
+                              color: Color(0xFF11913C),
+                              size: 22,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     Positioned(
@@ -7676,7 +7965,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
           markerId: const MarkerId('provider_live_location'),
           position: provider,
           infoWindow: InfoWindow(title: _providerTitle(status), snippet: 'Live labour location'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          icon: _providerScooterMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
     }
@@ -7749,117 +8038,207 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 }
 
-class _AnimatedUserTrackingCycleCard extends StatefulWidget {
-  const _AnimatedUserTrackingCycleCard({
-    required this.destinationName,
-    required this.statusLabel,
-    required this.maxWidth,
+class _BookingReviewDialog extends StatefulWidget {
+  const _BookingReviewDialog({
+    required this.status,
+    required this.onSubmit,
   });
 
-  final String destinationName;
-  final String statusLabel;
-  final double maxWidth;
+  final _ActiveBookingStatus status;
+  final Future<void> Function(int rating, String comment) onSubmit;
 
   @override
-  State<_AnimatedUserTrackingCycleCard> createState() => _AnimatedUserTrackingCycleCardState();
+  State<_BookingReviewDialog> createState() => _BookingReviewDialogState();
 }
 
-class _AnimatedUserTrackingCycleCardState extends State<_AnimatedUserTrackingCycleCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-  }
+class _BookingReviewDialogState extends State<_BookingReviewDialog> {
+  final TextEditingController _commentController = TextEditingController();
+  int _selectedRating = 0;
+  bool _submitting = false;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _commentController.dispose();
     super.dispose();
+  }
+
+  (String, Color) get _ratingTone {
+    switch (_selectedRating) {
+      case 1:
+        return ('Terrible', const Color(0xFFD62828));
+      case 2:
+        return ('Bad', const Color(0xFF8B1E1E));
+      case 3:
+        return ('Average', const Color(0xFFB68A00));
+      case 4:
+        return ('Good', const Color(0xFF4AAE4F));
+      case 5:
+        return ('Exceptional', const Color(0xFF177245));
+      default:
+        return ('', const Color(0xFF22314D));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final bob = 4 * _controller.value;
-        final glowOpacity = 0.12 + (_controller.value * 0.10);
-        return Transform.translate(
-          offset: Offset(0, -bob),
-          child: Container(
-            constraints: BoxConstraints(maxWidth: widget.maxWidth),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.90),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1FCB55).withValues(alpha: glowOpacity),
-                  blurRadius: 18,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.20),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+    final (ratingLabel, ratingColor) = _ratingTone;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF8F3),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1FCB55),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.pedal_bike_rounded, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        widget.destinationName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                      const Text(
+                        'Rate your booking',
+                        style: TextStyle(
+                          color: Color(0xFF22314D),
+                          fontSize: 20,
                           fontWeight: FontWeight.w900,
-                          fontSize: 13.4,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
-                        widget.statusLabel,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        widget.status.providerName.trim().isEmpty
+                            ? 'Share your experience'
+                            : 'How was ${widget.status.providerName}?',
                         style: const TextStyle(
-                          color: Colors.white70,
+                          color: Color(0xFF6D7A91),
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          fontSize: 11.4,
-                          height: 1.25,
                         ),
                       ),
                     ],
                   ),
                 ),
+                IconButton(
+                  onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, color: Color(0xFF6D7A91)),
+                ),
               ],
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: List.generate(5, (index) {
+                final star = index + 1;
+                final selected = star <= _selectedRating;
+                return InkWell(
+                  onTap: _submitting ? null : () => setState(() => _selectedRating = star),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Icon(
+                      selected ? Icons.star_rounded : Icons.star_border_rounded,
+                      size: 34,
+                      color: selected ? const Color(0xFFF2A13D) : const Color(0xFFD1C4B8),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (ratingLabel.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                ratingLabel,
+                style: TextStyle(
+                  color: ratingColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            TextField(
+              controller: _commentController,
+              maxLines: 4,
+              minLines: 3,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'Add a comment',
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.all(14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: const BorderSide(color: Color(0xFFE5D9D0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: const BorderSide(color: Color(0xFFE5D9D0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _submitting || _selectedRating <= 0
+                    ? null
+                    : () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
+                        setState(() => _submitting = true);
+                        try {
+                          await widget.onSubmit(_selectedRating, _commentController.text.trim());
+                          if (!mounted) {
+                            return;
+                          }
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Thanks for sharing your rating.')),
+                          );
+                        } on _UserAppApiException catch (error) {
+                          if (!mounted) {
+                            return;
+                          }
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(error.message)),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() => _submitting = false);
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFCB6E5B),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                ),
+                child: Text(
+                  _submitting ? 'Submitting...' : 'Submit rating',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

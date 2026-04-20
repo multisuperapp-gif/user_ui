@@ -75,6 +75,28 @@ class _ModeFilterRow extends StatelessWidget {
                             height: 1,
                           ),
                         ),
+                        const SizedBox(height: 5),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          width: active ? 38 : 18,
+                          height: active ? 3.2 : 1.4,
+                          decoration: BoxDecoration(
+                            color: active
+                                ? const Color(0xFFD92D20)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: active
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFD92D20).withValues(alpha: 0.28),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
                       ],
                     ),
                   ),

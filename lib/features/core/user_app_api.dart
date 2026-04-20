@@ -144,6 +144,42 @@ class _UserAppApi {
       publicUserId: '${data['publicUserId'] ?? ''}',
       phone: '${data['phone'] ?? ''}',
       fullName: '${data['fullName'] ?? 'MSA User'}',
+      profilePhotoDataUri: '${data['profilePhotoDataUri'] ?? ''}',
+      gender: '${data['gender'] ?? ''}',
+      dob: _parseDate('${data['dob'] ?? ''}'),
+      languageCode: '${data['languageCode'] ?? 'en'}',
+    );
+  }
+
+  static Future<_UserProfileData> updateProfile({
+    required String fullName,
+    required String profilePhotoDataUri,
+    String gender = '',
+    DateTime? dob,
+    String? languageCode,
+  }) async {
+    final body = <String, dynamic>{
+      'fullName': fullName,
+      'profilePhotoDataUri': profilePhotoDataUri,
+      'gender': gender,
+      'languageCode': languageCode,
+    };
+    if (dob != null) {
+      body['dob'] =
+          '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}';
+    }
+    final response = await _patch(
+      '/profile',
+      authenticated: true,
+      body: body,
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _UserProfileData(
+      userId: (data['userId'] as num?)?.toInt() ?? 0,
+      publicUserId: '${data['publicUserId'] ?? ''}',
+      phone: '${data['phone'] ?? ''}',
+      fullName: '${data['fullName'] ?? 'MSA User'}',
+      profilePhotoDataUri: '${data['profilePhotoDataUri'] ?? ''}',
       gender: '${data['gender'] ?? ''}',
       dob: _parseDate('${data['dob'] ?? ''}'),
       languageCode: '${data['languageCode'] ?? 'en'}',
@@ -832,14 +868,25 @@ class _UserAppApi {
     );
   }
 
-  static Future<_ActiveBookingStatus?> fetchLatestActiveBookingStatus() async {
-    final statuses = await fetchActiveBookingStatuses();
-    return statuses.isEmpty ? null : statuses.first;
-  }
-
   static Future<List<_ActiveBookingStatus>> fetchActiveBookingStatuses() async {
     final response = await _getAbsolute(
       _bookingPaymentBaseUri.replace(path: '/booking-requests/active'),
+      authenticated: true,
+    );
+    final raw = response['data'];
+    if (raw is! List) {
+      return const <_ActiveBookingStatus>[];
+    }
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map((entry) => _mapActiveBookingStatus(Map<String, dynamic>.from(entry)))
+        .whereType<_ActiveBookingStatus>()
+        .toList(growable: false);
+  }
+
+  static Future<List<_ActiveBookingStatus>> fetchBookingHistoryStatuses() async {
+    final response = await _getAbsolute(
+      _bookingPaymentBaseUri.replace(path: '/booking-requests/history'),
       authenticated: true,
     );
     final raw = response['data'];
@@ -865,6 +912,7 @@ class _UserAppApi {
       requestCode: '${data['requestCode'] ?? ''}',
       bookingType: '${data['bookingType'] ?? ''}',
       requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      historyStatus: '${data['historyStatus'] ?? ''}',
       providerName: '${data['providerName'] ?? ''}',
       providerPhone: '${data['providerPhone'] ?? ''}',
       quotedPriceAmount: _money(data['quotedPriceAmount']),
@@ -883,8 +931,10 @@ class _UserAppApi {
       bookingCode: '${data['bookingCode'] ?? ''}',
       bookingStatus: bookingStatus,
       paymentStatus: paymentStatus,
+      createdAt: _parseDateTime(data['createdAt']),
       canMakePayment: bookingStatus.toUpperCase() == 'PAYMENT_PENDING' &&
           (paymentStatus.isEmpty || paymentStatus.toUpperCase() == 'UNPAID'),
+      reviewSubmitted: data['reviewSubmitted'] == true,
     );
   }
 
@@ -927,6 +977,21 @@ class _UserAppApi {
       body: {
         'bookingId': bookingId,
         'reason': reason,
+      },
+    );
+  }
+
+  static Future<void> submitBookingReview({
+    required int bookingId,
+    required int rating,
+    required String comment,
+  }) async {
+    await _postAbsoluteAuthenticated(
+      _bookingPaymentBaseUri.replace(path: '/bookings/review'),
+      body: {
+        'bookingId': bookingId,
+        'rating': rating,
+        'comment': comment.trim(),
       },
     );
   }
@@ -1832,6 +1897,19 @@ class _UserAppApi {
     final hourly = _money(raw['hourlyRate']);
     final halfDay = _money(raw['halfDayRate']);
     final fullDay = _money(raw['fullDayRate']);
+    final categoryPricings = (raw['categoryPricings'] as List? ?? const [])
+        .whereType<Map<dynamic, dynamic>>()
+        .map((entry) {
+          final map = Map<String, dynamic>.from(entry);
+          return _LabourCategoryPricing(
+            categoryId: (map['categoryId'] as num?)?.toInt(),
+            label: '${map['categoryName'] ?? category}',
+            halfDayPrice: _money(map['halfDayRate']),
+            fullDayPrice: _money(map['fullDayRate']),
+          );
+        })
+        .where((entry) => entry.categoryId != null || entry.label.trim().isNotEmpty)
+        .toList(growable: false);
     final availableNow = (raw['availableNow'] as bool?) ?? false;
     final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
     final disabledLabel = switch (availabilityStatus) {
@@ -1856,14 +1934,21 @@ class _UserAppApi {
       disabledLabel: disabledLabel,
       labourHalfDayPrice: halfDay,
       labourFullDayPrice: fullDay,
-      labourCategoryPricing: [
-        _LabourCategoryPricing(
-          categoryId: (raw['categoryId'] as num?)?.toInt(),
-          label: category,
-          halfDayPrice: halfDay,
-          fullDayPrice: fullDay,
-        ),
-      ],
+      experienceYears: (raw['experienceYears'] as num?)?.toInt(),
+      completedJobsCount: (raw['completedJobs'] as num?)?.toInt(),
+      labourRadiusKm: (raw['radiusKm'] as num?)?.toDouble(),
+      labourWorkLatitude: (raw['workLatitude'] as num?)?.toDouble(),
+      labourWorkLongitude: (raw['workLongitude'] as num?)?.toDouble(),
+      labourCategoryPricing: categoryPricings.isNotEmpty
+          ? categoryPricings
+          : [
+              _LabourCategoryPricing(
+                categoryId: (raw['categoryId'] as num?)?.toInt(),
+                label: category,
+                halfDayPrice: halfDay,
+                fullDayPrice: fullDay,
+              ),
+            ],
     );
   }
 
@@ -2437,6 +2522,7 @@ class _ActiveBookingStatus {
     required this.requestCode,
     required this.bookingType,
     required this.requestStatus,
+    required this.historyStatus,
     required this.providerName,
     required this.providerPhone,
     required this.quotedPriceAmount,
@@ -2455,13 +2541,16 @@ class _ActiveBookingStatus {
     required this.bookingCode,
     required this.bookingStatus,
     required this.paymentStatus,
+    required this.createdAt,
     required this.canMakePayment,
+    required this.reviewSubmitted,
   });
 
   final int requestId;
   final String requestCode;
   final String bookingType;
   final String requestStatus;
+  final String historyStatus;
   final String providerName;
   final String providerPhone;
   final String quotedPriceAmount;
@@ -2480,7 +2569,9 @@ class _ActiveBookingStatus {
   final String bookingCode;
   final String bookingStatus;
   final String paymentStatus;
+  final DateTime? createdAt;
   final bool canMakePayment;
+  final bool reviewSubmitted;
 }
 
 class _RemoteCartState {
@@ -2511,6 +2602,7 @@ class _UserProfileData {
     required this.publicUserId,
     required this.phone,
     required this.fullName,
+    required this.profilePhotoDataUri,
     required this.gender,
     required this.dob,
     required this.languageCode,
@@ -2520,6 +2612,7 @@ class _UserProfileData {
   final String publicUserId;
   final String phone;
   final String fullName;
+  final String profilePhotoDataUri;
   final String gender;
   final DateTime? dob;
   final String languageCode;

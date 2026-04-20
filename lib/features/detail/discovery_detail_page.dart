@@ -92,6 +92,23 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     return '${km.toStringAsFixed(1)} km';
   }
 
+  String get _labourExperienceLabel {
+    final years = widget.item.experienceYears;
+    if (years == null || years <= 0) {
+      return '0 years';
+    }
+    return years == 1 ? '1 year' : '$years years';
+  }
+
+  String get _completedJobsLabel {
+    final count = widget.item.completedJobsCount;
+    if (count != null) {
+      return '$count';
+    }
+    final digits = RegExp(r'\d+').firstMatch(widget.item.extra)?.group(0);
+    return digits ?? '0';
+  }
+
   bool get _isNearbyLabour =>
       widget.mode == _HomeMode.labour && (_distanceKm != null && _distanceKm! <= 1.0);
 
@@ -100,12 +117,34 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
 
   List<_LabourCategoryPricing> get _labourCategoryOptions {
     if (widget.item.labourCategoryPricing.isNotEmpty) {
-      return widget.item.labourCategoryPricing;
+      final normalized = <_LabourCategoryPricing>[];
+      final seenCategoryIds = <int?>{};
+      for (final pricing in widget.item.labourCategoryPricing) {
+        if (!seenCategoryIds.add(pricing.categoryId)) {
+          continue;
+        }
+        final normalizedLabel = pricing.label
+            .split(',')
+            .map((part) => part.trim())
+            .firstWhere((part) => part.isNotEmpty, orElse: () => pricing.label.trim());
+        normalized.add(
+          _LabourCategoryPricing(
+            categoryId: pricing.categoryId,
+            label: normalizedLabel,
+            halfDayPrice: pricing.halfDayPrice,
+            fullDayPrice: pricing.fullDayPrice,
+          ),
+        );
+      }
+      return normalized;
     }
     return [
       _LabourCategoryPricing(
         categoryId: widget.item.backendCategoryId,
-        label: widget.item.subtitle,
+        label: widget.item.subtitle
+            .split(',')
+            .map((part) => part.trim())
+            .firstWhere((part) => part.isNotEmpty, orElse: () => widget.item.subtitle.trim()),
         halfDayPrice: widget.item.labourHalfDayPrice,
         fullDayPrice: widget.item.labourFullDayPrice,
       ),
@@ -139,7 +178,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   String get _description {
     switch (widget.mode) {
       case _HomeMode.labour:
-        return 'Full mobile number will be visible only after the labour is booked and payment is completed.';
+        return '';
       case _HomeMode.service:
         return 'Book after checking category, rating, visit charge and service range. If provider does not reach in time, visiting charge can be refunded.';
       case _HomeMode.shop:
@@ -179,95 +218,55 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
         children: [
-          Container(
-            height: mode == _HomeMode.labour ? 176 : 240,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  item.accent.withValues(alpha: 0.18),
-                  item.accent.withValues(alpha: 0.6),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(28),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: mode == _HomeMode.labour
-                ? Center(
-                    child: AspectRatio(
-                      aspectRatio: 0.72,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          _LabourPortraitImage(
-                            item: item,
-                            fit: BoxFit.cover,
-                            scale: 1,
-                            alignment: Alignment.topCenter,
-                          ),
-                          if (_labourUnavailable)
-                            Positioned(
-                              left: -8,
-                              bottom: 56,
-                              child: _LabourAvailabilityRibbon(label: _labourUnavailableLabel),
-                            ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.05),
-                                  Colors.black.withValues(alpha: 0.44),
-                                ],
-                                stops: const [0.48, 0.72, 1],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Center(
-                    child: Icon(item.icon, size: 88, color: Colors.white),
-                  ),
-            ),
-          const SizedBox(height: 20),
-          Text(
-            item.title,
-            style: TextStyle(
-              color: const Color(0xFF22314D),
-              fontSize: mode == _HomeMode.labour ? 24 : 28,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          SizedBox(height: mode == _HomeMode.labour ? 5 : 8),
-          Text(
-            item.subtitle,
-            style: TextStyle(
-              color: const Color(0xFF6D7A91),
-              fontWeight: FontWeight.w700,
-              fontSize: mode == _HomeMode.labour ? 14 : 16,
-            ),
-          ),
-          SizedBox(height: mode == _HomeMode.labour ? 10 : 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              if (item.rating.isNotEmpty)
-                _MetaPill(icon: Icons.star_rounded, value: item.rating, color: _ratingColor(item.rating)),
-              _MetaPill(icon: Icons.place_rounded, value: _distanceLabel, color: const Color(0xFF5C8FD8)),
-              if (_isNearbyLabour)
-                const _MetaPill(
-                  icon: Icons.eco_rounded,
-                  value: 'Nearby',
-                  color: Color(0xFF18A957),
+          if (mode == _HomeMode.labour)
+            _buildLabourProfileHeader(item)
+          else ...[
+            Container(
+              height: 240,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    item.accent.withValues(alpha: 0.18),
+                    item.accent.withValues(alpha: 0.6),
+                  ],
                 ),
-              if (item.price.isNotEmpty && mode != _HomeMode.labour)
-                _MetaPill(icon: Icons.currency_rupee_rounded, value: item.price, color: item.accent),
-            ],
-          ),
+                borderRadius: BorderRadius.circular(28),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Center(
+                child: Icon(item.icon, size: 88, color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              item.title,
+              style: const TextStyle(
+                color: Color(0xFF22314D),
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              item.subtitle,
+              style: const TextStyle(
+                color: Color(0xFF6D7A91),
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (item.hasRating)
+                  _MetaPill(icon: Icons.star_rounded, value: item.rating, color: _ratingColor(item.rating)),
+                _MetaPill(icon: Icons.place_rounded, value: _distanceLabel, color: const Color(0xFF5C8FD8)),
+                if (item.price.isNotEmpty) _MetaPill(icon: Icons.currency_rupee_rounded, value: item.price, color: item.accent),
+              ],
+            ),
+          ],
           if (mode == _HomeMode.labour) ...[
             const SizedBox(height: 10),
             _labourCategorySelector(),
@@ -292,42 +291,39 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               ),
             ],
           ],
-          SizedBox(height: mode == _HomeMode.labour ? 12 : 18),
-          Container(
-            padding: EdgeInsets.all(mode == _HomeMode.labour ? 12 : 18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Profile details',
-                  style: TextStyle(
-                    color: Color(0xFF22314D),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
+          if (mode != _HomeMode.labour) ...[
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Profile details',
+                    style: TextStyle(
+                      color: Color(0xFF22314D),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
                   ),
-                ),
-                SizedBox(height: mode == _HomeMode.labour ? 9 : 12),
-                if (mode != _HomeMode.labour) _detailRow('Name', item.title),
-                if (mode != _HomeMode.labour && mode != _HomeMode.service) ...[
-                  _detailRow('Rating', item.rating),
-                  _detailRow('Distance', item.distance),
-                  _detailRow('Price', item.price.isEmpty ? 'As per profile' : item.price),
+                  const SizedBox(height: 12),
+                  _detailRow('Name', item.title),
+                  if (mode != _HomeMode.service) ...[
+                    if (item.hasRating) _detailRow('Rating', item.rating),
+                    _detailRow('Distance', item.distance),
+                    _detailRow('Price', item.price.isEmpty ? 'As per profile' : item.price),
+                  ],
+                  _detailRow('Experience', '5+ years'),
+                  _detailRow('Booking success', item.extra.isEmpty ? '124 successful' : item.extra),
+                  _detailRow('Mobile no.', item.maskedPhone),
                 ],
-                if (mode == _HomeMode.labour)
-                  _detailRow(
-                    'Distance',
-                    _isNearbyLabour ? '$_distanceLabel • Nearby' : _distanceLabel,
-                  ),
-                _detailRow('Experience', '5+ years'),
-                _detailRow('Booking success', item.extra.isEmpty ? '124 successful' : item.extra),
-                _detailRow(mode == _HomeMode.labour ? 'Masked mobile no.' : 'Mobile no.', item.maskedPhone),
-              ],
+              ),
             ),
-          ),
+          ],
           if (mode == _HomeMode.shop) ...[
             const SizedBox(height: 18),
             Container(
@@ -447,7 +443,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                     ),
             ),
           ),
-          if (mode == _HomeMode.labour || mode == _HomeMode.service) ...[
+          if ((mode == _HomeMode.labour || mode == _HomeMode.service) && _description.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -502,6 +498,232 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     );
   }
 
+  Widget _buildLabourProfileHeader(_DiscoveryItem item) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1A2030).withValues(alpha: 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 124,
+            height: 170,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          item.accent.withValues(alpha: 0.18),
+                          item.accent.withValues(alpha: 0.55),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _LabourPortraitImage(
+                    item: item,
+                    fit: BoxFit.cover,
+                    scale: 1,
+                    alignment: Alignment.topCenter,
+                  ),
+                  if (_labourUnavailable)
+                    Positioned(
+                      left: -4,
+                      bottom: 48,
+                      child: _LabourAvailabilityRibbon(label: _labourUnavailableLabel),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF22314D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    height: 1.08,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.place_rounded,
+                            size: 16,
+                            color: _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _isNearbyLabour ? '$_distanceLabel Nearby' : _distanceLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (item.hasRating) ...[
+                      const SizedBox(width: 10),
+                      Icon(
+                        Icons.star_rounded,
+                        size: 15,
+                        color: _ratingColor(item.rating),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        item.rating,
+                        style: TextStyle(
+                          color: _ratingColor(item.rating),
+                          fontSize: 12.8,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _labourInfoLine(
+                  label: 'Experience',
+                  value: _labourExperienceLabel,
+                ),
+                const SizedBox(height: 8),
+                _labourInfoLine(
+                  label: 'Total bookings',
+                  value: _completedJobsLabel,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3EEE9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.phone_rounded,
+                        size: 14,
+                        color: Color(0xFF66748C),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.maskedPhone,
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13.2,
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: _showPhoneUnmaskInfo,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3EEE9),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Icon(
+                                Icons.info_outline_rounded,
+                                size: 14,
+                                color: Color(0xFF66748C),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _labourInfoLine({
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 86,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF7A879B),
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF22314D),
+              fontWeight: FontWeight.w900,
+              fontSize: 13.2,
+              height: 1.2,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showPhoneUnmaskInfo() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Full mobile number will be visible only after the labour is booked and payment is completed.'),
+      ),
+    );
+  }
+
   Widget _labourCategorySelector() {
     final options = _labourCategoryOptions;
     return Container(
@@ -523,58 +745,58 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               height: 1,
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Choose the category first, then select Half Day or Full Day pricing for that exact work.',
-            style: TextStyle(
-              color: Color(0xFF66748C),
-              fontWeight: FontWeight.w700,
-              fontSize: 12.5,
-              height: 1.3,
-            ),
-          ),
           const SizedBox(height: 12),
-          ...options.map((pricing) {
-            final categorySelected = pricing.categoryId == _selectedLabourCategoryId;
-            final halfSelected = categorySelected && _selectedLabourBookingPeriod == 'Half Day';
-            final fullSelected = categorySelected && _selectedLabourBookingPeriod == 'Full Day';
-            final halfUnavailable = _priceLabelOrUnavailable(pricing.halfDayPrice) == 'Not available';
-            final fullUnavailable = _priceLabelOrUnavailable(pricing.fullDayPrice) == 'Not available';
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: categorySelected ? const Color(0xFFFFF5EF) : const Color(0xFFFFFAF7),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: categorySelected ? const Color(0xFFCB6E5B) : const Color(0xFFE8DCD6),
-                    width: categorySelected ? 1.5 : 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            pricing.label,
-                            style: const TextStyle(
-                              color: Color(0xFF22314D),
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tileWidth = (constraints.maxWidth - 10) / 2;
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: options.map((pricing) {
+                  final categorySelected = pricing.categoryId == _selectedLabourCategoryId;
+                  final halfSelected = categorySelected && _selectedLabourBookingPeriod == 'Half Day';
+                  final fullSelected = categorySelected && _selectedLabourBookingPeriod == 'Full Day';
+                  final halfUnavailable = _priceLabelOrUnavailable(pricing.halfDayPrice) == 'Not available';
+                  final fullUnavailable = _priceLabelOrUnavailable(pricing.fullDayPrice) == 'Not available';
+                  return SizedBox(
+                    width: tileWidth,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: categorySelected ? const Color(0xFFFFF5EF) : const Color(0xFFFFFAF7),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: categorySelected ? const Color(0xFFCB6E5B) : const Color(0xFFE8DCD6),
+                          width: categorySelected ? 1.5 : 1,
                         ),
-                        if (categorySelected)
-                          const Icon(Icons.check_circle_rounded, color: Color(0xFFCB6E5B), size: 20),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _labourCategoryPriceTile(
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  pricing.label,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF22314D),
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ),
+                              if (categorySelected)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 6, top: 1),
+                                  child: Icon(Icons.check_circle_rounded, color: Color(0xFFCB6E5B), size: 18),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _labourCategoryPriceTile(
                             categoryId: pricing.categoryId,
                             label: 'Half Day',
                             value: _priceLabelOrUnavailable(pricing.halfDayPrice),
@@ -583,10 +805,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                             selected: halfSelected,
                             unavailable: halfUnavailable,
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _labourCategoryPriceTile(
+                          const SizedBox(height: 8),
+                          _labourCategoryPriceTile(
                             categoryId: pricing.categoryId,
                             label: 'Full Day',
                             value: _priceLabelOrUnavailable(pricing.fullDayPrice),
@@ -595,14 +815,14 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                             selected: fullSelected,
                             unavailable: fullUnavailable,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            );
-          }),
+                  );
+                }).toList(growable: false),
+              );
+            },
+          ),
         ],
       ),
     );

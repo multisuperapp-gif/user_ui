@@ -1111,7 +1111,7 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1123,7 +1123,7 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                   style: TextStyle(
                     color: Color(0xFF22314D),
                     fontWeight: FontWeight.w900,
-                    fontSize: 16,
+                    fontSize: 14,
                   ),
                 ),
               ),
@@ -1134,11 +1134,19 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                     widget.onPeriodSelected('All');
                     widget.onMaxPriceChanged('');
                   },
-                  child: const Text('Clear'),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Clear',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                  ),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -1148,17 +1156,18 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                     labelText: 'Booking type',
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE6D8CF)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE6D8CF)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.4),
                     ),
                   ),
@@ -1172,6 +1181,7 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                             style: const TextStyle(
                               color: Color(0xFF22314D),
                               fontWeight: FontWeight.w800,
+                              fontSize: 13,
                             ),
                           ),
                         ),
@@ -1189,26 +1199,28 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                 child: TextField(
                   controller: _priceController,
                   keyboardType: TextInputType.number,
-                  scrollPadding: const EdgeInsets.only(bottom: 220),
+                  scrollPadding: const EdgeInsets.only(bottom: 24),
                   onChanged: widget.onMaxPriceChanged,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.currency_rupee_rounded, color: Color(0xFFCB6E5B)),
+                    prefixIcon: const Icon(Icons.currency_rupee_rounded, color: Color(0xFFCB6E5B), size: 18),
                     hintText: 'Max price range',
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE6D8CF)),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE6D8CF)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.4),
                     ),
+                    hintStyle: const TextStyle(fontSize: 13),
                   ),
                 ),
               ),
@@ -1824,7 +1836,7 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                       : TextField(
                           controller: _controller,
                           keyboardType: TextInputType.number,
-                          scrollPadding: const EdgeInsets.only(bottom: 220),
+                          scrollPadding: const EdgeInsets.only(bottom: 24),
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           onChanged: widget.onChanged,
                           cursorColor: widget.color,

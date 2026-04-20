@@ -11,6 +11,11 @@ import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity() {
+    companion object {
+        private const val LEGACY_BOOKING_UPDATES_CHANNEL_ID = "booking_updates"
+        private const val BOOKING_UPDATES_CHANNEL_ID = "booking_updates_v2"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createBookingUpdatesNotificationChannel()
@@ -24,12 +29,15 @@ class MainActivity : FlutterActivity() {
         val soundUri = Uri.parse(
             "${ContentResolver.SCHEME_ANDROID_RESOURCE}://$packageName/raw/skins_theme_short"
         )
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.deleteNotificationChannel(LEGACY_BOOKING_UPDATES_CHANNEL_ID)
+        notificationManager.deleteNotificationChannel(BOOKING_UPDATES_CHANNEL_ID)
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         val channel = NotificationChannel(
-            "booking_updates",
+            BOOKING_UPDATES_CHANNEL_ID,
             "Booking updates",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
@@ -40,7 +48,6 @@ class MainActivity : FlutterActivity() {
             setSound(soundUri, audioAttributes)
         }
 
-        getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(channel)
+        notificationManager.createNotificationChannel(channel)
     }
 }

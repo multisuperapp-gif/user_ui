@@ -465,7 +465,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F2EC),
@@ -485,9 +484,9 @@ class _LoginPageState extends State<LoginPage> {
           child: AnimatedPadding(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
-            padding: EdgeInsets.fromLTRB(18, 18, 18, keyboardInset > 0 ? keyboardInset + 16 : 18),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
             child: Align(
-              alignment: keyboardInset > 0 ? Alignment.topCenter : Alignment.center,
+              alignment: Alignment.center,
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 child: ConstrainedBox(
@@ -858,7 +857,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         builder: (context, constraints) {
           final compact = constraints.maxHeight < 780 || constraints.maxWidth < 390;
           final horizontalPadding = constraints.maxWidth < 360 ? 16.0 : 22.0;
-          final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
           final otpSpacing = compact ? 6.0 : 8.0;
 
           return Container(
@@ -1007,7 +1005,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                                 horizontalPadding,
                                 compact ? 18 : 22,
                                 horizontalPadding,
-                                24 + keyboardInset,
+                                24,
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1341,7 +1339,7 @@ class _PhoneInputField extends StatelessWidget {
             child: TextField(
               controller: controller,
               keyboardType: TextInputType.phone,
-              scrollPadding: const EdgeInsets.only(bottom: 220),
+              scrollPadding: const EdgeInsets.only(bottom: 24),
               textAlignVertical: TextAlignVertical.center,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
@@ -1409,7 +1407,7 @@ class _OtpDigitBox extends StatelessWidget {
         onChanged: onChanged,
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
-        scrollPadding: const EdgeInsets.only(bottom: 220),
+        scrollPadding: const EdgeInsets.only(bottom: 24),
         maxLength: 1,
         style: TextStyle(
           fontSize: compact ? 20 : 24,

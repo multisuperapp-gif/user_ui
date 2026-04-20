@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -16,6 +17,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,6 +93,414 @@ const String _defaultMapLongitude = '75.8577';
 
 String _formatMapCoordinate(double value) => value.toStringAsFixed(6);
 
+Uint8List? _decodePhotoDataUriOrBase64(String rawValue) {
+  final value = rawValue.trim();
+  if (value.isEmpty) {
+    return null;
+  }
+  final commaIndex = value.indexOf(',');
+  final encoded = commaIndex >= 0 && commaIndex < value.length - 1
+      ? value.substring(commaIndex + 1).trim()
+      : value;
+  if (encoded.isEmpty) {
+    return null;
+  }
+  try {
+    return base64Decode(encoded);
+  } catch (_) {
+    return null;
+  }
+}
+
+class _CroppedImageData {
+  const _CroppedImageData({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List bytes;
+  final int width;
+  final int height;
+}
+
+class _CropMetrics {
+  const _CropMetrics({
+    required this.viewportWidth,
+    required this.viewportHeight,
+    required this.renderWidth,
+    required this.renderHeight,
+    required this.left,
+    required this.top,
+    required this.scale,
+    required this.offset,
+  });
+
+  final double viewportWidth;
+  final double viewportHeight;
+  final double renderWidth;
+  final double renderHeight;
+  final double left;
+  final double top;
+  final double scale;
+  final Offset offset;
+}
+
+Future<ui.Image> _decodeUiImage(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  return frame.image;
+}
+
+Offset _clampCropOffset({
+  required Offset offset,
+  required double renderWidth,
+  required double renderHeight,
+  required double viewportWidth,
+  required double viewportHeight,
+}) {
+  final baseLeft = (viewportWidth - renderWidth) / 2;
+  final baseTop = (viewportHeight - renderHeight) / 2;
+  return Offset(
+    offset.dx.clamp(baseLeft, -baseLeft),
+    offset.dy.clamp(baseTop, -baseTop),
+  );
+}
+
+_CropMetrics _buildCropMetrics({
+  required double viewportWidth,
+  required double viewportHeight,
+  required int sourceWidth,
+  required int sourceHeight,
+  required double zoom,
+  required Offset offset,
+}) {
+  final baseScale = math.max(viewportWidth / sourceWidth, viewportHeight / sourceHeight);
+  final scale = baseScale * zoom;
+  final renderWidth = sourceWidth * scale;
+  final renderHeight = sourceHeight * scale;
+  final clampedOffset = _clampCropOffset(
+    offset: offset,
+    renderWidth: renderWidth,
+    renderHeight: renderHeight,
+    viewportWidth: viewportWidth,
+    viewportHeight: viewportHeight,
+  );
+  final left = (viewportWidth - renderWidth) / 2 + clampedOffset.dx;
+  final top = (viewportHeight - renderHeight) / 2 + clampedOffset.dy;
+  return _CropMetrics(
+    viewportWidth: viewportWidth,
+    viewportHeight: viewportHeight,
+    renderWidth: renderWidth,
+    renderHeight: renderHeight,
+    left: left,
+    top: top,
+    scale: scale,
+    offset: clampedOffset,
+  );
+}
+
+Future<_CroppedImageData> _cropImageBytes({
+  required ui.Image image,
+  required _CropMetrics metrics,
+}) async {
+  final srcLeft = (-metrics.left / metrics.scale).clamp(0.0, image.width.toDouble());
+  final srcTop = (-metrics.top / metrics.scale).clamp(0.0, image.height.toDouble());
+  final srcWidth = (metrics.viewportWidth / metrics.scale).clamp(1.0, image.width - srcLeft);
+  final srcHeight = (metrics.viewportHeight / metrics.scale).clamp(1.0, image.height - srcTop);
+
+  final outputWidth = srcWidth.round();
+  final outputHeight = srcHeight.round();
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.drawImageRect(
+    image,
+    Rect.fromLTWH(srcLeft, srcTop, srcWidth, srcHeight),
+    Rect.fromLTWH(0, 0, outputWidth.toDouble(), outputHeight.toDouble()),
+    Paint()..filterQuality = FilterQuality.high,
+  );
+  final picture = recorder.endRecording();
+  final cropped = await picture.toImage(outputWidth, outputHeight);
+  final byteData = await cropped.toByteData(format: ui.ImageByteFormat.png);
+  return _CroppedImageData(
+    bytes: byteData!.buffer.asUint8List(),
+    width: outputWidth,
+    height: outputHeight,
+  );
+}
+
+Future<BitmapDescriptor> _buildScooterMapMarker({
+  Color accentColor = const Color(0xFFCB6E5B),
+  Color iconColor = Colors.white,
+  IconData icon = Icons.electric_scooter_rounded,
+}) async {
+  const double width = 96;
+  const double bubbleDiameter = 72;
+  const double tailHeight = 20;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final bubbleCenter = const Offset(width / 2, bubbleDiameter / 2);
+
+  final shadowPaint = Paint()
+    ..color = Colors.black.withValues(alpha: 0.16)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+  canvas.drawCircle(bubbleCenter.translate(0, 6), bubbleDiameter / 2 - 4, shadowPaint);
+
+  final tailPath = Path()
+    ..moveTo(width / 2 - 10, bubbleDiameter - 6)
+    ..lineTo(width / 2 + 10, bubbleDiameter - 6)
+    ..lineTo(width / 2, bubbleDiameter + tailHeight)
+    ..close();
+  canvas.drawPath(tailPath, Paint()..color = accentColor);
+
+  canvas.drawCircle(
+    bubbleCenter,
+    bubbleDiameter / 2,
+    Paint()..color = Colors.white,
+  );
+  canvas.drawCircle(
+    bubbleCenter,
+    bubbleDiameter / 2 - 5,
+    Paint()..color = accentColor,
+  );
+
+  final textPainter = TextPainter(textDirection: TextDirection.ltr);
+  textPainter.text = TextSpan(
+    text: String.fromCharCode(icon.codePoint),
+    style: TextStyle(
+      fontSize: 34,
+      fontFamily: icon.fontFamily,
+      package: icon.fontPackage,
+      color: iconColor,
+    ),
+  );
+  textPainter.layout();
+  textPainter.paint(
+    canvas,
+    Offset(
+      bubbleCenter.dx - textPainter.width / 2,
+      bubbleCenter.dy - textPainter.height / 2,
+    ),
+  );
+
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(width.toInt(), (bubbleDiameter + tailHeight).toInt());
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  return BitmapDescriptor.bytes(
+    byteData!.buffer.asUint8List(),
+    width: width,
+    height: bubbleDiameter + tailHeight,
+  );
+}
+
+Future<_CroppedImageData?> _openSquareCropperDialog(
+  BuildContext context, {
+  required Uint8List bytes,
+  required String title,
+  Color accentColor = const Color(0xFFCB6E5B),
+}) async {
+  final decodedImage = await _decodeUiImage(bytes);
+  if (!context.mounted) {
+    decodedImage.dispose();
+    return null;
+  }
+
+  try {
+    return await showDialog<_CroppedImageData>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        double zoom = 1;
+        Offset offset = Offset.zero;
+        bool isCropping = false;
+        String? cropError;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenSize = MediaQuery.sizeOf(context);
+                  final maxDialogWidth = constraints.maxWidth.isFinite
+                      ? constraints.maxWidth - 28
+                      : screenSize.width - 64;
+                  final viewportSize = math.min(math.max(220.0, maxDialogWidth), 320.0);
+                  final metrics = _buildCropMetrics(
+                    viewportWidth: viewportSize,
+                    viewportHeight: viewportSize,
+                    sourceWidth: decodedImage.width,
+                    sourceHeight: decodedImage.height,
+                    zoom: zoom,
+                    offset: offset,
+                  );
+                  offset = metrics.offset;
+
+                  return SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Crop profile photo',
+                            style: TextStyle(
+                              color: Color(0xFF22314D),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Move and zoom the image to crop $title.',
+                            style: const TextStyle(
+                              color: Color(0xFF66748C),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Center(
+                            child: GestureDetector(
+                              onPanUpdate: (details) {
+                                setState(() {
+                                  offset = _clampCropOffset(
+                                    offset: offset + details.delta,
+                                    renderWidth: metrics.renderWidth,
+                                    renderHeight: metrics.renderHeight,
+                                    viewportWidth: viewportSize,
+                                    viewportHeight: viewportSize,
+                                  );
+                                });
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  width: viewportSize,
+                                  height: viewportSize,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F5F9),
+                                    border: Border.all(
+                                      color: accentColor.withValues(alpha: 0.35),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Positioned(
+                                        left: metrics.left,
+                                        top: metrics.top,
+                                        width: metrics.renderWidth,
+                                        height: metrics.renderHeight,
+                                        child: RawImage(
+                                          image: decodedImage,
+                                          fit: BoxFit.fill,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Icon(Icons.zoom_in_rounded, size: 18, color: accentColor),
+                              Expanded(
+                                child: Slider(
+                                  value: zoom,
+                                  min: 1,
+                                  max: 3,
+                                  activeColor: accentColor,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      zoom = value;
+                                      offset = _clampCropOffset(
+                                        offset: offset,
+                                        renderWidth: decodedImage.width *
+                                            math.max(viewportSize / decodedImage.width, viewportSize / decodedImage.height) *
+                                            zoom,
+                                        renderHeight: decodedImage.height *
+                                            math.max(viewportSize / decodedImage.width, viewportSize / decodedImage.height) *
+                                            zoom,
+                                        viewportWidth: viewportSize,
+                                        viewportHeight: viewportSize,
+                                      );
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (cropError != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              cropError!,
+                              style: const TextStyle(
+                                color: Color(0xFFD63D5C),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () => Navigator.of(dialogContext).pop(),
+                                child: const Text('Cancel'),
+                              ),
+                              const SizedBox(width: 8),
+                              FilledButton(
+                                onPressed: isCropping
+                                    ? null
+                                    : () async {
+                                        setState(() {
+                                          isCropping = true;
+                                          cropError = null;
+                                        });
+                                        try {
+                                          final cropped = await _cropImageBytes(
+                                            image: decodedImage,
+                                            metrics: metrics,
+                                          );
+                                          if (!dialogContext.mounted) {
+                                            return;
+                                          }
+                                          Navigator.of(dialogContext).pop(cropped);
+                                        } catch (_) {
+                                          if (!dialogContext.mounted) {
+                                            return;
+                                          }
+                                          setState(() {
+                                            isCropping = false;
+                                            cropError = 'Unable to crop this image. Try another JPG or PNG photo.';
+                                          });
+                                        }
+                                      },
+                                child: Text(isCropping ? 'Cropping...' : 'Use crop'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    decodedImage.dispose();
+  }
+}
+
 
 class MsaUserApp extends StatelessWidget {
   const MsaUserApp({super.key});
@@ -141,6 +551,27 @@ class MsaUserApp extends StatelessWidget {
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: Color(0xFF666666),
+          ),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFFFFF4F0),
+          contentTextStyle: const TextStyle(
+            color: ink,
+            fontWeight: FontWeight.w700,
+            fontSize: 13.5,
+            height: 1.35,
+          ),
+          actionTextColor: rose,
+          disabledActionTextColor: const Color(0xFFC89E93),
+          elevation: 0,
+          insetPadding: const EdgeInsets.fromLTRB(20, 0, 20, 260),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(
+              color: Color(0xFFF0C7BD),
+              width: 1.2,
+            ),
           ),
         ),
       ),

@@ -435,15 +435,17 @@ class _VerticalShopCard extends StatelessWidget {
                                   color: item.accent,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                flex: 10,
-                                child: _ServiceInlineMetaPill(
-                                  icon: Icons.star_rounded,
-                                  value: item.rating,
-                                  color: _ratingColor(item.rating),
+                              if (item.hasRating) ...[
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  flex: 10,
+                                  child: _ServiceInlineMetaPill(
+                                    icon: Icons.star_rounded,
+                                    value: item.rating,
+                                    color: _ratingColor(item.rating),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ],

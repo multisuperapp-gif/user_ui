@@ -152,6 +152,7 @@ class _PinnedSearchHeader extends StatefulWidget {
     required this.onProfileTap,
     required this.onCartTap,
     required this.unreadNotificationCount,
+    this.profilePhotoDataUri = '',
   });
 
   final TextEditingController controller;
@@ -161,6 +162,7 @@ class _PinnedSearchHeader extends StatefulWidget {
   final VoidCallback onProfileTap;
   final VoidCallback onCartTap;
   final int unreadNotificationCount;
+  final String profilePhotoDataUri;
 
   @override
   State<_PinnedSearchHeader> createState() => _PinnedSearchHeaderState();
@@ -215,15 +217,8 @@ class _PinnedSearchHeaderState extends State<_PinnedSearchHeader> {
                     InkWell(
                       onTap: widget.onProfileTap,
                       borderRadius: BorderRadius.circular(999),
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.person_outline_rounded,
-                          color: Colors.white,
-                          size: 29,
-                        ),
+                      child: _HeaderProfileAvatar(
+                        profilePhotoDataUri: widget.profilePhotoDataUri,
                       ),
                     ),
                   ],
@@ -297,6 +292,40 @@ class _HeaderCircleIcon extends StatelessWidget {
       width: 30,
       height: 30,
       child: Icon(icon, color: Colors.white, size: 28),
+    );
+  }
+}
+
+class _HeaderProfileAvatar extends StatelessWidget {
+  const _HeaderProfileAvatar({
+    required this.profilePhotoDataUri,
+  });
+
+  final String profilePhotoDataUri;
+
+  Uint8List? get _photoBytes {
+    return _decodePhotoDataUriOrBase64(profilePhotoDataUri);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photoBytes = _photoBytes;
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: photoBytes == null
+          ? const Icon(Icons.person_rounded, color: Colors.white, size: 20)
+          : Image.memory(
+              photoBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, error, stackTrace) => const Icon(Icons.person_rounded, color: Colors.white, size: 20),
+            ),
     );
   }
 }

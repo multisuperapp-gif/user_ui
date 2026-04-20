@@ -26,7 +26,7 @@ class _DiscoveryItem {
     required this.accent,
     required this.icon,
     this.price = '',
-    this.rating = '4.7',
+    this.rating = '',
     this.distance = '1.8 km',
     this.extra = '',
     this.maskedPhone = '98xxxxxx21',
@@ -44,6 +44,11 @@ class _DiscoveryItem {
     this.labourHalfDayPrice = '',
     this.labourFullDayPrice = '',
     this.labourCategoryPricing = const [],
+    this.experienceYears,
+    this.completedJobsCount,
+    this.labourRadiusKm,
+    this.labourWorkLatitude,
+    this.labourWorkLongitude,
   });
 
   final String title;
@@ -69,6 +74,16 @@ class _DiscoveryItem {
   final String labourHalfDayPrice;
   final String labourFullDayPrice;
   final List<_LabourCategoryPricing> labourCategoryPricing;
+  final int? experienceYears;
+  final int? completedJobsCount;
+  final double? labourRadiusKm;
+  final double? labourWorkLatitude;
+  final double? labourWorkLongitude;
+
+  bool get hasRating {
+    final parsed = double.tryParse(rating.trim());
+    return parsed != null && parsed > 0;
+  }
 
   _DiscoveryItem copyWith({
     String? title,
@@ -94,6 +109,11 @@ class _DiscoveryItem {
     String? labourHalfDayPrice,
     String? labourFullDayPrice,
     List<_LabourCategoryPricing>? labourCategoryPricing,
+    int? experienceYears,
+    int? completedJobsCount,
+    double? labourRadiusKm,
+    double? labourWorkLatitude,
+    double? labourWorkLongitude,
   }) {
     return _DiscoveryItem(
       title: title ?? this.title,
@@ -119,6 +139,11 @@ class _DiscoveryItem {
       labourHalfDayPrice: labourHalfDayPrice ?? this.labourHalfDayPrice,
       labourFullDayPrice: labourFullDayPrice ?? this.labourFullDayPrice,
       labourCategoryPricing: labourCategoryPricing ?? this.labourCategoryPricing,
+      experienceYears: experienceYears ?? this.experienceYears,
+      completedJobsCount: completedJobsCount ?? this.completedJobsCount,
+      labourRadiusKm: labourRadiusKm ?? this.labourRadiusKm,
+      labourWorkLatitude: labourWorkLatitude ?? this.labourWorkLatitude,
+      labourWorkLongitude: labourWorkLongitude ?? this.labourWorkLongitude,
     );
   }
 }

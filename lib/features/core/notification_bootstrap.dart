@@ -160,10 +160,11 @@ class _NotificationEvent {
   final bool openedApp;
 
   factory _NotificationEvent.fromRemoteMessage(RemoteMessage message, {required bool openedApp}) {
+    final data = Map<String, String>.from(message.data);
     return _NotificationEvent(
-      title: message.notification?.title?.trim() ?? '',
-      body: message.notification?.body?.trim() ?? '',
-      data: Map<String, String>.from(message.data),
+      title: message.notification?.title?.trim() ?? data['title']?.trim() ?? '',
+      body: message.notification?.body?.trim() ?? data['body']?.trim() ?? '',
+      data: data,
       openedApp: openedApp,
     );
   }
@@ -200,6 +201,7 @@ class _BookingUpdateSoundPlayer {
       case 'BOOKING_ACCEPTED':
       case 'BOOKING_PAYMENT_SUCCESS':
       case 'BOOKING_PROVIDER_ARRIVED':
+      case 'BOOKING_WORK_STARTED':
       case 'BOOKING_CANCELLED':
       case 'BOOKING_COMPLETED':
         return true;
