@@ -18,7 +18,7 @@ class _ModeFilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 46,
+      height: 50,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: filters.length,
@@ -31,7 +31,7 @@ class _ModeFilterRow extends StatelessWidget {
             onTap: () => onSelected(filter),
             child: Container(
               width: 68,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0.5),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -71,11 +71,11 @@ class _ModeFilterRow extends StatelessWidget {
                                     ? const Color(0xFF202435)
                                     : const Color(0xFF202435).withValues(alpha: 0.78),
                             fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-                            fontSize: 10.2,
+                            fontSize: 10,
                             height: 1,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 2),
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOut,

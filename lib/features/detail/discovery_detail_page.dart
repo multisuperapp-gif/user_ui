@@ -36,7 +36,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   void initState() {
     super.initState();
     _isAuthenticated = widget.isAuthenticated;
-    _selectedLabourCategoryId = _labourCategoryOptions.firstOrNull?.categoryId ?? widget.item.backendCategoryId;
+    _selectedLabourCategoryId = _defaultSelectedLabourCategoryId;
     unawaited(_refreshAuthStateFromSession());
   }
 
@@ -49,9 +49,18 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     if (oldWidget.item.backendLabourId != widget.item.backendLabourId ||
         oldWidget.item.labourCategoryPricing != widget.item.labourCategoryPricing) {
       _labourBookedLocally = false;
-      _selectedLabourCategoryId = _labourCategoryOptions.firstOrNull?.categoryId ?? widget.item.backendCategoryId;
+      _selectedLabourCategoryId = _defaultSelectedLabourCategoryId;
       _selectedLabourBookingPeriod = null;
     }
+  }
+
+  int? get _defaultSelectedLabourCategoryId {
+    final preferredCategoryId = widget.item.backendCategoryId;
+    if (preferredCategoryId != null &&
+        _labourCategoryOptions.any((pricing) => pricing.categoryId == preferredCategoryId)) {
+      return preferredCategoryId;
+    }
+    return _labourCategoryOptions.firstOrNull?.categoryId;
   }
 
   Future<void> _refreshAuthStateFromSession() async {
@@ -268,6 +277,47 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
             ),
           ],
           if (mode == _HomeMode.labour) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8F3),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFEAD9CE)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Work duration',
+                    style: TextStyle(
+                      color: Color(0xFF22314D),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Full day: 8 hr including lunch',
+                    style: TextStyle(
+                      color: Color(0xFF66748C),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Half day: 4 hr working',
+                    style: TextStyle(
+                      color: Color(0xFF66748C),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 10),
             _labourCategorySelector(),
             if (_labourUnavailable) ...[

@@ -115,6 +115,102 @@ class _AllLabourSection extends StatelessWidget {
   }
 }
 
+class _AllLabourLoadingSection extends StatelessWidget {
+  const _AllLabourLoadingSection({
+    required this.title,
+  });
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFFFBFC),
+              Color(0xFFFFEEF3),
+              Color(0xFFFFDDE8),
+              Color(0xFFFDF8FA),
+              Colors.white,
+            ],
+            stops: [0, 0.18, 0.46, 0.78, 1],
+          ),
+        ),
+        padding: const EdgeInsets.only(top: 2, bottom: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF2D8),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.engineering_rounded, size: 14, color: Color(0xFFF29F38)),
+                        SizedBox(width: 5),
+                        Text(
+                          'LABOUR PICKS',
+                          style: TextStyle(
+                            color: Color(0xFF8C5C14),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF2B2F39),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.3,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 84,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF2A13D), Color(0xFFFFD696)],
+                      ),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const _LabourPortraitLoadingSection(
+              topPadding: 6,
+              compactScale: 0.6,
+              trackColor: Color(0xFFFFEEF3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LabourPortraitSection extends StatelessWidget {
   const _LabourPortraitSection({
     required this.items,
@@ -166,6 +262,200 @@ class _LabourPortraitSection extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LabourPortraitLoadingSection extends StatelessWidget {
+  const _LabourPortraitLoadingSection({
+    this.compactScale = 1,
+    this.topPadding = 14,
+    this.trackColor,
+  });
+
+  final double compactScale;
+  final double topPadding;
+  final Color? trackColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final sectionHeight = 402 * compactScale;
+    final cardWidth = 270 * compactScale;
+    final cardGap = 10 * compactScale;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(18, topPadding, 0, 0),
+      child: Container(
+        color: trackColor ?? Colors.white,
+        child: SizedBox(
+          height: sectionHeight,
+          child: ListView.separated(
+            padding: const EdgeInsets.only(right: 18),
+            scrollDirection: Axis.horizontal,
+            itemCount: 3,
+            separatorBuilder: (_, _) => SizedBox(width: cardGap),
+            itemBuilder: (context, index) => SizedBox(
+              width: cardWidth,
+              child: _LabourPortraitSkeletonTile(compactScale: compactScale),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LabourGridLoadingSection extends StatelessWidget {
+  const _LabourGridLoadingSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+      sliver: SliverGrid.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: 246,
+        ),
+        itemCount: 4,
+        itemBuilder: (context, index) => const _LabourPortraitSkeletonTile(compactScale: 0.62),
+      ),
+    );
+  }
+}
+
+class _LabourPortraitSkeletonTile extends StatelessWidget {
+  const _LabourPortraitSkeletonTile({
+    this.compactScale = 1,
+  });
+
+  final double compactScale;
+
+  @override
+  Widget build(BuildContext context) {
+    final outerRadius = 20 * compactScale;
+    final outerPaddingX = 4 * compactScale;
+    final outerPaddingTop = compactScale < 1 ? 1.0 : 4 * compactScale;
+    final outerPaddingBottom = compactScale < 1 ? 3.0 : 6 * compactScale;
+    final imageHeight = compactScale < 1 ? 152.0 : 270 * compactScale;
+    final imageRadius = compactScale < 1 ? 12.0 : 14.0;
+    final primaryGap = compactScale < 1 ? 5.0 : 10 * compactScale;
+    final secondaryGap = compactScale < 1 ? 4.0 : 8 * compactScale;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(outerRadius),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.5),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFDF7DA0).withValues(alpha: 0.1),
+            blurRadius: 18 * compactScale,
+            spreadRadius: -4 * compactScale,
+            offset: Offset(0, 10 * compactScale),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          outerPaddingX,
+          outerPaddingTop,
+          outerPaddingX,
+          outerPaddingBottom,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LoadingSheenBox(
+              height: imageHeight,
+              borderRadius: BorderRadius.circular(imageRadius),
+            ),
+            SizedBox(height: primaryGap),
+            const _LoadingSheenBox(
+              height: 10,
+              width: 84,
+            ),
+            SizedBox(height: secondaryGap),
+            const _LoadingSheenBox(
+              height: 14,
+              width: 120,
+            ),
+            SizedBox(height: secondaryGap),
+            const _LoadingSheenBox(
+              height: 12,
+              width: 96,
+            ),
+            SizedBox(height: primaryGap),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: const LinearProgressIndicator(
+                minHeight: 4,
+                backgroundColor: Color(0xFFE7E2DE),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFCFC6C0)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingSheenBox extends StatefulWidget {
+  const _LoadingSheenBox({
+    required this.height,
+    this.width,
+    this.borderRadius,
+  });
+
+  final double height;
+  final double? width;
+  final BorderRadius? borderRadius;
+
+  @override
+  State<_LoadingSheenBox> createState() => _LoadingSheenBoxState();
+}
+
+class _LoadingSheenBoxState extends State<_LoadingSheenBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final value = _controller.value;
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: widget.borderRadius ?? BorderRadius.circular(10),
+            gradient: LinearGradient(
+              begin: Alignment(-1.8 + (value * 2.8), 0),
+              end: Alignment(-0.6 + (value * 2.8), 0),
+              colors: const [
+                Color(0xFFEAE5E0),
+                Color(0xFFF5F1EE),
+                Color(0xFFEAE5E0),
+              ],
+              stops: const [0.15, 0.5, 0.85],
+            ),
+          ),
+        );
+      },
     );
   }
 }

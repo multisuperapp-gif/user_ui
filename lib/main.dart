@@ -112,6 +112,49 @@ Uint8List? _decodePhotoDataUriOrBase64(String rawValue) {
   }
 }
 
+Map<String, dynamic>? _decodeJwtPayload(String token) {
+  final parts = token.trim().split('.');
+  if (parts.length < 2) {
+    return null;
+  }
+  try {
+    final normalized = base64Url.normalize(parts[1]);
+    final decoded = utf8.decode(base64Url.decode(normalized));
+    final map = jsonDecode(decoded);
+    return map is Map<String, dynamic> ? map : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+bool _isJwtExpired(String? token, {Duration clockSkew = const Duration(seconds: 30)}) {
+  final trimmed = token?.trim() ?? '';
+  if (trimmed.isEmpty) {
+    return true;
+  }
+  final payload = _decodeJwtPayload(trimmed);
+  final expSeconds = (payload?['exp'] as num?)?.toInt();
+  if (expSeconds == null || expSeconds <= 0) {
+    return false;
+  }
+  final expiry = DateTime.fromMillisecondsSinceEpoch(expSeconds * 1000, isUtc: true);
+  return DateTime.now().toUtc().isAfter(expiry.subtract(clockSkew));
+}
+
+bool _looksLikeExpiredSessionMessage(String message) {
+  final normalized = message.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return false;
+  }
+  return normalized.contains('session expired') ||
+      normalized.contains('access token expired') ||
+      normalized.contains('token expired') ||
+      normalized.contains('jwt expired') ||
+      normalized.contains('invalid token') ||
+      normalized.contains('unauthorized') ||
+      normalized.contains('login again');
+}
+
 class _CroppedImageData {
   const _CroppedImageData({
     required this.bytes,
@@ -161,9 +204,13 @@ Offset _clampCropOffset({
 }) {
   final baseLeft = (viewportWidth - renderWidth) / 2;
   final baseTop = (viewportHeight - renderHeight) / 2;
+  final minDx = math.min(baseLeft, -baseLeft);
+  final maxDx = math.max(baseLeft, -baseLeft);
+  final minDy = math.min(baseTop, -baseTop);
+  final maxDy = math.max(baseTop, -baseTop);
   return Offset(
-    offset.dx.clamp(baseLeft, -baseLeft),
-    offset.dy.clamp(baseTop, -baseTop),
+    offset.dx.clamp(minDx, maxDx),
+    offset.dy.clamp(minDy, maxDy),
   );
 }
 
@@ -175,22 +222,30 @@ _CropMetrics _buildCropMetrics({
   required double zoom,
   required Offset offset,
 }) {
-  final baseScale = math.max(viewportWidth / sourceWidth, viewportHeight / sourceHeight);
-  final scale = baseScale * zoom;
-  final renderWidth = sourceWidth * scale;
-  final renderHeight = sourceHeight * scale;
+  final safeViewportWidth = viewportWidth <= 0 ? 1.0 : viewportWidth;
+  final safeViewportHeight = viewportHeight <= 0 ? 1.0 : viewportHeight;
+  final safeSourceWidth = sourceWidth <= 0 ? 1 : sourceWidth;
+  final safeSourceHeight = sourceHeight <= 0 ? 1 : sourceHeight;
+  final safeZoom = zoom <= 0 ? 1.0 : zoom;
+  final baseScale = math.max(
+    safeViewportWidth / safeSourceWidth,
+    safeViewportHeight / safeSourceHeight,
+  );
+  final scale = baseScale * safeZoom;
+  final renderWidth = safeSourceWidth * scale;
+  final renderHeight = safeSourceHeight * scale;
   final clampedOffset = _clampCropOffset(
     offset: offset,
     renderWidth: renderWidth,
     renderHeight: renderHeight,
-    viewportWidth: viewportWidth,
-    viewportHeight: viewportHeight,
+    viewportWidth: safeViewportWidth,
+    viewportHeight: safeViewportHeight,
   );
-  final left = (viewportWidth - renderWidth) / 2 + clampedOffset.dx;
-  final top = (viewportHeight - renderHeight) / 2 + clampedOffset.dy;
+  final left = (safeViewportWidth - renderWidth) / 2 + clampedOffset.dx;
+  final top = (safeViewportHeight - renderHeight) / 2 + clampedOffset.dy;
   return _CropMetrics(
-    viewportWidth: viewportWidth,
-    viewportHeight: viewportHeight,
+    viewportWidth: safeViewportWidth,
+    viewportHeight: safeViewportHeight,
     renderWidth: renderWidth,
     renderHeight: renderHeight,
     left: left,
@@ -204,10 +259,11 @@ Future<_CroppedImageData> _cropImageBytes({
   required ui.Image image,
   required _CropMetrics metrics,
 }) async {
-  final srcLeft = (-metrics.left / metrics.scale).clamp(0.0, image.width.toDouble());
-  final srcTop = (-metrics.top / metrics.scale).clamp(0.0, image.height.toDouble());
-  final srcWidth = (metrics.viewportWidth / metrics.scale).clamp(1.0, image.width - srcLeft);
-  final srcHeight = (metrics.viewportHeight / metrics.scale).clamp(1.0, image.height - srcTop);
+  final safeScale = metrics.scale <= 0 ? 1.0 : metrics.scale;
+  final srcLeft = (-metrics.left / safeScale).clamp(0.0, image.width.toDouble());
+  final srcTop = (-metrics.top / safeScale).clamp(0.0, image.height.toDouble());
+  final srcWidth = (metrics.viewportWidth / safeScale).clamp(1.0, image.width - srcLeft);
+  final srcHeight = (metrics.viewportHeight / safeScale).clamp(1.0, image.height - srcTop);
 
   final outputWidth = srcWidth.round();
   final outputHeight = srcHeight.round();
@@ -234,63 +290,79 @@ Future<BitmapDescriptor> _buildScooterMapMarker({
   Color iconColor = Colors.white,
   IconData icon = Icons.electric_scooter_rounded,
 }) async {
-  const double width = 96;
-  const double bubbleDiameter = 72;
-  const double tailHeight = 20;
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final bubbleCenter = const Offset(width / 2, bubbleDiameter / 2);
+  try {
+    final byteData = await rootBundle.load('assets/images/labour_scooter.png');
+    final codec = await ui.instantiateImageCodec(
+      byteData.buffer.asUint8List(),
+      targetWidth: 84,
+      targetHeight: 84,
+    );
+    final frame = await codec.getNextFrame();
+    final pngBytes = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(
+      pngBytes!.buffer.asUint8List(),
+      width: 62,
+      height: 62,
+    );
+  } catch (_) {
+    const double width = 96;
+    const double bubbleDiameter = 72;
+    const double tailHeight = 20;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final bubbleCenter = const Offset(width / 2, bubbleDiameter / 2);
 
-  final shadowPaint = Paint()
-    ..color = Colors.black.withValues(alpha: 0.16)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-  canvas.drawCircle(bubbleCenter.translate(0, 6), bubbleDiameter / 2 - 4, shadowPaint);
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.16)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    canvas.drawCircle(bubbleCenter.translate(0, 6), bubbleDiameter / 2 - 4, shadowPaint);
 
-  final tailPath = Path()
-    ..moveTo(width / 2 - 10, bubbleDiameter - 6)
-    ..lineTo(width / 2 + 10, bubbleDiameter - 6)
-    ..lineTo(width / 2, bubbleDiameter + tailHeight)
-    ..close();
-  canvas.drawPath(tailPath, Paint()..color = accentColor);
+    final tailPath = Path()
+      ..moveTo(width / 2 - 10, bubbleDiameter - 6)
+      ..lineTo(width / 2 + 10, bubbleDiameter - 6)
+      ..lineTo(width / 2, bubbleDiameter + tailHeight)
+      ..close();
+    canvas.drawPath(tailPath, Paint()..color = accentColor);
 
-  canvas.drawCircle(
-    bubbleCenter,
-    bubbleDiameter / 2,
-    Paint()..color = Colors.white,
-  );
-  canvas.drawCircle(
-    bubbleCenter,
-    bubbleDiameter / 2 - 5,
-    Paint()..color = accentColor,
-  );
+    canvas.drawCircle(
+      bubbleCenter,
+      bubbleDiameter / 2,
+      Paint()..color = Colors.white,
+    );
+    canvas.drawCircle(
+      bubbleCenter,
+      bubbleDiameter / 2 - 5,
+      Paint()..color = accentColor,
+    );
 
-  final textPainter = TextPainter(textDirection: TextDirection.ltr);
-  textPainter.text = TextSpan(
-    text: String.fromCharCode(icon.codePoint),
-    style: TextStyle(
-      fontSize: 34,
-      fontFamily: icon.fontFamily,
-      package: icon.fontPackage,
-      color: iconColor,
-    ),
-  );
-  textPainter.layout();
-  textPainter.paint(
-    canvas,
-    Offset(
-      bubbleCenter.dx - textPainter.width / 2,
-      bubbleCenter.dy - textPainter.height / 2,
-    ),
-  );
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontSize: 34,
+        fontFamily: icon.fontFamily,
+        package: icon.fontPackage,
+        color: iconColor,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        bubbleCenter.dx - textPainter.width / 2,
+        bubbleCenter.dy - textPainter.height / 2,
+      ),
+    );
 
-  final picture = recorder.endRecording();
-  final image = await picture.toImage(width.toInt(), (bubbleDiameter + tailHeight).toInt());
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-  return BitmapDescriptor.bytes(
-    byteData!.buffer.asUint8List(),
-    width: width,
-    height: bubbleDiameter + tailHeight,
-  );
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width.toInt(), (bubbleDiameter + tailHeight).toInt());
+    final fallbackBytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(
+      fallbackBytes!.buffer.asUint8List(),
+      width: width,
+      height: bubbleDiameter + tailHeight,
+    );
+  }
 }
 
 Future<_CroppedImageData?> _openSquareCropperDialog(

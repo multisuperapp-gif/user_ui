@@ -139,10 +139,12 @@ class _UserHomePageState extends State<UserHomePage> {
   bool _localCartNeedsSync = false;
   bool _guestLocationPromptShown = false;
   String _headerProfilePhotoDataUri = '';
+  _UserProfileData? _cachedUserProfile;
   String? _sessionPhoneNumber;
   StreamSubscription<_NotificationEvent>? _notificationEventSubscription;
   int _discoveryBatchInFlightCount = 0;
   bool _initialDiscoveryBatchResolved = false;
+  bool _clearingExpiredSession = false;
 
   static const int _fashionProductBatchSize = 20;
   static const int _fashionProductTotalCount = 120;
@@ -248,19 +250,30 @@ class _UserHomePageState extends State<UserHomePage> {
     _homeBootstrapError = null;
   }
   try {
-    final remoteProducts = await _UserAppApi.fetchHomeTopProducts();
+    List<_DiscoveryItem> remoteProducts = const <_DiscoveryItem>[];
+    try {
+      remoteProducts = await _UserAppApi.fetchHomeTopProducts();
+    } on _UserAppApiException catch (error) {
+      if (!silent && mounted) {
+        _showCartSnack(error.message);
+      }
+    } catch (_) {
+      if (!silent && mounted) {
+        _showCartSnack('Could not refresh nearby shop picks right now.');
+      }
+    }
     _RemoteCartState? remoteCart;
     List<_ActiveBookingStatus> activeBookings = const <_ActiveBookingStatus>[];
-    String profilePhotoDataUri = '';
+    _UserProfileData? profile;
     if (_isAuthenticated) {
       final results = await Future.wait<dynamic>([
         _UserAppApi.fetchCart(),
         _loadActiveBookingStatusesSafe(),
-        _loadProfilePhotoPreviewSafe(),
+        _loadProfilePreviewSafe(),
       ]);
       remoteCart = results[0] as _RemoteCartState;
       activeBookings = results[1] as List<_ActiveBookingStatus>;
-      profilePhotoDataUri = results[2] as String;
+      profile = results[2] as _UserProfileData?;
     }
     if (!mounted) {
       return;
@@ -276,7 +289,8 @@ class _UserHomePageState extends State<UserHomePage> {
           ..addAll(remoteCart.items);
         _localCartNeedsSync = false;
       }
-      _headerProfilePhotoDataUri = _isAuthenticated ? profilePhotoDataUri : '';
+      _cachedUserProfile = _isAuthenticated ? profile : null;
+      _headerProfilePhotoDataUri = _isAuthenticated ? (profile?.profilePhotoDataUri.trim() ?? '') : '';
       _setActiveBookingStatuses(_isAuthenticated ? activeBookings : const <_ActiveBookingStatus>[]);
       _homeBootstrapError = null;
     });
@@ -440,12 +454,21 @@ Future<void> _refreshSessionPhoneFromStore() async {
   });
 }
 
-Future<String> _loadProfilePhotoPreviewSafe() async {
+Future<_UserProfileData?> _loadProfilePreviewSafe() async {
   try {
-    final profile = await _UserAppApi.fetchProfile();
-    return profile.profilePhotoDataUri.trim();
+    return await _UserAppApi.fetchProfile();
   } catch (_) {
-    return '';
+    return null;
+  }
+}
+
+void _markDiscoveryPending() {
+  if (mounted) {
+    setState(() {
+      _initialDiscoveryBatchResolved = false;
+    });
+  } else {
+    _initialDiscoveryBatchResolved = false;
   }
 }
 
@@ -474,9 +497,10 @@ Future<bool> _ensureAuthenticated() async {
   setState(() {
     _sessionPhoneNumber = savedPhoneNumber.trim();
   });
-  await _NotificationBootstrap.ensureRegistered();
+  _markDiscoveryPending();
   await _loadHomeLocationOptions();
   await _reloadAddressAwareDiscovery(silent: true);
+  await _NotificationBootstrap.ensureRegistered();
   await _hydrateRemoteState(silent: true);
   await _refreshNotificationPreview(silent: true);
   return true;
@@ -526,6 +550,7 @@ Future<void> _initializeHomeRequirements() async {
     }
     _initialHomeSetupRunning = true;
     try {
+      _markDiscoveryPending();
       await _enforceHomePermissions();
       await _loadHomeLocationOptions(forceCurrentSelection: true);
       if (!_isAuthenticated && !_guestLocationPromptShown && mounted) {
@@ -536,8 +561,8 @@ Future<void> _initializeHomeRequirements() async {
           }
         });
       }
-      await _NotificationBootstrap.ensureRegistered();
       await _reloadAddressAwareDiscovery();
+      await _NotificationBootstrap.ensureRegistered();
     } finally {
       _initialHomeSetupRunning = false;
     }
@@ -765,6 +790,7 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       if (!mounted || !canContinue) {
         return;
       }
+      _markDiscoveryPending();
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => const _AddressesPage(),
@@ -778,6 +804,7 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       setState(() {
         _selectedLocationChoice = result;
       });
+      _markDiscoveryPending();
       await _reloadAddressAwareDiscovery(silent: false);
     }
   }
@@ -785,9 +812,11 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
   Future<void> _reloadAddressAwareDiscovery({bool silent = true}) async {
     if (mounted) {
       setState(() {
+        _initialDiscoveryBatchResolved = false;
         _discoveryBatchInFlightCount++;
       });
     } else {
+      _initialDiscoveryBatchResolved = false;
       _discoveryBatchInFlightCount++;
     }
     try {
@@ -815,6 +844,7 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
   }
 
   Future<void> _refreshVisiblePage() async {
+    _markDiscoveryPending();
     await _loadHomeLocationOptions(forceCurrentSelection: true);
     await _refreshNotificationPreview(silent: true);
     await _loadLabourBookingPolicy();
@@ -847,6 +877,7 @@ Future<void> _loadLabourLanding({bool silent = true}) async {
   if (_labourRemoteLoading) {
     return;
   }
+  final hadExistingProfiles = _labourRemoteProfiles.isNotEmpty;
   setState(() {
     _labourRemoteLoading = true;
     _labourRemoteError = null;
@@ -894,23 +925,23 @@ Future<void> _loadLabourLanding({bool silent = true}) async {
     }
     if (mounted) {
       setState(() {
-        _labourRemoteError = error.message;
+        _labourRemoteError = hadExistingProfiles ? null : error.message;
       });
     } else {
-      _labourRemoteError = error.message;
+      _labourRemoteError = hadExistingProfiles ? null : error.message;
     }
-    if (!silent && mounted) {
+    if (!silent && mounted && !hadExistingProfiles) {
       _showCartSnack(error.message);
     }
   } catch (_) {
     if (mounted) {
       setState(() {
-        _labourRemoteError = 'Could not load labour profiles right now.';
+        _labourRemoteError = hadExistingProfiles ? null : 'Could not load labour profiles right now.';
       });
     } else {
-      _labourRemoteError = 'Could not load labour profiles right now.';
+      _labourRemoteError = hadExistingProfiles ? null : 'Could not load labour profiles right now.';
     }
-    if (!silent && mounted) {
+    if (!silent && mounted && !hadExistingProfiles) {
       _showCartSnack('Could not load labour profiles right now.');
     }
   } finally {
@@ -2370,13 +2401,8 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
 
 
 Widget? _buildLabourStateSliver() {
-  if (_labourRemoteLoading && _labourRemoteProfiles.isEmpty) {
-    return _buildRemoteStateSliver(
-      icon: Icons.engineering_rounded,
-      title: 'Loading labour nearby',
-      message: 'We are fetching the latest available labour profiles for you.',
-      loading: true,
-    );
+  if (_labourRemoteLoading) {
+    return null;
   }
   if (_labourRemoteError != null && _labourRemoteProfiles.isEmpty) {
     return _buildRemoteStateSliver(
@@ -2942,6 +2968,12 @@ Widget? _buildServiceStateSliver() {
     const pinnedSearchHeaderHeight = 58.0;
     const pinnedModeHeaderHeight = 44.0;
     const pinnedFilterHeaderHeight = 58.0;
+    const locationHeaderHeight = 86.0;
+    final refreshEdgeOffset =
+        locationHeaderHeight +
+        pinnedSearchHeaderHeight +
+        pinnedModeHeaderHeight +
+        (_mode != _HomeMode.all && _modeFilters.isNotEmpty ? pinnedFilterHeaderHeight : 0.0);
 
     _ensureShopSelectionIsVisible();
     final showActiveBookingPopup = _activeBookingStatus != null && (_mode == _HomeMode.all || _mode == _HomeMode.labour);
@@ -2965,6 +2997,8 @@ Widget? _buildServiceStateSliver() {
                   child: RefreshIndicator.adaptive(
                     onRefresh: _refreshVisiblePage,
                     color: const Color(0xFFCB6E5B),
+                    edgeOffset: refreshEdgeOffset,
+                    displacement: refreshEdgeOffset + 28,
                     child: SafeArea(
                       top: false,
                       bottom: false,
@@ -3848,7 +3882,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       );
     }
 
-    if (_labourRemoteProfiles.isNotEmpty) {
+    if (_labourRemoteLoading) {
+      slivers.add(
+        const SliverToBoxAdapter(
+          child: _AllLabourLoadingSection(
+            title: 'Labour nearby',
+          ),
+        ),
+      );
+    } else if (_labourRemoteProfiles.isNotEmpty) {
       slivers.add(
         SliverToBoxAdapter(
           child: _AllLabourSection(
@@ -3933,7 +3975,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               onMaxPriceChanged: (value) => setState(() => _selectedSingleLabourMaxPrice = value),
             ),
           ),
-          if (visibleLabourProfiles.isEmpty)
+          if (_labourRemoteLoading)
+            const _LabourGridLoadingSection()
+          else if (visibleLabourProfiles.isEmpty)
             _buildRemoteStateSliver(
               icon: Icons.filter_alt_off_rounded,
               title: 'No labour matched this filter',
@@ -4418,7 +4462,10 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       _openShopProfile(item);
       return;
     }
-    final detailItem = mode == _HomeMode.labour ? _buildLabourProfileDetailItem(item) : item;
+    final detailItem = mode == _HomeMode.labour ? await _resolveLabourDetailItem(item) : item;
+    if (!mounted) {
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _DiscoveryDetailPage(
@@ -4443,51 +4490,67 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     }
   }
 
+  Future<_DiscoveryItem> _resolveLabourDetailItem(_DiscoveryItem item) async {
+    final labourId = item.backendLabourId;
+    if (labourId == null) {
+      return item;
+    }
+    try {
+      final backendProfile = await _UserAppApi.fetchLabourProfile(labourId);
+      return _buildLabourProfileDetailItem(
+        backendProfile.copyWith(
+          backendCategoryId: item.backendCategoryId ?? backendProfile.backendCategoryId,
+          isDisabled: item.isDisabled,
+          disabledLabel: item.disabledLabel,
+        ),
+      );
+    } catch (_) {
+      return _buildLabourProfileDetailItem(item);
+    }
+  }
+
   _DiscoveryItem _buildLabourProfileDetailItem(_DiscoveryItem item) {
     if (item.backendLabourId == null) {
       return item;
     }
-    if (item.labourCategoryPricing.length > 1) {
-      final selectedPricing = item.labourCategoryPricing.firstWhere(
-        (pricing) => pricing.categoryId == item.backendCategoryId,
-        orElse: () => item.labourCategoryPricing.first,
-      );
-      return item.copyWith(
-        subtitle: selectedPricing.label.trim().isEmpty ? item.subtitle : selectedPricing.label.trim(),
-        labourHalfDayPrice: selectedPricing.halfDayPrice,
-        labourFullDayPrice: selectedPricing.fullDayPrice,
-      );
-    }
     final matchingProfiles = _labourRemoteProfiles
         .where((profile) => profile.backendLabourId == item.backendLabourId)
         .toList(growable: false);
-    if (matchingProfiles.isEmpty) {
-      return item;
-    }
+    final sourceProfiles = <_DiscoveryItem>[
+      item,
+      ...matchingProfiles.where(
+        (profile) =>
+            profile.backendCategoryId != item.backendCategoryId ||
+            profile.labourCategoryPricing.isNotEmpty,
+      ),
+    ];
     final categoryPricing = <_LabourCategoryPricing>[];
     final seenCategoryIds = <int?>{};
-    for (final profile in matchingProfiles) {
-      final pricing = profile.labourCategoryPricing
-              .where((entry) => entry.categoryId == profile.backendCategoryId)
-              .firstOrNull ??
-          profile.labourCategoryPricing.firstOrNull ??
-          _LabourCategoryPricing(
-            categoryId: profile.backendCategoryId,
-            label: profile.subtitle,
-            halfDayPrice: profile.labourHalfDayPrice,
-            fullDayPrice: profile.labourFullDayPrice,
-          );
-      final normalizedLabel =
-          _labourCategoryLabelForId(pricing.categoryId) ??
-          _labourCategoryLabelForId(profile.backendCategoryId) ??
-          pricing.label.trim().split(',').map((part) => part.trim()).firstWhere(
-                (part) => part.isNotEmpty,
-                orElse: () => profile.subtitle.trim(),
-              );
-      if (seenCategoryIds.add(pricing.categoryId)) {
+    for (final profile in sourceProfiles) {
+      final pricingEntries = profile.labourCategoryPricing.isNotEmpty
+          ? profile.labourCategoryPricing
+          : <_LabourCategoryPricing>[
+              _LabourCategoryPricing(
+                categoryId: profile.backendCategoryId,
+                label: profile.subtitle,
+                halfDayPrice: profile.labourHalfDayPrice,
+                fullDayPrice: profile.labourFullDayPrice,
+              ),
+            ];
+      for (final pricing in pricingEntries) {
+        final resolvedCategoryId = pricing.categoryId ?? profile.backendCategoryId;
+        final normalizedLabel =
+            _labourCategoryLabelForId(resolvedCategoryId) ??
+            pricing.label.trim().split(',').map((part) => part.trim()).firstWhere(
+                  (part) => part.isNotEmpty,
+                  orElse: () => profile.subtitle.trim(),
+                );
+        if (!seenCategoryIds.add(resolvedCategoryId)) {
+          continue;
+        }
         categoryPricing.add(
           _LabourCategoryPricing(
-            categoryId: pricing.categoryId,
+            categoryId: resolvedCategoryId,
             label: normalizedLabel,
             halfDayPrice: pricing.halfDayPrice,
             fullDayPrice: pricing.fullDayPrice,
@@ -4495,9 +4558,14 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         );
       }
     }
-    final selectedCategory = matchingProfiles.firstWhere(
-      (profile) => profile.backendCategoryId == item.backendCategoryId,
-      orElse: () => matchingProfiles.first,
+    if (categoryPricing.isEmpty) {
+      return item;
+    }
+    final selectedCategory = sourceProfiles.firstWhere(
+      (profile) =>
+          profile.backendCategoryId == item.backendCategoryId ||
+          profile.labourCategoryPricing.any((pricing) => pricing.categoryId == item.backendCategoryId),
+      orElse: () => item,
     );
     final selectedCategoryLabel =
         _labourCategoryLabelForId(selectedCategory.backendCategoryId) ??
@@ -5150,14 +5218,19 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
 
 
 Future<void> _openProfilePage() async {
-  final canContinue = await _ensureAuthenticated();
-  if (!mounted || !canContinue) {
+  if (!_isAuthenticated) {
+    final canContinue = await _ensureAuthenticated();
+    if (!mounted || !canContinue) {
+      return;
+    }
+    await _hydrateRemoteState(silent: true);
     return;
   }
-  await Navigator.of(context).push(
-    MaterialPageRoute<void>(
+  final updatedProfile = await Navigator.of(context).push<_UserProfileData>(
+    MaterialPageRoute<_UserProfileData>(
       builder: (_) => _ProfilePage(
         phoneNumber: _currentPhoneNumber,
+        initialProfile: _cachedUserProfile,
         onLogout: () async {
           await _NotificationBootstrap.deactivateCurrentToken();
           await _LocalSessionStore.clear();
@@ -5172,6 +5245,12 @@ Future<void> _openProfilePage() async {
       ),
     ),
   );
+  if (mounted && updatedProfile != null) {
+    setState(() {
+      _cachedUserProfile = updatedProfile;
+      _headerProfilePhotoDataUri = updatedProfile.profilePhotoDataUri.trim();
+    });
+  }
   await _refreshNotificationPreview(silent: true);
   await _hydrateRemoteState(silent: true);
 }
@@ -6401,9 +6480,48 @@ Future<bool> _handleShopCartAdd(_DiscoveryItem item, {bool openCartAfterAdd = fa
 }
 
 void _showCartSnack(String message) {
+    if (_looksLikeExpiredSessionMessage(message)) {
+      unawaited(_clearExpiredSessionAndReset());
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _clearExpiredSessionAndReset() async {
+    if (_clearingExpiredSession) {
+      return;
+    }
+    _clearingExpiredSession = true;
+    try {
+      try {
+        await _NotificationBootstrap.deactivateCurrentToken();
+      } catch (_) {
+        // Ignore token cleanup failures when the session is already invalid.
+      }
+      await _LocalSessionStore.clear();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _sessionPhoneNumber = null;
+        _headerProfilePhotoDataUri = '';
+        _cachedUserProfile = null;
+        _notificationUnreadCount = 0;
+        _savedAddresses = const <_UserAddressData>[];
+        _activeBookingStatuses = const <_ActiveBookingStatus>[];
+        _activeBookingIndex = 0;
+        _activeBookingPopupPositionInitialized = false;
+      });
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Session expired. Please login again.')),
+      );
+    } finally {
+      _clearingExpiredSession = false;
+    }
   }
 }
 
@@ -7474,7 +7592,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    canNoShowCancel ? 'Enabled now' : _reachCountdownLabel(status),
+                    _reachCountdownLabel(status),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12.5,
@@ -7489,7 +7607,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             Text(
               canNoShowCancel
                   ? 'Labour did not reach in time.'
-                  : 'Cancel unlocks after the reach timer.',
+                  : 'This button unlocks after the full reach timer ends.',
               style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
             ),
             const SizedBox(height: 12),
@@ -7603,14 +7721,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 
   String _cancelButtonLabel(_ActiveBookingStatus status) {
-    final reachByAt = status.reachByAt;
-    if (_canCancelAfterReachDeadline(status)) {
-      return 'Cancel because labour did not reach';
-    }
-    if (reachByAt != null) {
-      return 'Cancel enabled after ${_timeOnly(reachByAt)}';
-    }
-    return 'Cancel enabled after admin reach timeline';
+    return 'Cancel because labour did not reach';
   }
 
   String _reachCountdownLabel(_ActiveBookingStatus status) {
@@ -7679,6 +7790,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     final fallbackTarget = providerLocation ?? destinationLocation ?? const LatLng(26.8467, 80.9462);
     final etaLabel = _trackingRouteEtaLabel() ?? '';
     final distanceLabel = _trackingRouteDistanceLabel(status) ?? '';
+    final bookingStatus = status.bookingStatus.trim().toUpperCase();
+    final labourArrived = bookingStatus == 'ARRIVED' || bookingStatus == 'IN_PROGRESS' || bookingStatus == 'COMPLETED';
     final destinationName = _trackingDestinationName(status);
     GoogleMapController? dialogMapController;
 
@@ -7731,7 +7844,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: <Color>[Color(0xFF19B34A), Color(0xFF11913C)],
+                    colors: <Color>[Color(0xFFD48E78), Color(0xFFC9785F), Color(0xFFB95E53)],
                   ),
                 ),
                 child: Column(
@@ -7784,8 +7897,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Your labour is on the way',
+                    Text(
+                      labourArrived ? 'Labour has arrived' : 'Your labour is on the way',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
@@ -7796,11 +7909,13 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      etaLabel.trim().isNotEmpty
-                          ? 'Arriving in $etaLabel'
-                          : (distanceLabel.isNotEmpty ? distanceLabel : 'Live route updating'),
+                      labourArrived
+                          ? 'Arrival confirmed'
+                          : (etaLabel.trim().isNotEmpty
+                              ? 'Arriving in $etaLabel'
+                              : (distanceLabel.isNotEmpty ? distanceLabel : 'Live route updating')),
                       style: const TextStyle(
-                        color: Color(0xFFE9FFE9),
+                        color: Color(0xFFFFF3EE),
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
                       ),
@@ -7887,8 +8002,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                const Text(
-                                  'BOOKING DESTINATION',
+                                Text(
+                                  distanceLabel.isNotEmpty
+                                      ? 'BOOKING DESTINATION $distanceLabel'
+                                      : 'BOOKING DESTINATION',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
@@ -7900,7 +8017,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              distanceLabel.isNotEmpty ? 'Arriving in $etaLabel • $distanceLabel' : 'Arriving in $etaLabel',
+                              labourArrived
+                                  ? 'Labour has arrived'
+                                  : (etaLabel.isNotEmpty
+                                      ? 'Arriving in $etaLabel'
+                                      : (distanceLabel.isNotEmpty ? distanceLabel : 'Live route updating')),
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontWeight: FontWeight.w700,
@@ -7965,6 +8086,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
           markerId: const MarkerId('provider_live_location'),
           position: provider,
           infoWindow: InfoWindow(title: _providerTitle(status), snippet: 'Live labour location'),
+          flat: true,
+          anchor: const Offset(0.5, 0.5),
           icon: _providerScooterMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );

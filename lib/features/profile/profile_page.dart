@@ -3,10 +3,12 @@ part of '../../main.dart';
 class _ProfilePage extends StatefulWidget {
   const _ProfilePage({
     required this.phoneNumber,
+    this.initialProfile,
     required this.onLogout,
   });
 
   final String phoneNumber;
+  final _UserProfileData? initialProfile;
   final Future<void> Function() onLogout;
 
   @override
@@ -22,6 +24,7 @@ class _ProfilePageState extends State<_ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _profile = widget.initialProfile;
     _loadProfile();
   }
 
@@ -34,13 +37,20 @@ class _ProfilePageState extends State<_ProfilePage> {
       setState(() {
         _profile = profile;
       });
+    } on _UserSessionExpiredApiException {
+      if (!mounted) {
+        return;
+      }
+      await widget.onLogout();
     } catch (_) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _profile = null;
-      });
+      if (_profile == null) {
+        setState(() {
+          _profile = null;
+        });
+      }
     }
   }
 
@@ -180,6 +190,10 @@ class _ProfilePageState extends State<_ProfilePage> {
                   _profile = updated;
                 });
                 Navigator.of(sheetContext).pop();
+              } on _UserSessionExpiredApiException {
+                if (mounted) {
+                  await widget.onLogout();
+                }
               } on _UserAppApiException catch (error) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -254,7 +268,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: draftPhotoBytes == null
-                                    ? const Icon(Icons.person_rounded, size: 42, color: Color(0xFF324360))
+                                    ? const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360))
                                     : Image.memory(draftPhotoBytes!, fit: BoxFit.cover),
                               ),
                             ),
@@ -485,7 +499,7 @@ class _ProfilePageState extends State<_ProfilePage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pop(_profile),
                   icon: const Icon(Icons.close_rounded),
                 ),
               ),
@@ -505,7 +519,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: photoBytes == null
-                                ? const Icon(Icons.person_rounded, size: 42, color: Color(0xFF324360))
+                                ? const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360))
                                 : Image.memory(photoBytes, fit: BoxFit.cover),
                           ),
                           Positioned(
@@ -527,6 +541,19 @@ class _ProfilePageState extends State<_ProfilePage> {
                         ],
                       ),
                     ),
+                    if (photoBytes == null) ...[
+                      const SizedBox(height: 10),
+                      Center(
+                        child: Text(
+                          'Tap the camera to upload your profile photo',
+                          style: TextStyle(
+                            color: const Color(0xFF8A766A).withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.4,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Center(
                       child: Row(
@@ -647,8 +674,8 @@ class _ProfilePageState extends State<_ProfilePage> {
               ),
             ],
           ),
+          ),
         ),
-      ),
     );
   }
 }

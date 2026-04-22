@@ -320,11 +320,11 @@ class _HeaderProfileAvatar extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: photoBytes == null
-          ? const Icon(Icons.person_rounded, color: Colors.white, size: 20)
+          ? const Icon(Icons.add_a_photo_rounded, color: Colors.white, size: 18)
           : Image.memory(
               photoBytes,
               fit: BoxFit.cover,
-              errorBuilder: (_, error, stackTrace) => const Icon(Icons.person_rounded, color: Colors.white, size: 20),
+              errorBuilder: (_, error, stackTrace) => const Icon(Icons.add_a_photo_rounded, color: Colors.white, size: 18),
             ),
     );
   }

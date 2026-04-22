@@ -34,12 +34,16 @@ class _LaunchSplashPageState extends State<LaunchSplashPage>
       return;
     }
     _navigated = true;
-    final savedPhoneNumber = await _LocalSessionStore.readPhoneNumber();
+    String? savedPhoneNumber = await _LocalSessionStore.readPhoneNumber();
     final savedUserId = await _LocalSessionStore.readUserId();
-    if (savedPhoneNumber != null) {
-      if (savedUserId == null) {
-        await _LocalSessionStore.clear();
-      }
+    final savedAccessToken = await _LocalSessionStore.readAccessToken();
+    if (savedPhoneNumber != null &&
+        (savedUserId == null ||
+            savedAccessToken == null ||
+            savedAccessToken.trim().isEmpty ||
+            _isJwtExpired(savedAccessToken))) {
+      await _LocalSessionStore.clear();
+      savedPhoneNumber = null;
     }
     if (!mounted) {
       return;

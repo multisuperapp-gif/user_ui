@@ -172,6 +172,7 @@ class _UserAppApi {
       '/profile',
       authenticated: true,
       body: body,
+      timeout: const Duration(seconds: 20),
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     return _UserProfileData(
@@ -627,6 +628,26 @@ class _UserAppApi {
         ...categories,
       ],
       profiles: profiles,
+    );
+  }
+
+  static Future<_DiscoveryItem> fetchLabourProfile(int labourId) async {
+    final response = await _get(
+      '/public/labour/profiles/$labourId',
+      authenticated: await _hasUsableSession(),
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final rawProfile = Map<String, dynamic>.from((data['profile'] as Map?) ?? const {});
+    final item = _mapLabourProfile(rawProfile);
+    final skills = (data['skills'] as List? ?? const [])
+        .map((entry) => entry?.toString().trim() ?? '')
+        .where((entry) => entry.isNotEmpty)
+        .toList(growable: false);
+    if (skills.isEmpty) {
+      return item;
+    }
+    return item.copyWith(
+      extra: skills.join(', '),
     );
   }
 
@@ -1569,7 +1590,7 @@ class _UserAppApi {
       queryParameters: queryParameters,
     );
     final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _getAbsolute(
@@ -1578,7 +1599,7 @@ class _UserAppApi {
   }) async {
     final headers = await _headers(authenticated: authenticated);
     final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _post(
@@ -1591,24 +1612,32 @@ class _UserAppApi {
     final response = await http
         .post(uri, headers: headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _patch(
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = false,
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     final headers = await _headers(authenticated: authenticated, includeJson: body != null);
     final uri = _baseUri.replace(path: '${_baseUri.path}$path');
-    final response = await http
-        .patch(
-          uri,
-          headers: headers,
-          body: body == null ? null : jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    late final http.Response response;
+    try {
+      response = await http
+          .patch(
+            uri,
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
+          )
+          .timeout(timeout);
+    } on TimeoutException {
+      throw const _UserAppApiException(
+        'Saving took too long. Please try again with a smaller photo or retry once.',
+      );
+    }
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _put(
@@ -1621,7 +1650,7 @@ class _UserAppApi {
     final response = await http
         .put(uri, headers: headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _delete(
@@ -1631,7 +1660,7 @@ class _UserAppApi {
     final headers = await _headers(authenticated: authenticated);
     final uri = _baseUri.replace(path: '${_baseUri.path}$path');
     final response = await http.delete(uri, headers: headers).timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, String>> _headers({
@@ -1650,6 +1679,10 @@ class _UserAppApi {
       }
       if (accessToken == null || accessToken.trim().isEmpty) {
         throw const _UserAppApiException('Access token not found. Please login again.');
+      }
+      if (_isJwtExpired(accessToken)) {
+        await _LocalSessionStore.clear();
+        throw const _UserSessionExpiredApiException('Session expired. Please login again.');
       }
       headers['X-User-Id'] = '$userId';
       headers['Authorization'] = 'Bearer $accessToken';
@@ -1674,7 +1707,7 @@ class _UserAppApi {
           body: jsonEncode(body),
         )
         .timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _postAbsoluteAuthenticated(
@@ -1689,7 +1722,7 @@ class _UserAppApi {
           body: jsonEncode(body),
         )
         .timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
   static Future<Map<String, dynamic>> _patchAbsoluteAuthenticated(
@@ -1704,21 +1737,24 @@ class _UserAppApi {
           body: jsonEncode(body),
         )
         .timeout(const Duration(seconds: 8));
-    return _decodeResponse(response);
+    return await _decodeResponse(response);
   }
 
-  static Map<String, dynamic> _decodeResponse(http.Response response) {
+  static Future<Map<String, dynamic>> _decodeResponse(http.Response response) async {
     final decoded = response.body.isEmpty
         ? <String, dynamic>{}
         : Map<String, dynamic>.from(jsonDecode(response.body) as Map);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded;
     }
-    throw _UserAppApiException(
-      (decoded['message'] as String?)?.trim().isNotEmpty == true
-          ? decoded['message'] as String
-          : 'Request failed with status ${response.statusCode}.',
-    );
+    final message = (decoded['message'] as String?)?.trim().isNotEmpty == true
+        ? decoded['message'] as String
+        : 'Request failed with status ${response.statusCode}.';
+    if (response.statusCode == 401 || _looksLikeExpiredSessionMessage(message)) {
+      await _LocalSessionStore.clear();
+      throw const _UserSessionExpiredApiException('Session expired. Please login again.');
+    }
+    throw _UserAppApiException(message);
   }
 
   static _RemoteCartState _mapCart(Map<String, dynamic> data) {
@@ -3583,4 +3619,8 @@ class _UserAppApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class _UserSessionExpiredApiException extends _UserAppApiException {
+  const _UserSessionExpiredApiException(super.message);
 }
