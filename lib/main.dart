@@ -155,6 +155,30 @@ bool _looksLikeExpiredSessionMessage(String message) {
       normalized.contains('login again');
 }
 
+void _ensureFieldVisibleAboveKeyboard(
+  BuildContext context, {
+  double alignment = 0.92,
+}) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future<void>.delayed(const Duration(milliseconds: 70), () async {
+      if (!context.mounted || Scrollable.maybeOf(context) == null) {
+        return;
+      }
+      try {
+        await Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: alignment,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+        );
+      } catch (_) {
+        return;
+      }
+    });
+  });
+}
+
 class _CroppedImageData {
   const _CroppedImageData({
     required this.bytes,
@@ -294,15 +318,15 @@ Future<BitmapDescriptor> _buildScooterMapMarker({
     final byteData = await rootBundle.load('assets/images/labour_scooter.png');
     final codec = await ui.instantiateImageCodec(
       byteData.buffer.asUint8List(),
-      targetWidth: 84,
-      targetHeight: 84,
+      targetWidth: 64,
+      targetHeight: 64,
     );
     final frame = await codec.getNextFrame();
     final pngBytes = await frame.image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(
       pngBytes!.buffer.asUint8List(),
-      width: 62,
-      height: 62,
+      width: 28,
+      height: 28,
     );
   } catch (_) {
     const double width = 96;
@@ -363,6 +387,27 @@ Future<BitmapDescriptor> _buildScooterMapMarker({
       height: bubbleDiameter + tailHeight,
     );
   }
+}
+
+double _normalizeMapRotation(double degrees) {
+  final normalized = degrees % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+double _bearingBetweenLatLng(LatLng from, LatLng to) {
+  final fromLat = from.latitude * math.pi / 180.0;
+  final toLat = to.latitude * math.pi / 180.0;
+  final deltaLng = (to.longitude - from.longitude) * math.pi / 180.0;
+  final y = math.sin(deltaLng) * math.cos(toLat);
+  final x = math.cos(fromLat) * math.sin(toLat) -
+      math.sin(fromLat) * math.cos(toLat) * math.cos(deltaLng);
+  final bearing = math.atan2(y, x) * 180.0 / math.pi;
+  return _normalizeMapRotation(bearing);
+}
+
+double _scooterMarkerRotationDegrees(LatLng from, LatLng to) {
+  // The scooter asset faces right/east by default, so shift map bearing by 90 deg.
+  return _normalizeMapRotation(_bearingBetweenLatLng(from, to) - 90.0);
 }
 
 Future<_CroppedImageData?> _openSquareCropperDialog(

@@ -7,6 +7,7 @@ class _LocalSessionStore {
   static const _refreshTokenKey = 'saved_refresh_token';
   static const _publicUserIdKey = 'saved_public_user_id';
   static const _deviceTokenKey = 'saved_device_token';
+  static const _profileCacheKey = 'cached_user_profile';
 
   static Future<void> saveUserSession({
     required String phoneNumber,
@@ -55,6 +56,16 @@ class _LocalSessionStore {
     return created;
   }
 
+  static Future<void> saveProfileCache(String value) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_profileCacheKey, value);
+  }
+
+  static Future<String?> readProfileCache() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getString(_profileCacheKey);
+  }
+
   static Future<void> clear() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_phoneKey);
@@ -62,5 +73,6 @@ class _LocalSessionStore {
     await preferences.remove(_accessTokenKey);
     await preferences.remove(_refreshTokenKey);
     await preferences.remove(_publicUserIdKey);
+    await preferences.remove(_profileCacheKey);
   }
 }

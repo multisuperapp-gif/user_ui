@@ -1340,29 +1340,37 @@ class _PhoneInputField extends StatelessWidget {
           ),
           SizedBox(width: compact ? 8 : 10),
           Expanded(
-            child: TextField(
-              controller: controller,
-              keyboardType: TextInputType.phone,
-              scrollPadding: const EdgeInsets.only(bottom: 24),
-              textAlignVertical: TextAlignVertical.center,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
-              style: TextStyle(
-                fontSize: textSize,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1D1D1D),
-              ),
-              decoration: InputDecoration(
-                isDense: true,
-                counterText: '',
-                border: InputBorder.none,
-                hintText: 'Enter phone number',
-                hintStyle: TextStyle(
-                  color: const Color(0xFFA19A92),
-                  fontSize: hintSize,
-                  fontWeight: FontWeight.w500,
+            child: Focus(
+              onFocusChange: (hasFocus) {
+                if (hasFocus) {
+                  _ensureFieldVisibleAboveKeyboard(context);
+                }
+              },
+              child: TextField(
+                controller: controller,
+                keyboardType: TextInputType.phone,
+                scrollPadding: const EdgeInsets.only(bottom: 12),
+                textAlignVertical: TextAlignVertical.center,
+                onTap: () => _ensureFieldVisibleAboveKeyboard(context),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                style: TextStyle(
+                  fontSize: textSize,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1D1D1D),
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  counterText: '',
+                  border: InputBorder.none,
+                  hintText: 'Enter phone number',
+                  hintStyle: TextStyle(
+                    color: const Color(0xFFA19A92),
+                    fontSize: hintSize,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -1405,41 +1413,49 @@ class _OtpDigitBox extends StatelessWidget {
           ),
         ],
       ),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        onChanged: onChanged,
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        scrollPadding: const EdgeInsets.only(bottom: 24),
-        maxLength: 1,
-        style: TextStyle(
-          fontSize: compact ? 20 : 24,
-          fontWeight: FontWeight.w900,
-          color: const Color(0xFF1B1B1B),
-        ),
-        decoration: InputDecoration(
-          counterText: '',
-          filled: true,
-          fillColor: Colors.transparent,
-          hintText: '-',
-          hintStyle: TextStyle(
-            color: const Color(0xFF1B1B1B).withValues(alpha: 0.22),
-            fontSize: compact ? 18 : 22,
-            fontWeight: FontWeight.w800,
+      child: Focus(
+        onFocusChange: (hasFocus) {
+          if (hasFocus) {
+            _ensureFieldVisibleAboveKeyboard(context);
+          }
+        },
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: onChanged,
+          onTap: () => _ensureFieldVisibleAboveKeyboard(context),
+          textAlign: TextAlign.center,
+          keyboardType: TextInputType.number,
+          scrollPadding: const EdgeInsets.only(bottom: 12),
+          maxLength: 1,
+          style: TextStyle(
+            fontSize: compact ? 20 : 24,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF1B1B1B),
           ),
-          contentPadding: EdgeInsets.symmetric(vertical: compact ? 14 : 18),
-          border: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: const BorderSide(color: Color(0xFFE8D7CE), width: 1.2),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: const BorderSide(color: Color(0xFFE8D7CE), width: 1.2),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: radius,
-            borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.8),
+          decoration: InputDecoration(
+            counterText: '',
+            filled: true,
+            fillColor: Colors.transparent,
+            hintText: '-',
+            hintStyle: TextStyle(
+              color: const Color(0xFF1B1B1B).withValues(alpha: 0.22),
+              fontSize: compact ? 18 : 22,
+              fontWeight: FontWeight.w800,
+            ),
+            contentPadding: EdgeInsets.symmetric(vertical: compact ? 14 : 18),
+            border: OutlineInputBorder(
+              borderRadius: radius,
+              borderSide: const BorderSide(color: Color(0xFFE8D7CE), width: 1.2),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: radius,
+              borderSide: const BorderSide(color: Color(0xFFE8D7CE), width: 1.2),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: radius,
+              borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.8),
+            ),
           ),
         ),
       ),

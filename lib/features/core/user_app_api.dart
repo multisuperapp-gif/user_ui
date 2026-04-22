@@ -2652,6 +2652,33 @@ class _UserProfileData {
   final String gender;
   final DateTime? dob;
   final String languageCode;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'userId': userId,
+      'publicUserId': publicUserId,
+      'phone': phone,
+      'fullName': fullName,
+      'profilePhotoDataUri': profilePhotoDataUri,
+      'gender': gender,
+      'dob': dob?.toIso8601String(),
+      'languageCode': languageCode,
+    };
+  }
+
+  factory _UserProfileData.fromJson(Map<String, dynamic> json) {
+    final rawDob = json['dob']?.toString().trim() ?? '';
+    return _UserProfileData(
+      userId: (json['userId'] as num?)?.toInt() ?? 0,
+      publicUserId: json['publicUserId']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      fullName: json['fullName']?.toString() ?? 'MSA User',
+      profilePhotoDataUri: json['profilePhotoDataUri']?.toString() ?? '',
+      gender: json['gender']?.toString() ?? '',
+      dob: rawDob.isEmpty ? null : DateTime.tryParse(rawDob),
+      languageCode: json['languageCode']?.toString() ?? 'en',
+    );
+  }
 }
 
 class _UserAddressData {

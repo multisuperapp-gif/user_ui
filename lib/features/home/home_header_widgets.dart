@@ -310,22 +310,85 @@ class _HeaderProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final photoBytes = _photoBytes;
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: photoBytes == null
-          ? const Icon(Icons.add_a_photo_rounded, color: Colors.white, size: 18)
-          : Image.memory(
-              photoBytes,
-              fit: BoxFit.cover,
-              errorBuilder: (_, error, stackTrace) => const Icon(Icons.add_a_photo_rounded, color: Colors.white, size: 18),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            gradient: photoBytes == null
+                ? const LinearGradient(
+                    colors: [Color(0xFFD7937F), Color(0xFFC66D5A), Color(0xFF8D5B7A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: photoBytes == null ? null : Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.26)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFC66D5A).withValues(alpha: 0.18),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: photoBytes == null
+              ? const Center(
+                  child: Text(
+                    'MSA',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10.5,
+                      letterSpacing: 0.06,
+                    ),
+                  ),
+                )
+              : Image.memory(
+                  photoBytes,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, error, stackTrace) => const Center(
+                    child: Text(
+                      'MSA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10.5,
+                        letterSpacing: 0.06,
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
+            child: const Icon(
+              Icons.camera_alt_rounded,
+              size: 10,
+              color: Color(0xFFCB6E5B),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -25,12 +25,35 @@ class _ProfilePageState extends State<_ProfilePage> {
   void initState() {
     super.initState();
     _profile = widget.initialProfile;
+    unawaited(_restoreCachedProfile());
     _loadProfile();
+  }
+
+  Future<void> _restoreCachedProfile() async {
+    if (_profile != null) {
+      return;
+    }
+    final raw = await _LocalSessionStore.readProfileCache();
+    if (raw == null || raw.trim().isEmpty || !mounted) {
+      return;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return;
+      }
+      setState(() {
+        _profile = _UserProfileData.fromJson(decoded);
+      });
+    } catch (_) {
+      return;
+    }
   }
 
   Future<void> _loadProfile() async {
     try {
       final profile = await _UserAppApi.fetchProfile();
+      await _LocalSessionStore.saveProfileCache(jsonEncode(profile.toJson()));
       if (!mounted) {
         return;
       }
@@ -186,6 +209,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                 if (!mounted) {
                   return;
                 }
+                await _LocalSessionStore.saveProfileCache(jsonEncode(updated.toJson()));
                 setState(() {
                   _profile = updated;
                 });
@@ -214,9 +238,9 @@ class _ProfilePageState extends State<_ProfilePage> {
               top: false,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  12,
                   0,
-                  12,
+                  0,
+                  0,
                   MediaQuery.viewInsetsOf(context).bottom + 12,
                 ),
                 child: Container(
@@ -1339,7 +1363,8 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                                   TextField(
                                     controller: _startWorkOtpController,
                                     keyboardType: TextInputType.number,
-                                    scrollPadding: const EdgeInsets.only(bottom: 24),
+                                    scrollPadding: const EdgeInsets.only(bottom: 12),
+                                    onTap: () => _ensureFieldVisibleAboveKeyboard(context),
                                     maxLength: 6,
                                     onChanged: (_) {
                                       if (_startWorkOtpError != null) {

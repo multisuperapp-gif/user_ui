@@ -142,9 +142,11 @@ class _UserHomePageState extends State<UserHomePage> {
   _UserProfileData? _cachedUserProfile;
   String? _sessionPhoneNumber;
   StreamSubscription<_NotificationEvent>? _notificationEventSubscription;
+  Timer? _activeBookingRefreshTimer;
   int _discoveryBatchInFlightCount = 0;
   bool _initialDiscoveryBatchResolved = false;
   bool _clearingExpiredSession = false;
+  final Set<int> _announcedArrivedBookingIds = <int>{};
 
   static const int _fashionProductBatchSize = 20;
   static const int _fashionProductTotalCount = 120;
@@ -157,8 +159,10 @@ class _UserHomePageState extends State<UserHomePage> {
     _sessionPhoneNumber = widget.phoneNumber?.trim();
     _scrollController.addListener(_handleScroll);
     _notificationEventSubscription = _NotificationBootstrap.events.listen(_handleNotificationEvent);
+    unawaited(_restoreCachedProfilePreview());
     unawaited(_hydrateRemoteState());
     unawaited(_loadLabourBookingPolicy());
+    _syncActiveBookingRefreshPolling();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_initializeHomeRequirements());
       final pendingEvent = _NotificationBootstrap.takePendingOpenEvent();
@@ -171,6 +175,7 @@ class _UserHomePageState extends State<UserHomePage> {
   @override
   void dispose() {
     _notificationEventSubscription?.cancel();
+    _activeBookingRefreshTimer?.cancel();
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
@@ -187,13 +192,140 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   void _setActiveBookingStatuses(List<_ActiveBookingStatus> statuses) {
+    _announceArrivedBookings(statuses);
     _activeBookingStatuses = statuses;
     if (_activeBookingStatuses.isEmpty) {
       _activeBookingIndex = 0;
       _activeBookingPopupPositionInitialized = false;
+      _syncActiveBookingRefreshPolling();
       return;
     }
     _activeBookingIndex = _activeBookingIndex.clamp(0, _activeBookingStatuses.length - 1);
+    _syncActiveBookingRefreshPolling();
+  }
+
+  bool _shouldPollActiveBookings() => _isAuthenticated && _activeBookingStatuses.isNotEmpty;
+
+  void _syncActiveBookingRefreshPolling() {
+    if (!_shouldPollActiveBookings()) {
+      _activeBookingRefreshTimer?.cancel();
+      _activeBookingRefreshTimer = null;
+      return;
+    }
+    _activeBookingRefreshTimer ??= Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || !_isAuthenticated) {
+        return;
+      }
+      unawaited(_refreshActiveBookingsSilently());
+    });
+  }
+
+  Future<void> _refreshActiveBookingsSilently() async {
+    try {
+      final statuses = await _loadActiveBookingStatusesSafe();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _setActiveBookingStatuses(statuses);
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+    }
+  }
+
+  void _announceArrivedBookings(List<_ActiveBookingStatus> statuses) {
+    final visibleBookingIds = <int>{};
+    for (final status in statuses) {
+      if (status.bookingId > 0) {
+        visibleBookingIds.add(status.bookingId);
+      }
+      final bookingStatus = status.bookingStatus.trim().toUpperCase();
+      if (bookingStatus != 'ARRIVED' || status.bookingId <= 0) {
+        continue;
+      }
+      if (_announcedArrivedBookingIds.contains(status.bookingId)) {
+        continue;
+      }
+      _announcedArrivedBookingIds.add(status.bookingId);
+      unawaited(_BookingUpdateSoundPlayer.play());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _showLabourArrivedNotification(
+          providerName: status.providerName.trim(),
+        );
+      });
+    }
+    _announcedArrivedBookingIds.removeWhere((bookingId) => !visibleBookingIds.contains(bookingId));
+  }
+
+  int? _bookingIdFromNotificationEvent(_NotificationEvent event) {
+    return int.tryParse((event.data['bookingId'] ?? '').trim());
+  }
+
+  void _showLabourArrivedNotification({
+    required String providerName,
+    String? body,
+  }) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 110),
+        backgroundColor: const Color(0xFF22314D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        content: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1FA855).withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF79E0A1), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Labour has arrived',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    body?.trim().isNotEmpty == true
+                        ? body!.trim()
+                        : (providerName.isEmpty
+                            ? 'Your labour is now at your location.'
+                            : '$providerName has arrived at your location.'),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.86),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.4,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _upsertActiveBookingStatus(_ActiveBookingStatus? status) {
@@ -334,8 +466,15 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
     if (!event.isVisibleInUserApp) {
       return;
     }
+    final arrivalBookingId = event.type == 'BOOKING_PROVIDER_ARRIVED' ? _bookingIdFromNotificationEvent(event) : null;
+    final alreadyAnnouncedArrival = arrivalBookingId != null && _announcedArrivedBookingIds.contains(arrivalBookingId);
+    if (arrivalBookingId != null) {
+      _announcedArrivedBookingIds.add(arrivalBookingId);
+    }
     if (!event.openedApp && _BookingUpdateSoundPlayer.shouldPlayForUserEvent(event.type)) {
-      unawaited(_BookingUpdateSoundPlayer.play());
+      if (event.type != 'BOOKING_PROVIDER_ARRIVED' || !alreadyAnnouncedArrival) {
+        unawaited(_BookingUpdateSoundPlayer.play());
+      }
     }
     await _refreshNotificationPreview(silent: true);
     await _hydrateRemoteState(silent: true);
@@ -365,6 +504,14 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
     }
 
     if (!event.hasVisibleContent) {
+      return;
+    }
+
+    if (event.type == 'BOOKING_PROVIDER_ARRIVED') {
+      _showLabourArrivedNotification(
+        providerName: '',
+        body: event.body.trim().isNotEmpty ? event.body : null,
+      );
       return;
     }
 
@@ -456,10 +603,42 @@ Future<void> _refreshSessionPhoneFromStore() async {
 
 Future<_UserProfileData?> _loadProfilePreviewSafe() async {
   try {
-    return await _UserAppApi.fetchProfile();
+    final profile = await _UserAppApi.fetchProfile();
+    await _LocalSessionStore.saveProfileCache(jsonEncode(profile.toJson()));
+    return profile;
+  } catch (_) {
+    return await _readCachedProfilePreview();
+  }
+}
+
+Future<_UserProfileData?> _readCachedProfilePreview() async {
+  final raw = await _LocalSessionStore.readProfileCache();
+  if (raw == null || raw.trim().isEmpty) {
+    return null;
+  }
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      return null;
+    }
+    return _UserProfileData.fromJson(decoded);
   } catch (_) {
     return null;
   }
+}
+
+Future<void> _restoreCachedProfilePreview() async {
+  if (!_isAuthenticated) {
+    return;
+  }
+  final cached = await _readCachedProfilePreview();
+  if (!mounted || cached == null) {
+    return;
+  }
+  setState(() {
+    _cachedUserProfile = cached;
+    _headerProfilePhotoDataUri = cached.profilePhotoDataUri.trim();
+  });
 }
 
 void _markDiscoveryPending() {
@@ -5250,6 +5429,7 @@ Future<void> _openProfilePage() async {
       _cachedUserProfile = updatedProfile;
       _headerProfilePhotoDataUri = updatedProfile.profilePhotoDataUri.trim();
     });
+    await _LocalSessionStore.saveProfileCache(jsonEncode(updatedProfile.toJson()));
   }
   await _refreshNotificationPreview(silent: true);
   await _hydrateRemoteState(silent: true);
@@ -7415,6 +7595,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                         child: GoogleMap(
                           initialCameraPosition: _trackingCameraPosition(status),
                           markers: _trackingMarkers(status),
+                          circles: _trackingCircles(status),
                           polylines: _trackingPolylines(status),
                           zoomControlsEnabled: false,
                           myLocationButtonEnabled: false,
@@ -7487,7 +7668,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               controller: _startWorkOtpController,
               enabled: canEnterOtp && !_verifyingStart,
               keyboardType: TextInputType.number,
-              scrollPadding: const EdgeInsets.only(bottom: 24),
+              scrollPadding: const EdgeInsets.only(bottom: 12),
+              onTap: () => _ensureFieldVisibleAboveKeyboard(context),
               maxLength: 6,
               decoration: InputDecoration(
                 counterText: '',
@@ -7614,14 +7796,28 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             OutlinedButton(
               onPressed: canNoShowCancel && !_cancellingNoShow ? _cancelAfterReachDeadline : null,
               style: OutlinedButton.styleFrom(
-                foregroundColor: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFF9C948E),
-                disabledForegroundColor: const Color(0xFF9C948E),
+                foregroundColor: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFF8F8781),
+                disabledForegroundColor: const Color(0xFF8F8781),
                 minimumSize: const Size.fromHeight(46),
-                side: BorderSide(color: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFFD8C7BC)),
-                backgroundColor: canNoShowCancel ? const Color(0xFFFFF7F7) : const Color(0xFFF4EFEA),
+                side: BorderSide(
+                  color: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFFD1C7C0),
+                  width: canNoShowCancel ? 1.2 : 1,
+                ),
+                backgroundColor: canNoShowCancel ? const Color(0xFFFFF7F7) : const Color(0xFFE8E2DD),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: Text(_cancellingNoShow ? 'Cancelling...' : _cancelButtonLabel(status)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    canNoShowCancel ? Icons.cancel_outlined : Icons.lock_clock_rounded,
+                    size: 18,
+                    color: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFF8F8781),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_cancellingNoShow ? 'Cancelling...' : _cancelButtonLabel(status)),
+                ],
+              ),
             ),
           ],
           if (showMutualCancel) ...[
@@ -7647,7 +7843,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               controller: _mutualCancelOtpController,
               enabled: !_verifyingMutualCancel,
               keyboardType: TextInputType.number,
-              scrollPadding: const EdgeInsets.only(bottom: 24),
+              scrollPadding: const EdgeInsets.only(bottom: 12),
+              onTap: () => _ensureFieldVisibleAboveKeyboard(context),
               maxLength: 6,
               decoration: InputDecoration(
                 counterText: '',
@@ -7945,6 +8142,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       zoomControlsEnabled: false,
                       compassEnabled: true,
                       markers: _trackingMarkers(status),
+                      circles: _trackingCircles(status),
                       polylines: _trackingPolylines(status),
                     ),
                     Positioned(
@@ -8076,10 +8274,24 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     return CameraPosition(target: focus, zoom: 15.8);
   }
 
+  double? _providerTrackingRotation(_ActiveBookingStatus status) {
+    final polylinePoints = _routeSnapshot?.polylinePoints ?? const <LatLng>[];
+    if (polylinePoints.length >= 2) {
+      return _scooterMarkerRotationDegrees(polylinePoints.first, polylinePoints[1]);
+    }
+    final provider = _providerTrackingLatLng(status);
+    final destination = _destinationTrackingLatLng(status);
+    if (provider != null && destination != null) {
+      return _scooterMarkerRotationDegrees(provider, destination);
+    }
+    return null;
+  }
+
   Set<Marker> _trackingMarkers(_ActiveBookingStatus status) {
     final markers = <Marker>{};
     final provider = _providerTrackingLatLng(status);
     final destination = _destinationTrackingLatLng(status);
+    final providerRotation = _providerTrackingRotation(status);
     if (provider != null) {
       markers.add(
         Marker(
@@ -8088,6 +8300,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
           infoWindow: InfoWindow(title: _providerTitle(status), snippet: 'Live labour location'),
           flat: true,
           anchor: const Offset(0.5, 0.5),
+          rotation: providerRotation ?? 0,
           icon: _providerScooterMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
@@ -8120,6 +8333,43 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         color: const Color(0xFFCB6E5B),
         startCap: Cap.roundCap,
         endCap: Cap.roundCap,
+      ),
+    };
+  }
+
+  Set<Circle> _trackingCircles(_ActiveBookingStatus status) {
+    final destination = _destinationTrackingLatLng(status);
+    if (destination == null) {
+      return const <Circle>{};
+    }
+    final bookingStatus = status.bookingStatus.trim().toUpperCase();
+    final arrived = bookingStatus == 'ARRIVED' || bookingStatus == 'IN_PROGRESS' || bookingStatus == 'COMPLETED';
+    final baseStroke = arrived ? const Color(0xFFD12F2F) : const Color(0xFFE25555);
+    final baseFill = arrived ? const Color(0x26D12F2F) : const Color(0x20E25555);
+    return <Circle>{
+      Circle(
+        circleId: const CircleId('destination_geofence_outer'),
+        center: destination,
+        radius: 100,
+        strokeWidth: 2,
+        strokeColor: baseStroke,
+        fillColor: baseFill,
+      ),
+      Circle(
+        circleId: const CircleId('destination_geofence_mid'),
+        center: destination,
+        radius: 66,
+        strokeWidth: 1,
+        strokeColor: baseStroke.withValues(alpha: 0.55),
+        fillColor: baseStroke.withValues(alpha: 0.10),
+      ),
+      Circle(
+        circleId: const CircleId('destination_geofence_inner'),
+        center: destination,
+        radius: 34,
+        strokeWidth: 1,
+        strokeColor: baseStroke.withValues(alpha: 0.34),
+        fillColor: baseStroke.withValues(alpha: 0.16),
       ),
     };
   }

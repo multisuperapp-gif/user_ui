@@ -101,6 +101,39 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     return '${km.toStringAsFixed(1)} km';
   }
 
+  double? get _ratingValue {
+    final parsed = double.tryParse(widget.item.rating.trim());
+    if (parsed == null || parsed <= 0) {
+      return null;
+    }
+    return parsed.clamp(0, 5).toDouble();
+  }
+
+  Color get _bandedRatingColor {
+    final rating = _ratingValue ?? 0;
+    if (rating >= 5) {
+      return const Color(0xFF157F3B);
+    }
+    if (rating >= 4) {
+      return const Color(0xFF4FBF68);
+    }
+    if (rating >= 3) {
+      return const Color(0xFFE0B321);
+    }
+    if (rating >= 2) {
+      return const Color(0xFFE26A5B);
+    }
+    return const Color(0xFF9E2332);
+  }
+
+  int get _filledRatingStars {
+    final rating = _ratingValue;
+    if (rating == null || rating <= 0) {
+      return 0;
+    }
+    return rating.floor().clamp(1, 5);
+  }
+
   String get _labourExperienceLabel {
     final years = widget.item.experienceYears;
     if (years == null || years <= 0) {
@@ -120,6 +153,65 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
 
   bool get _isNearbyLabour =>
       widget.mode == _HomeMode.labour && (_distanceKm != null && _distanceKm! <= 1.0);
+
+  Widget _buildLabourDistanceAndRatingRow(_DiscoveryItem item) {
+    final distanceColor = _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              Icon(
+                Icons.place_rounded,
+                size: 16,
+                color: distanceColor,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  _isNearbyLabour ? '$_distanceLabel Nearby' : _distanceLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: distanceColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (item.hasRating) ...[
+          const SizedBox(width: 10),
+          Flexible(
+            child: Wrap(
+              spacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (var index = 0; index < 5; index++)
+                  Icon(
+                    index < _filledRatingStars ? Icons.star_rounded : Icons.star_border_rounded,
+                    size: 14,
+                    color: index < _filledRatingStars ? _bandedRatingColor : const Color(0xFFD3D8E2),
+                  ),
+                const SizedBox(width: 2),
+                Text(
+                  item.rating,
+                  style: TextStyle(
+                    color: _bandedRatingColor,
+                    fontSize: 12.8,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 
   bool get _labourUnavailable =>
       widget.mode == _HomeMode.labour && (widget.item.isDisabled || _labourBookedLocally);
@@ -616,51 +708,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.place_rounded,
-                            size: 16,
-                            color: _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _isNearbyLabour ? '$_distanceLabel Nearby' : _distanceLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (item.hasRating) ...[
-                      const SizedBox(width: 10),
-                      Icon(
-                        Icons.star_rounded,
-                        size: 15,
-                        color: _ratingColor(item.rating),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        item.rating,
-                        style: TextStyle(
-                          color: _ratingColor(item.rating),
-                          fontSize: 12.8,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                _buildLabourDistanceAndRatingRow(item),
                 const SizedBox(height: 10),
                 _labourInfoLine(
                   label: 'Experience',
