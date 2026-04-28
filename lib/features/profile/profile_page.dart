@@ -25,29 +25,39 @@ class _ProfilePageState extends State<_ProfilePage> {
   void initState() {
     super.initState();
     _profile = widget.initialProfile;
-    unawaited(_restoreCachedProfile());
-    _loadProfile();
+    if (_profile == null) {
+      unawaited(_primeProfile());
+    }
   }
 
-  Future<void> _restoreCachedProfile() async {
-    if (_profile != null) {
-      return;
-    }
+  Future<_UserProfileData?> _readCachedProfile() async {
     final raw = await _LocalSessionStore.readProfileCache();
-    if (raw == null || raw.trim().isEmpty || !mounted) {
-      return;
+    if (raw == null || raw.trim().isEmpty) {
+      return null;
     }
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
-        return;
+        return null;
       }
-      setState(() {
-        _profile = _UserProfileData.fromJson(decoded);
-      });
+      return _UserProfileData.fromJson(decoded);
     } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _primeProfile() async {
+    final cached = await _readCachedProfile();
+    if (!mounted) {
       return;
     }
+    if (cached != null) {
+      setState(() {
+        _profile = cached;
+      });
+      return;
+    }
+    await _loadProfile();
   }
 
   Future<void> _loadProfile() async {
@@ -80,6 +90,8 @@ class _ProfilePageState extends State<_ProfilePage> {
   Uint8List? get _profilePhotoBytes {
     return _decodePhotoDataUriOrBase64(_profile?.profilePhotoDataUri ?? '');
   }
+
+  String get _profilePhotoUrl => _profile?.profilePhotoUrl ?? '';
 
   String _profilePhotoMimeType(String path) {
     final lower = path.toLowerCase();
@@ -177,6 +189,7 @@ class _ProfilePageState extends State<_ProfilePage> {
     final nameController = TextEditingController(text: _profile?.fullName.trim().isNotEmpty == true ? _profile!.fullName : '');
     String draftPhotoDataUri = _profile?.profilePhotoDataUri ?? '';
     Uint8List? draftPhotoBytes = _profilePhotoBytes;
+    String draftPhotoUrl = _profilePhotoUrl;
     String selectedGender = _profile?.gender.trim() ?? '';
     DateTime? selectedDob = _profile?.dob == null ? null : DateUtils.dateOnly(_profile!.dob!);
     bool saving = false;
@@ -280,7 +293,12 @@ class _ProfilePageState extends State<_ProfilePage> {
                               onTap: () => _pickAndApplyDraftPhoto(
                                 saving: saving,
                                 setDraftPhotoDataUri: (value) => setSheetState(() => draftPhotoDataUri = value),
-                                setDraftPhotoBytes: (value) => setSheetState(() => draftPhotoBytes = value),
+                                setDraftPhotoBytes: (value) => setSheetState(() {
+                                  draftPhotoBytes = value;
+                                  if (value != null) {
+                                    draftPhotoUrl = '';
+                                  }
+                                }),
                               ),
                               customBorder: const CircleBorder(),
                               child: Container(
@@ -291,9 +309,19 @@ class _ProfilePageState extends State<_ProfilePage> {
                                   shape: BoxShape.circle,
                                 ),
                                 clipBehavior: Clip.antiAlias,
-                                child: draftPhotoBytes == null
-                                    ? const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360))
-                                    : Image.memory(draftPhotoBytes!, fit: BoxFit.cover),
+                                child: draftPhotoBytes != null
+                                    ? Image.memory(draftPhotoBytes!, fit: BoxFit.cover)
+                                    : draftPhotoUrl.trim().isNotEmpty
+                                        ? Image.network(
+                                            draftPhotoUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) => const Icon(
+                                              Icons.add_a_photo_rounded,
+                                              size: 34,
+                                              color: Color(0xFF324360),
+                                            ),
+                                          )
+                                        : const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360)),
                               ),
                             ),
                             Positioned(
@@ -307,7 +335,12 @@ class _ProfilePageState extends State<_ProfilePage> {
                                   onTap: () => _pickAndApplyDraftPhoto(
                                     saving: saving,
                                     setDraftPhotoDataUri: (value) => setSheetState(() => draftPhotoDataUri = value),
-                                    setDraftPhotoBytes: (value) => setSheetState(() => draftPhotoBytes = value),
+                                    setDraftPhotoBytes: (value) => setSheetState(() {
+                                      draftPhotoBytes = value;
+                                      if (value != null) {
+                                        draftPhotoUrl = '';
+                                      }
+                                    }),
                                   ),
                                   child: const Padding(
                                     padding: EdgeInsets.all(9),
@@ -320,7 +353,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (draftPhotoDataUri.isNotEmpty)
+                      if (draftPhotoDataUri.isNotEmpty || draftPhotoUrl.trim().isNotEmpty)
                         Center(
                           child: Wrap(
                             spacing: 8,
@@ -338,6 +371,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                                         setSheetState(() {
                                           draftPhotoDataUri = cropped.dataUri;
                                           draftPhotoBytes = cropped.bytes;
+                                          draftPhotoUrl = '';
                                         });
                                       },
                                 icon: const Icon(Icons.crop_rounded, size: 18),
@@ -360,6 +394,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                                     : () => setSheetState(() {
                                           draftPhotoDataUri = '';
                                           draftPhotoBytes = null;
+                                          draftPhotoUrl = '';
                                         }),
                                 child: const Text('Remove photo'),
                               ),
@@ -512,6 +547,7 @@ class _ProfilePageState extends State<_ProfilePage> {
   Widget build(BuildContext context) {
     final displayName = _profile?.fullName.trim().isNotEmpty == true ? _profile!.fullName : 'MSA User';
     final photoBytes = _profilePhotoBytes;
+    final photoUrl = _profilePhotoUrl.trim();
     return Scaffold(
       backgroundColor: const Color(0xFFF7F2EC),
       body: SafeArea(
@@ -542,9 +578,19 @@ class _ProfilePageState extends State<_ProfilePage> {
                               shape: BoxShape.circle,
                             ),
                             clipBehavior: Clip.antiAlias,
-                            child: photoBytes == null
-                                ? const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360))
-                                : Image.memory(photoBytes, fit: BoxFit.cover),
+                            child: photoBytes != null
+                                ? Image.memory(photoBytes, fit: BoxFit.cover)
+                                : photoUrl.isNotEmpty
+                                    ? Image.network(
+                                        photoUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => const Icon(
+                                          Icons.add_a_photo_rounded,
+                                          size: 34,
+                                          color: Color(0xFF324360),
+                                        ),
+                                      )
+                                    : const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360)),
                           ),
                           Positioned(
                             right: 0,
@@ -565,7 +611,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                         ],
                       ),
                     ),
-                    if (photoBytes == null) ...[
+                    if (photoBytes == null && photoUrl.isEmpty) ...[
                       const SizedBox(height: 10),
                       Center(
                         child: Text(
@@ -742,6 +788,64 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
   void dispose() {
     _startWorkOtpController.dispose();
     super.dispose();
+  }
+
+  void _applyActiveBookingStatusUpdate(_ActiveBookingStatus? latestStatus) {
+    setState(() {
+      if (latestStatus == null) {
+        final currentRequestId = _status?.requestId;
+        _activeStatuses = _activeStatuses
+            .where((item) => item.requestId != currentRequestId)
+            .toList(growable: false);
+        _status = _activeStatuses.isEmpty ? null : _activeStatuses.first;
+        return;
+      }
+      final updated = List<_ActiveBookingStatus>.from(_activeStatuses);
+      final index = updated.indexWhere((item) => item.requestId == latestStatus.requestId);
+      if (index >= 0) {
+        updated[index] = latestStatus;
+      } else {
+        updated.insert(0, latestStatus);
+      }
+      _activeStatuses = updated;
+      _status = latestStatus;
+    });
+    if (latestStatus == null) {
+      unawaited(_load());
+    }
+  }
+
+  Future<void> _openLiveBookingDetails() async {
+    final status = _status;
+    if (status == null) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ActiveBookingDetailsSheet(
+        initialStatus: status,
+        onPayNow: (latestStatus) async {
+          Navigator.of(context).pop();
+          setState(() {
+            _status = latestStatus;
+          });
+          await _makePayment();
+        },
+        onStatusChanged: _applyActiveBookingStatusUpdate,
+      ),
+    );
+  }
+
+  void _hideHomeBookingTip() {
+    _ActiveBookingPopupVisibilityController.dismissForDuration(const Duration(minutes: 1));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Home booking tip hidden for 1 minute.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _load() async {
@@ -1338,7 +1442,47 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                             _ProfileBookingInfoRow(label: 'Booking fees', value: _status!.totalAcceptedBookingChargeAmount)
                           else if (_status!.quotedPriceAmount.trim().isNotEmpty)
                             _ProfileBookingInfoRow(label: 'Booking fees', value: _status!.quotedPriceAmount),
-                          if (_status!.bookingStatus.toUpperCase() == 'ARRIVED') ...[
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _openLiveBookingDetails,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF22314D),
+                                    side: const BorderSide(color: Color(0xFFD9CCC5)),
+                                    minimumSize: const Size.fromHeight(48),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                                  ),
+                                  icon: const Icon(Icons.open_in_new_rounded),
+                                  label: const Text(
+                                    'Open details',
+                                    style: TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _hideHomeBookingTip,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF9F4F40),
+                                    side: const BorderSide(color: Color(0xFFE2B8AF)),
+                                    minimumSize: const Size.fromHeight(48),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                                  ),
+                                  icon: const Icon(Icons.close_rounded),
+                                  label: const Text(
+                                    'Hide home tip',
+                                    style: TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_status!.bookingStatus.toUpperCase() == 'ARRIVED' ||
+                              (_status!.bookingType.toUpperCase() == 'SERVICE' &&
+                                  _status!.bookingStatus.toUpperCase() == 'PAYMENT_COMPLETED')) ...[
                             const SizedBox(height: 12),
                             Container(
                               padding: const EdgeInsets.all(14),
@@ -1350,35 +1494,39 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Start work OTP',
+                                  Text(
+                                    _status!.bookingType.toUpperCase() == 'SERVICE' ? 'Service start OTP' : 'Start work OTP',
                                     style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
                                   ),
                                   const SizedBox(height: 6),
-                                  const Text(
-                                    'Enter the OTP shared by labour after reaching your destination.',
+                                  Text(
+                                    _status!.bookingType.toUpperCase() == 'SERVICE'
+                                        ? 'Enter the OTP shared by the service provider to start the visit.'
+                                        : 'Enter the OTP shared by labour after reaching your destination.',
                                     style: TextStyle(color: Color(0xFF5F6E85), fontWeight: FontWeight.w700, height: 1.35),
                                   ),
                                   const SizedBox(height: 12),
-                                  TextField(
-                                    controller: _startWorkOtpController,
-                                    keyboardType: TextInputType.number,
-                                    scrollPadding: const EdgeInsets.only(bottom: 12),
-                                    onTap: () => _ensureFieldVisibleAboveKeyboard(context),
-                                    maxLength: 6,
-                                    onChanged: (_) {
-                                      if (_startWorkOtpError != null) {
-                                        setState(() => _startWorkOtpError = null);
-                                      }
-                                    },
-                                    decoration: InputDecoration(
-                                      counterText: '',
-                                      labelText: '6-digit start OTP',
-                                      errorText: _startWorkOtpError,
-                                      prefixIcon: const Icon(Icons.password_rounded),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                                  Builder(
+                                    builder: (fieldContext) => TextField(
+                                      controller: _startWorkOtpController,
+                                      keyboardType: TextInputType.number,
+                                      scrollPadding: const EdgeInsets.only(bottom: 120),
+                                      onTap: () => _ensureFieldVisibleAboveKeyboard(fieldContext),
+                                      maxLength: 6,
+                                      onChanged: (_) {
+                                        if (_startWorkOtpError != null) {
+                                          setState(() => _startWorkOtpError = null);
+                                        }
+                                      },
+                                      decoration: InputDecoration(
+                                        counterText: '',
+                                        labelText: '6-digit start OTP',
+                                        errorText: _startWorkOtpError,
+                                        prefixIcon: const Icon(Icons.password_rounded),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 12),

@@ -28,6 +28,7 @@ class _DiscoveryDetailPage extends StatefulWidget {
 class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   String? _selectedLabourBookingPeriod;
   int? _selectedLabourCategoryId;
+  String? _selectedServiceItemLabel;
   late bool _isAuthenticated;
   bool _labourBookedLocally = false;
   bool _primaryActionBusy = false;
@@ -37,6 +38,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     super.initState();
     _isAuthenticated = widget.isAuthenticated;
     _selectedLabourCategoryId = _defaultSelectedLabourCategoryId;
+    _selectedServiceItemLabel = _defaultSelectedServiceItemLabel;
     unawaited(_refreshAuthStateFromSession());
   }
 
@@ -51,6 +53,11 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
       _labourBookedLocally = false;
       _selectedLabourCategoryId = _defaultSelectedLabourCategoryId;
       _selectedLabourBookingPeriod = null;
+    }
+    if (oldWidget.item.serviceItems != widget.item.serviceItems ||
+        oldWidget.item.serviceTileLabel != widget.item.serviceTileLabel ||
+        oldWidget.item.backendServiceProviderId != widget.item.backendServiceProviderId) {
+      _selectedServiceItemLabel = _defaultSelectedServiceItemLabel;
     }
   }
 
@@ -156,57 +163,53 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
 
   Widget _buildLabourDistanceAndRatingRow(_DiscoveryItem item) {
     final distanceColor = _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              Icon(
-                Icons.place_rounded,
-                size: 16,
-                color: distanceColor,
+        Row(
+          children: [
+            Icon(
+              Icons.place_rounded,
+              size: 16,
+              color: distanceColor,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                _isNearbyLabour ? '$_distanceLabel Nearby' : _distanceLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: distanceColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  _isNearbyLabour ? '$_distanceLabel Nearby' : _distanceLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: distanceColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+            ),
+          ],
+        ),
+        if (item.hasRating) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (var index = 0; index < 5; index++)
+                Icon(
+                  index < _filledRatingStars ? Icons.star_rounded : Icons.star_border_rounded,
+                  size: 14,
+                  color: index < _filledRatingStars ? _bandedRatingColor : const Color(0xFFD3D8E2),
+                ),
+              const SizedBox(width: 2),
+              Text(
+                item.rating,
+                style: TextStyle(
+                  color: _bandedRatingColor,
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
-          ),
-        ),
-        if (item.hasRating) ...[
-          const SizedBox(width: 10),
-          Flexible(
-            child: Wrap(
-              spacing: 2,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                for (var index = 0; index < 5; index++)
-                  Icon(
-                    index < _filledRatingStars ? Icons.star_rounded : Icons.star_border_rounded,
-                    size: 14,
-                    color: index < _filledRatingStars ? _bandedRatingColor : const Color(0xFFD3D8E2),
-                  ),
-                const SizedBox(width: 2),
-                Text(
-                  item.rating,
-                  style: TextStyle(
-                    color: _bandedRatingColor,
-                    fontSize: 12.8,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ],
@@ -251,6 +254,35 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
       ),
     ];
   }
+
+  List<String> get _serviceCategoryOptions {
+    final options = <String>[];
+    for (final serviceItem in widget.item.serviceItems) {
+      final normalized = serviceItem.trim();
+      if (normalized.isNotEmpty && !options.contains(normalized)) {
+        options.add(normalized);
+      }
+    }
+    final fallback = widget.item.serviceTileLabel.trim().isNotEmpty
+        ? widget.item.serviceTileLabel.trim()
+        : widget.item.subtitle.trim().isNotEmpty
+            ? widget.item.subtitle.trim()
+            : widget.item.title.trim();
+    if (fallback.isNotEmpty && !options.contains(fallback)) {
+      options.insert(0, fallback);
+    }
+    return options.isEmpty ? const <String>['Service'] : options;
+  }
+
+  String get _defaultSelectedServiceItemLabel {
+    final preferred = widget.item.serviceTileLabel.trim();
+    if (preferred.isNotEmpty && _serviceCategoryOptions.contains(preferred)) {
+      return preferred;
+    }
+    return _serviceCategoryOptions.first;
+  }
+
+  String get _serviceTilePriceLabel => widget.item.price.isEmpty ? 'Visit charge on request' : widget.item.price;
 
   String get _labourUnavailableLabel {
     if (_labourBookedLocally) {
@@ -321,6 +353,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         children: [
           if (mode == _HomeMode.labour)
             _buildLabourProfileHeader(item)
+          else if (mode == _HomeMode.service)
+            _buildServiceProfileHeader(item)
           else ...[
             Container(
               height: 240,
@@ -433,7 +467,39 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               ),
             ],
           ],
-          if (mode != _HomeMode.labour) ...[
+          if (mode == _HomeMode.service) ...[
+            const SizedBox(height: 10),
+            _serviceCategorySelector(),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Profile details',
+                    style: TextStyle(
+                      color: Color(0xFF22314D),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _detailRow('Name', item.title),
+                  _detailRow('Category', item.subtitle),
+                  _detailRow('Visit charge', item.price.isEmpty ? 'As per profile' : item.price),
+                  _detailRow('Distance', item.distance),
+                  _detailRow('Total bookings', _completedJobsLabel),
+                  _detailRow('Mobile', item.maskedPhone),
+                ],
+              ),
+            ),
+          ],
+          if (mode != _HomeMode.labour && mode != _HomeMode.service) ...[
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(18),
@@ -637,6 +703,189 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildServiceProfileHeader(_DiscoveryItem item) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1A2030).withValues(alpha: 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 124,
+            height: 170,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          item.accent.withValues(alpha: 0.18),
+                          item.accent.withValues(alpha: 0.55),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _LabourPortraitImage(
+                    item: item,
+                    fit: BoxFit.cover,
+                    scale: 1,
+                    alignment: Alignment.topCenter,
+                  ),
+                  if (item.isDisabled)
+                    Positioned(
+                      left: -4,
+                      bottom: 48,
+                      child: _LabourAvailabilityRibbon(label: item.disabledLabel.trim().isEmpty ? 'Offline' : item.disabledLabel),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF22314D),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    height: 1.08,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF6D7A91),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildLabourDistanceAndRatingRow(item),
+                const SizedBox(height: 10),
+                _labourInfoLine(
+                  label: 'Visit charge',
+                  value: _serviceTilePriceLabel,
+                ),
+                const SizedBox(height: 8),
+                _labourInfoLine(
+                  label: 'Total bookings',
+                  value: _completedJobsLabel,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.phone_android_rounded,
+                      size: 15,
+                      color: Color(0xFF8090A6),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        item.maskedPhone,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF22314D),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceCategorySelector() {
+    final options = _serviceCategoryOptions;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: options.map((label) {
+        final selected = label == _selectedServiceItemLabel;
+        return InkWell(
+          onTap: () => setState(() => _selectedServiceItemLabel = label),
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: options.length == 1 ? double.infinity : null,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFFFFF1EB) : Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected ? const Color(0xFFCB6E5B) : const Color(0xFFE8DCD6),
+                width: selected ? 1.8 : 1.1,
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFCB6E5B).withValues(alpha: 0.10),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : const [],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: const Color(0xFF22314D),
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _serviceTilePriceLabel,
+                  style: TextStyle(
+                    color: selected ? const Color(0xFFCB6E5B) : const Color(0xFF66748C),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(growable: false),
     );
   }
 

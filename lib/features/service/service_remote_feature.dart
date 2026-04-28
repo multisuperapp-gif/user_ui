@@ -32,6 +32,16 @@ class _RemoteServiceLandingData {
   final List<_DiscoveryItem> providers;
 }
 
+class _RemoteServiceProviderProfile {
+  const _RemoteServiceProviderProfile({
+    required this.provider,
+    required this.serviceItems,
+  });
+
+  final _DiscoveryItem provider;
+  final List<String> serviceItems;
+}
+
 class _RemoteServiceBookingResult {
   const _RemoteServiceBookingResult({
     required this.requestId,

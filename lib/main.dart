@@ -157,10 +157,10 @@ bool _looksLikeExpiredSessionMessage(String message) {
 
 void _ensureFieldVisibleAboveKeyboard(
   BuildContext context, {
-  double alignment = 0.92,
+  double alignment = 0.84,
 }) {
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    Future<void>.delayed(const Duration(milliseconds: 70), () async {
+    Future<void>.delayed(const Duration(milliseconds: 110), () async {
       if (!context.mounted || Scrollable.maybeOf(context) == null) {
         return;
       }
@@ -318,15 +318,15 @@ Future<BitmapDescriptor> _buildScooterMapMarker({
     final byteData = await rootBundle.load('assets/images/labour_scooter.png');
     final codec = await ui.instantiateImageCodec(
       byteData.buffer.asUint8List(),
-      targetWidth: 64,
-      targetHeight: 64,
+      targetWidth: 96,
+      targetHeight: 96,
     );
     final frame = await codec.getNextFrame();
     final pngBytes = await frame.image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(
       pngBytes!.buffer.asUint8List(),
-      width: 28,
-      height: 28,
+      width: 32,
+      height: 32,
     );
   } catch (_) {
     const double width = 96;

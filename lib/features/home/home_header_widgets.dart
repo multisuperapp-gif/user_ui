@@ -153,6 +153,7 @@ class _PinnedSearchHeader extends StatefulWidget {
     required this.onCartTap,
     required this.unreadNotificationCount,
     this.profilePhotoDataUri = '',
+    this.profilePhotoUrl = '',
   });
 
   final TextEditingController controller;
@@ -163,6 +164,7 @@ class _PinnedSearchHeader extends StatefulWidget {
   final VoidCallback onCartTap;
   final int unreadNotificationCount;
   final String profilePhotoDataUri;
+  final String profilePhotoUrl;
 
   @override
   State<_PinnedSearchHeader> createState() => _PinnedSearchHeaderState();
@@ -219,6 +221,7 @@ class _PinnedSearchHeaderState extends State<_PinnedSearchHeader> {
                       borderRadius: BorderRadius.circular(999),
                       child: _HeaderProfileAvatar(
                         profilePhotoDataUri: widget.profilePhotoDataUri,
+                        profilePhotoUrl: widget.profilePhotoUrl,
                       ),
                     ),
                   ],
@@ -299,9 +302,11 @@ class _HeaderCircleIcon extends StatelessWidget {
 class _HeaderProfileAvatar extends StatelessWidget {
   const _HeaderProfileAvatar({
     required this.profilePhotoDataUri,
+    required this.profilePhotoUrl,
   });
 
   final String profilePhotoDataUri;
+  final String profilePhotoUrl;
 
   Uint8List? get _photoBytes {
     return _decodePhotoDataUriOrBase64(profilePhotoDataUri);
@@ -336,19 +341,8 @@ class _HeaderProfileAvatar extends StatelessWidget {
             ],
           ),
           clipBehavior: Clip.antiAlias,
-          child: photoBytes == null
-              ? const Center(
-                  child: Text(
-                    'MSA',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 10.5,
-                      letterSpacing: 0.06,
-                    ),
-                  ),
-                )
-              : Image.memory(
+          child: photoBytes != null
+              ? Image.memory(
                   photoBytes,
                   fit: BoxFit.cover,
                   errorBuilder: (_, error, stackTrace) => const Center(
@@ -362,7 +356,34 @@ class _HeaderProfileAvatar extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
+                )
+              : profilePhotoUrl.trim().isNotEmpty
+                  ? Image.network(
+                      profilePhotoUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, error, stackTrace) => const Center(
+                        child: Text(
+                          'MSA',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 10.5,
+                            letterSpacing: 0.06,
+                          ),
+                        ),
+                      ),
+                    )
+                  : const Center(
+                      child: Text(
+                        'MSA',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10.5,
+                          letterSpacing: 0.06,
+                        ),
+                      ),
+                    ),
         ),
         Positioned(
           right: -2,

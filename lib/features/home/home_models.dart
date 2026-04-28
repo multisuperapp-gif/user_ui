@@ -49,6 +49,8 @@ class _DiscoveryItem {
     this.labourRadiusKm,
     this.labourWorkLatitude,
     this.labourWorkLongitude,
+    this.serviceItems = const [],
+    this.serviceTileLabel = '',
   });
 
   final String title;
@@ -79,6 +81,8 @@ class _DiscoveryItem {
   final double? labourRadiusKm;
   final double? labourWorkLatitude;
   final double? labourWorkLongitude;
+  final List<String> serviceItems;
+  final String serviceTileLabel;
 
   bool get hasRating {
     final parsed = double.tryParse(rating.trim());
@@ -114,6 +118,8 @@ class _DiscoveryItem {
     double? labourRadiusKm,
     double? labourWorkLatitude,
     double? labourWorkLongitude,
+    List<String>? serviceItems,
+    String? serviceTileLabel,
   }) {
     return _DiscoveryItem(
       title: title ?? this.title,
@@ -144,6 +150,8 @@ class _DiscoveryItem {
       labourRadiusKm: labourRadiusKm ?? this.labourRadiusKm,
       labourWorkLatitude: labourWorkLatitude ?? this.labourWorkLatitude,
       labourWorkLongitude: labourWorkLongitude ?? this.labourWorkLongitude,
+      serviceItems: serviceItems ?? this.serviceItems,
+      serviceTileLabel: serviceTileLabel ?? this.serviceTileLabel,
     );
   }
 }

@@ -13,6 +13,17 @@ class _UserAppApi {
     return Uri.parse(normalized);
   }
 
+  static String profilePhotoViewUrl(String objectKey) {
+    final trimmed = objectKey.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    return _baseUri.replace(
+      path: '/api/v1/profile/photo/view',
+      queryParameters: <String, String>{'objectKey': trimmed},
+    ).toString();
+  }
+
   static Uri get _bookingPaymentBaseUri {
     const configured = String.fromEnvironment(
       'BOOKING_PAYMENT_BASE_URL',
@@ -145,6 +156,7 @@ class _UserAppApi {
       phone: '${data['phone'] ?? ''}',
       fullName: '${data['fullName'] ?? 'MSA User'}',
       profilePhotoDataUri: '${data['profilePhotoDataUri'] ?? ''}',
+      profilePhotoObjectKey: '${data['profilePhotoObjectKey'] ?? ''}',
       gender: '${data['gender'] ?? ''}',
       dob: _parseDate('${data['dob'] ?? ''}'),
       languageCode: '${data['languageCode'] ?? 'en'}',
@@ -181,6 +193,7 @@ class _UserAppApi {
       phone: '${data['phone'] ?? ''}',
       fullName: '${data['fullName'] ?? 'MSA User'}',
       profilePhotoDataUri: '${data['profilePhotoDataUri'] ?? ''}',
+      profilePhotoObjectKey: '${data['profilePhotoObjectKey'] ?? ''}',
       gender: '${data['gender'] ?? ''}',
       dob: _parseDate('${data['dob'] ?? ''}'),
       languageCode: '${data['languageCode'] ?? 'en'}',
@@ -610,7 +623,7 @@ class _UserAppApi {
         if (latitude != null) 'latitude': '$latitude',
         if (longitude != null) 'longitude': '$longitude',
         'page': '0',
-        'size': '20',
+        'size': '100',
       },
     );
     final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
@@ -759,12 +772,14 @@ class _UserAppApi {
     required String bookingPeriod,
     required String maxPrice,
     required int labourCount,
+    int? addressId,
   }) async {
     final response = await _post(
       '/labour/bookings/group-request',
       authenticated: true,
       body: <String, dynamic>{
         'categoryId': categoryId,
+        'addressId': addressId,
         'bookingPeriod': bookingPeriod,
         'maxPrice': _extractAmount(maxPrice),
         'labourCount': labourCount,
@@ -813,6 +828,33 @@ class _UserAppApi {
     return _RemoteServiceLandingData(
       categories: categories,
       providers: providers,
+    );
+  }
+
+  static Future<_RemoteServiceProviderProfile> fetchServiceProviderProfile(
+    int providerId, {
+    int? categoryId,
+    int? subcategoryId,
+  }) async {
+    final response = await _get(
+      '/public/service/providers/$providerId',
+      queryParameters: {
+        if (categoryId != null) 'categoryId': '$categoryId',
+        if (subcategoryId != null) 'subcategoryId': '$subcategoryId',
+      },
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final providerRaw = Map<String, dynamic>.from((data['provider'] as Map?) ?? const {});
+    final serviceItems = (data['serviceItems'] as List? ?? const [])
+        .map((entry) => '$entry'.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList(growable: false);
+    return _RemoteServiceProviderProfile(
+      provider: _mapServiceProvider(providerRaw).copyWith(
+        serviceItems: serviceItems,
+        serviceTileLabel: serviceItems.firstOrNull ?? '',
+      ),
+      serviceItems: serviceItems,
     );
   }
 
@@ -1741,20 +1783,69 @@ class _UserAppApi {
   }
 
   static Future<Map<String, dynamic>> _decodeResponse(http.Response response) async {
-    final decoded = response.body.isEmpty
-        ? <String, dynamic>{}
-        : Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    final decoded = _decodeResponseBody(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded;
     }
-    final message = (decoded['message'] as String?)?.trim().isNotEmpty == true
-        ? decoded['message'] as String
-        : 'Request failed with status ${response.statusCode}.';
+    final message = _extractResponseMessage(decoded) ??
+        'Request failed with status ${response.statusCode}.';
     if (response.statusCode == 401 || _looksLikeExpiredSessionMessage(message)) {
       await _LocalSessionStore.clear();
       throw const _UserSessionExpiredApiException('Session expired. Please login again.');
     }
     throw _UserAppApiException(message);
+  }
+
+  static Map<String, dynamic> _decodeResponseBody(String body) {
+    if (body.trim().isEmpty) {
+      return <String, dynamic>{};
+    }
+    final dynamic decoded = jsonDecode(body);
+    if (decoded is Map) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    if (decoded is String) {
+      final reparsed = jsonDecode(decoded);
+      if (reparsed is Map) {
+        return Map<String, dynamic>.from(reparsed);
+      }
+      return <String, dynamic>{'message': decoded};
+    }
+    return <String, dynamic>{};
+  }
+
+  static String? _extractResponseMessage(Map<String, dynamic> decoded) {
+    final direct = '${decoded['message'] ?? ''}'.trim();
+    if (direct.isNotEmpty) {
+      final nested = _extractNestedJsonMessage(direct);
+      return nested ?? direct;
+    }
+    final error = decoded['error'];
+    if (error is Map) {
+      final nested = _extractResponseMessage(Map<String, dynamic>.from(error));
+      if (nested != null && nested.trim().isNotEmpty) {
+        return nested.trim();
+      }
+    }
+    return null;
+  }
+
+  static String? _extractNestedJsonMessage(String raw) {
+    if (!raw.startsWith('{') || !raw.endsWith('}')) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        final nested = '${decoded['message'] ?? ''}'.trim();
+        if (nested.isNotEmpty) {
+          return nested;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   static _RemoteCartState _mapCart(Map<String, dynamic> data) {
@@ -2010,6 +2101,8 @@ class _UserAppApi {
 
   static _DiscoveryItem _mapServiceProvider(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Service'}';
+    final serviceLabel = '${raw['serviceName'] ?? raw['subcategoryName'] ?? category}';
+    final providerName = '${raw['providerName'] ?? 'Service provider'}';
     final availableNow = (raw['availableNow'] as bool?) ?? false;
     final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
     final disabledLabel = switch (availabilityStatus) {
@@ -2017,9 +2110,13 @@ class _UserAppApi {
       'OFFLINE' => 'Offline',
       _ => '',
     };
+    final serviceItems = (raw['serviceItems'] as List? ?? const [])
+        .map((entry) => '$entry'.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList(growable: false);
     return _DiscoveryItem(
-      title: '${raw['providerName'] ?? 'Service provider'}',
-      subtitle: '${raw['serviceName'] ?? raw['subcategoryName'] ?? category}',
+      title: serviceLabel,
+      subtitle: providerName,
       accent: _serviceAccent(category),
       icon: _serviceIcon(category),
       price: '${_money(raw['visitingCharge'])} visit',
@@ -2030,8 +2127,12 @@ class _UserAppApi {
       backendServiceProviderId: (raw['providerId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
       backendSubcategoryId: (raw['subcategoryId'] as num?)?.toInt(),
+      profileImageUrl: _publicFileUrl('${raw['photoObjectKey'] ?? ''}'),
       isDisabled: !availableNow,
       disabledLabel: disabledLabel,
+      serviceItems: serviceItems,
+      serviceTileLabel: serviceLabel,
+      completedJobsCount: (raw['completedJobs'] as num?)?.toInt(),
     );
   }
 
@@ -2639,6 +2740,7 @@ class _UserProfileData {
     required this.phone,
     required this.fullName,
     required this.profilePhotoDataUri,
+    required this.profilePhotoObjectKey,
     required this.gender,
     required this.dob,
     required this.languageCode,
@@ -2649,9 +2751,12 @@ class _UserProfileData {
   final String phone;
   final String fullName;
   final String profilePhotoDataUri;
+  final String profilePhotoObjectKey;
   final String gender;
   final DateTime? dob;
   final String languageCode;
+
+  String get profilePhotoUrl => _UserAppApi.profilePhotoViewUrl(profilePhotoObjectKey);
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -2660,6 +2765,7 @@ class _UserProfileData {
       'phone': phone,
       'fullName': fullName,
       'profilePhotoDataUri': profilePhotoDataUri,
+      'profilePhotoObjectKey': profilePhotoObjectKey,
       'gender': gender,
       'dob': dob?.toIso8601String(),
       'languageCode': languageCode,
@@ -2674,6 +2780,7 @@ class _UserProfileData {
       phone: json['phone']?.toString() ?? '',
       fullName: json['fullName']?.toString() ?? 'MSA User',
       profilePhotoDataUri: json['profilePhotoDataUri']?.toString() ?? '',
+      profilePhotoObjectKey: json['profilePhotoObjectKey']?.toString() ?? '',
       gender: json['gender']?.toString() ?? '',
       dob: rawDob.isEmpty ? null : DateTime.tryParse(rawDob),
       languageCode: json['languageCode']?.toString() ?? 'en',

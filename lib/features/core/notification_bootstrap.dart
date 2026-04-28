@@ -212,8 +212,15 @@ class _BookingUpdateSoundPlayer {
 
   static Future<void> play() async {
     final player = AudioPlayer(playerId: 'user-booking-update-${DateTime.now().microsecondsSinceEpoch}');
+    StreamSubscription<void>? completionSubscription;
+    final completion = Completer<void>();
     try {
       _bytes ??= (await rootBundle.load('assets/audio/skins_theme_short.mp3')).buffer.asUint8List();
+      completionSubscription = player.onPlayerComplete.listen((_) {
+        if (!completion.isCompleted) {
+          completion.complete();
+        }
+      });
       await player.setAudioContext(
         AudioContext(
           android: const AudioContextAndroid(
@@ -235,10 +242,15 @@ class _BookingUpdateSoundPlayer {
       await player.play(
         BytesSource(_bytes!, mimeType: 'audio/mpeg'),
       );
+      await Future.any(<Future<void>>[
+        completion.future,
+        Future<void>.delayed(const Duration(seconds: 4)),
+      ]);
     } catch (_) {
       SystemSound.play(SystemSoundType.alert);
     } finally {
-      unawaited(player.dispose());
+      await completionSubscription?.cancel();
+      await player.dispose();
     }
   }
 }

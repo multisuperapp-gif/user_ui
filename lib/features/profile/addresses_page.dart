@@ -1,7 +1,13 @@
 part of '../../main.dart';
 
 class _AddressesPage extends StatefulWidget {
-  const _AddressesPage();
+  const _AddressesPage({
+    this.autoOpenEditor = false,
+    this.closeAfterSave = false,
+  });
+
+  final bool autoOpenEditor;
+  final bool closeAfterSave;
 
   @override
   State<_AddressesPage> createState() => _AddressesPageState();
@@ -17,6 +23,14 @@ class _AddressesPageState extends State<_AddressesPage> {
   void initState() {
     super.initState();
     _loadAddresses();
+    if (widget.autoOpenEditor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_openEditor());
+      });
+    }
   }
 
   Future<void> _loadAddresses() async {
@@ -53,6 +67,9 @@ class _AddressesPageState extends State<_AddressesPage> {
       builder: (_) => _AddressEditorSheet(existing: existing),
     );
     if (input == null) {
+      if (widget.closeAfterSave && existing == null && mounted) {
+        Navigator.of(context).pop();
+      }
       return;
     }
     setState(() {
@@ -65,6 +82,9 @@ class _AddressesPageState extends State<_AddressesPage> {
         await _UserAppApi.updateAddress(existing.id, input);
       }
       await _loadAddresses();
+      if (widget.closeAfterSave && mounted) {
+        Navigator.of(context).pop();
+      }
     } catch (error) {
       if (!mounted) {
         return;

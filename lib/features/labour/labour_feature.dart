@@ -477,6 +477,7 @@ class _LabourPortraitTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasVisibleRating = _hasVisibleRating(item.rating);
     final outerRadius = 20 * compactScale;
     final outerPaddingX = 4 * compactScale;
     final outerPaddingTop = compactScale < 1 ? 2.0 : 4 * compactScale;
@@ -588,44 +589,45 @@ class _LabourPortraitTile extends StatelessWidget {
                         right: imageTextInset,
                         child: Row(
                           children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: compactScale < 1 ? 5 : 8,
-                                vertical: compactScale < 1 ? 2.5 : 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _ratingColor(item.rating),
-                                borderRadius: BorderRadius.circular(999),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _ratingColor(item.rating).withValues(alpha: 0.26),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.star_rounded,
-                                    size: compactScale < 1 ? 9 : 12,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    item.rating,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: compactScale < 1 ? 8.8 : 10.6,
-                                      fontWeight: FontWeight.w800,
-                                      height: 1,
+                            if (hasVisibleRating)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: compactScale < 1 ? 5 : 8,
+                                  vertical: compactScale < 1 ? 2.5 : 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _ratingColor(item.rating),
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _ratingColor(item.rating).withValues(alpha: 0.26),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      size: compactScale < 1 ? 9 : 12,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      item.rating,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: compactScale < 1 ? 8.8 : 10.6,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const Spacer(),
+                            if (hasVisibleRating) const Spacer() else const SizedBox(),
                             Container(
                               padding: EdgeInsets.symmetric(
                                 horizontal: compactScale < 1 ? 6 : 8,
@@ -1061,29 +1063,30 @@ class _ImageBackedShopTile extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _ratingColor(item.rating),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star_rounded, size: 9, color: Colors.white),
-                          const SizedBox(width: 2),
-                          Text(
-                            item.rating,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 8.8,
-                              fontWeight: FontWeight.w800,
-                              height: 1,
+                    if (_hasVisibleRating(item.rating))
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _ratingColor(item.rating),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, size: 9, color: Colors.white),
+                            const SizedBox(width: 2),
+                            Text(
+                              item.rating,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 8.8,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -1108,22 +1111,44 @@ class _TemporaryCatalogImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return fallback;
+    final imageUrl = item.profileImageUrl.trim();
+    if (imageUrl.isEmpty) {
+      return fallback;
+    }
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => fallback,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) {
+          return child;
+        }
+        return fallback;
+      },
+    );
   }
+}
+
+bool _hasVisibleRating(String rating) {
+  final value = double.tryParse(rating.replaceAll(RegExp(r'[^0-9.]'), ''));
+  return value != null && value > 0;
 }
 
 Color _ratingColor(String rating) {
   final value = double.tryParse(rating.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-  if (value > 4) {
+  if (value > 4.0) {
     return const Color(0xFF0B7A3B);
   }
-  if (value > 3) {
+  if (value >= 3.5) {
     return const Color(0xFF53B96A);
   }
-  if (value >= 2) {
+  if (value >= 3.0) {
     return const Color(0xFFE7B928);
   }
-  return const Color(0xFFD23B3B);
+  if (value >= 2.0) {
+    return const Color(0xFFE53935);
+  }
+  return const Color(0xFF8B1E1E);
 }
 
 class _VerticalProfileCard extends StatelessWidget {
@@ -1234,7 +1259,7 @@ class _VerticalProfileCard extends StatelessWidget {
                                   color: item.accent,
                                 ),
                               ),
-                              if (item.rating.isNotEmpty) ...[
+                              if (_hasVisibleRating(item.rating)) ...[
                                 const SizedBox(width: 4),
                                 Expanded(
                                   flex: 10,
@@ -1559,6 +1584,44 @@ class _GroupBookingCard extends StatelessWidget {
   final ValueChanged<int> onCountSelected;
   final VoidCallback onBook;
 
+  void _showEstimatedPriceInfo(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('Estimated price'),
+        content: const Text(
+          'This is only an estimate based on the number of labour you selected and the maximum budget per labour. The final labour amount depends on which labour actually accept and the real prices they accept at.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEstimatedBookingFeeInfo(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('Estimated booking fees'),
+        content: const Text(
+          'This is only an estimate based on your selected labour count, max price, and booking fee percentage. Final booking fees are calculated on the actual total of the labour who accept, so the payable fee can be lower or different at payment time.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasSelectedCount = selectedCount > 0;
@@ -1639,6 +1702,7 @@ class _GroupBookingCard extends StatelessWidget {
                   label: 'Estimated booking fees',
                   value: hasSelectedCount && hasSelectedPrice ? _formatRupee(bookingChargeAmount) : 'Pending',
                   color: const Color(0xFFCB6E5B),
+                  onInfoTap: () => _showEstimatedBookingFeeInfo(context),
                 ),
               ),
             ],
@@ -1739,6 +1803,8 @@ class _GroupBookingCard extends StatelessWidget {
             estimatedPrice: hasSelectedPrice ? _formatRupee(estimatedPrice.toDouble()) : 'Enter max price',
             bookingCharge: hasSelectedCount ? _formatRupee(bookingChargeAmount) : 'Select count',
             bookingChargeHint: '$selectedCount x max price x $bookingChargePerLabour',
+            onEstimatedPriceInfoTap: () => _showEstimatedPriceInfo(context),
+            onEstimatedBookingFeeInfoTap: () => _showEstimatedBookingFeeInfo(context),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -1802,11 +1868,15 @@ class _GroupBookingAmountSummary extends StatelessWidget {
     required this.estimatedPrice,
     required this.bookingCharge,
     required this.bookingChargeHint,
+    required this.onEstimatedPriceInfoTap,
+    required this.onEstimatedBookingFeeInfoTap,
   });
 
   final String estimatedPrice;
   final String bookingCharge;
   final String bookingChargeHint;
+  final VoidCallback onEstimatedPriceInfoTap;
+  final VoidCallback onEstimatedBookingFeeInfoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1824,12 +1894,14 @@ class _GroupBookingAmountSummary extends StatelessWidget {
             label: 'Estimated price',
             value: estimatedPrice,
             helper: 'No. of labour x max price',
+            onInfoTap: onEstimatedPriceInfoTap,
           ),
           const SizedBox(height: 10),
           _GroupBookingAmountRow(
             label: 'Estimated booking fees',
             value: bookingCharge,
             helper: bookingChargeHint,
+            onInfoTap: onEstimatedBookingFeeInfoTap,
           ),
         ],
       ),
@@ -1842,11 +1914,13 @@ class _GroupBookingAmountRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.helper,
+    this.onInfoTap,
   });
 
   final String label;
   final String value;
   final String helper;
+  final VoidCallback? onInfoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1856,13 +1930,23 @@ class _GroupBookingAmountRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF22314D),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w900,
-                ),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  if (onInfoTap != null) ...[
+                    const SizedBox(width: 6),
+                    _GroupBookingInfoIconButton(onTap: onInfoTap!),
+                  ],
+                ],
               ),
               const SizedBox(height: 2),
               Text(
@@ -2189,11 +2273,13 @@ class _GroupBookingInfoTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    this.onInfoTap,
   });
 
   final String label;
   final String value;
   final Color color;
+  final VoidCallback? onInfoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2207,14 +2293,27 @@ class _GroupBookingInfoTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              height: 1,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+              if (onInfoTap != null) ...[
+                const SizedBox(width: 6),
+                _GroupBookingInfoIconButton(
+                  onTap: onInfoTap!,
+                  iconColor: color,
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 6),
           Text(
@@ -2229,6 +2328,37 @@ class _GroupBookingInfoTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GroupBookingInfoIconButton extends StatelessWidget {
+  const _GroupBookingInfoIconButton({
+    required this.onTap,
+    this.iconColor = const Color(0xFF66748C),
+  });
+
+  final VoidCallback onTap;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.info_outline_rounded,
+          size: 13,
+          color: iconColor,
+        ),
       ),
     );
   }

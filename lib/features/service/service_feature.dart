@@ -88,7 +88,7 @@ class _AllServiceSection extends StatelessWidget {
                 height: 182,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: items.length,
+                  itemCount: items.length > 20 ? 20 : items.length,
                   padding: const EdgeInsets.only(right: 18),
                   separatorBuilder: (_, _) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
@@ -123,129 +123,181 @@ class _ServiceDealMiniTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: item.isDisabled ? null : onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(color: Colors.white),
-            ),
-            _TemporaryCatalogImage(
-              item: item,
-              fallback: _SceneThumb(
-                title: item.title,
-                accent: item.accent,
-                compact: true,
-              ),
-            ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      item.accent.withValues(alpha: 0.14),
-                      item.accent.withValues(alpha: 0.06),
-                      Colors.transparent,
-                    ],
-                    stops: const [0, 0.34, 0.7],
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const DecoratedBox(
+                  decoration: BoxDecoration(color: Colors.white),
+                ),
+                _TemporaryCatalogImage(
+                  item: item,
+                  fallback: _SceneThumb(
+                    title: item.title,
+                    accent: item.accent,
+                    compact: true,
                   ),
                 ),
-              ),
-            ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.06),
-                      Colors.black.withValues(alpha: 0.76),
-                    ],
-                    stops: const [0.28, 0.6, 1],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 6,
-              right: 6,
-              bottom: 6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      height: 1,
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          item.accent.withValues(alpha: 0.14),
+                          item.accent.withValues(alpha: 0.06),
+                          Colors.transparent,
+                        ],
+                        stops: const [0, 0.34, 0.7],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.08),
+                          Colors.black.withValues(alpha: 0.78),
+                        ],
+                        stops: const [0.24, 0.58, 1],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 7,
+                  left: 7,
+                  right: 7,
+                  child: Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          item.price,
+                      if (item.rating.trim().isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _ratingColor(item.rating),
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _ratingColor(item.rating).withValues(alpha: 0.24),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, size: 9, color: Colors.white),
+                              const SizedBox(width: 2),
+                              Text(
+                                item.rating,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8.4,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const Spacer(),
+                      if (item.distance.trim().isNotEmpty)
+                        Container(
+                          constraints: const BoxConstraints(maxWidth: 66),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            item.distance,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8.4,
+                              fontWeight: FontWeight.w700,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10.4,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      if (item.subtitle.trim().isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          item.subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.8,
-                            fontWeight: FontWeight.w900,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 8.8,
+                            fontWeight: FontWeight.w700,
                             height: 1,
                           ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: _ratingColor(item.rating),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star_rounded, size: 8, color: Colors.white),
-                            const SizedBox(width: 2),
-                            Text(
-                              item.rating,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 8.2,
-                                fontWeight: FontWeight.w800,
-                                height: 1,
-                              ),
-                            ),
-                          ],
+                      ],
+                      const SizedBox(height: 5),
+                      Text(
+                        item.price,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.8,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
+            Positioned(
+              left: -6,
+              bottom: 48,
+              child: _LabourAvailabilityRibbon(
+                label: item.disabledLabel,
+                compact: true,
               ),
             ),
-            if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
-              Positioned(
-                left: 6,
-                top: 6,
-                child: _AvailabilityBadge(
-                  label: item.disabledLabel,
-                  compact: true,
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
