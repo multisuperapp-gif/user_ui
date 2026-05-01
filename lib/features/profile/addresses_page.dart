@@ -4,10 +4,12 @@ class _AddressesPage extends StatefulWidget {
   const _AddressesPage({
     this.autoOpenEditor = false,
     this.closeAfterSave = false,
+    this.initialLocationChoice,
   });
 
   final bool autoOpenEditor;
   final bool closeAfterSave;
+  final _HomeLocationChoice? initialLocationChoice;
 
   @override
   State<_AddressesPage> createState() => _AddressesPageState();
@@ -64,7 +66,10 @@ class _AddressesPageState extends State<_AddressesPage> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AddressEditorSheet(existing: existing),
+      builder: (_) => _AddressEditorSheet(
+        existing: existing,
+        initialLocationChoice: existing == null ? widget.initialLocationChoice : null,
+      ),
     );
     if (input == null) {
       if (widget.closeAfterSave && existing == null && mounted) {
@@ -83,7 +88,7 @@ class _AddressesPageState extends State<_AddressesPage> {
       }
       await _loadAddresses();
       if (widget.closeAfterSave && mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       }
     } catch (error) {
       if (!mounted) {
@@ -385,9 +390,13 @@ class _AddressesPageState extends State<_AddressesPage> {
 }
 
 class _AddressEditorSheet extends StatefulWidget {
-  const _AddressEditorSheet({this.existing});
+  const _AddressEditorSheet({
+    this.existing,
+    this.initialLocationChoice,
+  });
 
   final _UserAddressData? existing;
+  final _HomeLocationChoice? initialLocationChoice;
 
   @override
   State<_AddressEditorSheet> createState() => _AddressEditorSheetState();
@@ -418,18 +427,29 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
   void initState() {
     super.initState();
     final existing = widget.existing;
+    final initialLocation = widget.initialLocationChoice;
+    final initialTitle = initialLocation?.title.trim() ?? '';
+    final initialSubtitle = initialLocation?.subtitle.trim() ?? '';
     _labelController = TextEditingController(text: existing?.label ?? '');
-    _line1Controller = TextEditingController(text: existing?.addressLine1 ?? '');
-    _line2Controller = TextEditingController(text: existing?.addressLine2 ?? '');
+    _line1Controller = TextEditingController(
+      text: existing?.addressLine1 ?? initialTitle,
+    );
+    _line2Controller = TextEditingController(
+      text: existing?.addressLine2 ?? initialSubtitle,
+    );
     _landmarkController = TextEditingController(text: existing?.landmark ?? '');
-    _cityController = TextEditingController(text: existing?.city ?? '');
+    _cityController = TextEditingController(text: existing?.city ?? initialLocation?.city ?? '');
     _stateController = TextEditingController(text: existing?.state ?? '');
     _countryController = TextEditingController(text: existing?.country.isNotEmpty == true ? existing!.country : 'India');
     _postalController = TextEditingController(text: existing?.postalCode ?? '');
     _isDefault = existing?.isDefault ?? false;
-    _selectedLatitude = existing?.latitude;
-    _selectedLongitude = existing?.longitude;
-    _selectedMapLabel = existing?.fullAddress;
+    _selectedLatitude = existing?.latitude ?? initialLocation?.latitude;
+    _selectedLongitude = existing?.longitude ?? initialLocation?.longitude;
+    _selectedMapLabel = existing?.fullAddress ??
+        [
+          initialTitle,
+          if (initialSubtitle.isNotEmpty) initialSubtitle,
+        ].where((part) => part.trim().isNotEmpty).join(', ');
     unawaited(_loadLocationMasters());
   }
 
@@ -674,7 +694,7 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
       context,
       title: widget.existing == null ? 'Pick address location' : 'Update address location',
       accentColor: const Color(0xFFCB6E5B),
-      subtitle: 'Move the pin to the exact delivery point for this address.',
+      subtitle: 'Move the map and keep the pin on the exact delivery point for this address.',
       initialLatitude: _selectedLatitude,
       initialLongitude: _selectedLongitude,
     );
@@ -1306,12 +1326,15 @@ class _UserAddressMapPickerPage extends StatefulWidget {
 }
 
 class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
+  static const double _defaultMapZoom = 16;
   late LatLng _selectedPosition;
   GoogleMapController? _mapController;
   bool _isResolvingCurrentLocation = false;
   bool _isResolvingAddress = false;
   String? _locationHint;
   Placemark? _selectedPlacemark;
+  LatLng? _pendingCameraTarget;
+  double _currentMapZoom = _defaultMapZoom;
 
   @override
   void initState() {
@@ -1333,11 +1356,10 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
       _selectedPosition = position;
       _selectedPlacemark = null;
     });
-    unawaited(_moveCamera(position));
     unawaited(_resolveSelectedAddress());
   }
 
-  Future<void> _moveCamera(LatLng position) async {
+  Future<void> _moveCamera(LatLng position, {double? zoom}) async {
     final controller = _mapController;
     if (controller == null) {
       return;
@@ -1346,7 +1368,7 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
       CameraUpdate.newCameraPosition(
         CameraPosition(
           target: position,
-          zoom: 16,
+          zoom: zoom ?? _currentMapZoom,
         ),
       ),
     );
@@ -1378,8 +1400,9 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
         _selectedPosition = livePosition;
         _selectedPlacemark = null;
         _isResolvingCurrentLocation = false;
+        _currentMapZoom = _defaultMapZoom;
       });
-      await _moveCamera(livePosition);
+      await _moveCamera(livePosition, zoom: _defaultMapZoom);
       unawaited(_resolveSelectedAddress());
     } catch (error) {
       if (!mounted) {
@@ -1472,15 +1495,6 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.subtitle ?? 'Tap the map or drag the pin to the exact delivery spot.',
-                      style: const TextStyle(
-                        color: Color(0xFF22314D),
-                        fontWeight: FontWeight.w700,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
                       _addressLabel ??
                           'Lat ${_formatMapCoordinate(_selectedPosition.latitude)} · Lng ${_formatMapCoordinate(_selectedPosition.longitude)}',
                       style: TextStyle(
@@ -1536,30 +1550,83 @@ class _UserAddressMapPickerPageState extends State<_UserAddressMapPickerPage> {
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  child: GoogleMap(
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                      unawaited(_moveCamera(_selectedPosition));
-                    },
-                    initialCameraPosition: CameraPosition(
-                      target: _selectedPosition,
-                      zoom: 16,
-                    ),
-                    mapType: MapType.normal,
-                    zoomControlsEnabled: false,
-                    mapToolbarEnabled: false,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    onTap: _setSelectedPosition,
-                    markers: {
-                      Marker(
-                        markerId: const MarkerId('selected-address'),
-                        position: _selectedPosition,
-                        draggable: true,
-                        onDragEnd: _setSelectedPosition,
-                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+                  child: Stack(
+                    children: [
+                      GoogleMap(
+                        onMapCreated: (controller) {
+                          _mapController = controller;
+                          unawaited(_moveCamera(_selectedPosition, zoom: _currentMapZoom));
+                        },
+                        initialCameraPosition: CameraPosition(
+                          target: _selectedPosition,
+                          zoom: _currentMapZoom,
+                        ),
+                        mapType: MapType.normal,
+                        zoomControlsEnabled: false,
+                        mapToolbarEnabled: false,
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: false,
+                        markers: const <Marker>{},
+                        onCameraMove: (position) {
+                          _pendingCameraTarget = position.target;
+                          _currentMapZoom = position.zoom;
+                        },
+                        onCameraIdle: () {
+                          final target = _pendingCameraTarget;
+                          if (target == null) {
+                            return;
+                          }
+                          final latitudeChanged =
+                              (_selectedPosition.latitude - target.latitude).abs() > 0.000001;
+                          final longitudeChanged =
+                              (_selectedPosition.longitude - target.longitude).abs() > 0.000001;
+                          if (!latitudeChanged && !longitudeChanged) {
+                            return;
+                          }
+                          _setSelectedPosition(target);
+                        },
                       ),
-                    },
+                      const Center(
+                        child: IgnorePointer(
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 28),
+                            child: Icon(
+                              Icons.location_on_rounded,
+                              size: 52,
+                              color: Color(0xFFD64A4A),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 14,
+                        bottom: 18,
+                        child: Material(
+                          color: Colors.white,
+                          elevation: 6,
+                          shadowColor: Colors.black.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                            onTap: () => unawaited(_loadCurrentLocation()),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: const Color(0xFFE3DAEE),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.my_location_rounded,
+                                color: Color(0xFFD48E78),
+                                size: 26,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

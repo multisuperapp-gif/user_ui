@@ -339,6 +339,8 @@ class _VerticalShopCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outOfStock = _isShopItemOutOfStock(item);
+    final isServiceProviderCard = item.backendServiceProviderId != null;
+    final serviceBadgeColor = const Color(0xFF4DAF50);
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
       child: InkWell(
@@ -374,6 +376,7 @@ class _VerticalShopCard extends StatelessWidget {
                 ],
               ),
               child: Row(
+                crossAxisAlignment: isServiceProviderCard ? CrossAxisAlignment.start : CrossAxisAlignment.center,
                 children: [
                   SizedBox(
                     width: 74,
@@ -392,16 +395,22 @@ class _VerticalShopCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 26),
+                      padding: EdgeInsets.only(
+                        right: isServiceProviderCard ? 38 : 26,
+                        top: isServiceProviderCard ? 1 : 0,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             item.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Color(0xFF22314D),
                               fontWeight: FontWeight.w900,
                               fontSize: 15,
+                              height: 1.05,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -415,39 +424,73 @@ class _VerticalShopCard extends StatelessWidget {
                               fontSize: 12,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 11,
-                                child: _ServiceInlineMetaPill(
-                                  icon: Icons.place_rounded,
-                                  value: item.distance,
-                                  color: const Color(0xFF5C8FD8),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                flex: 14,
-                                child: _ServiceInlineMetaPill(
-                                  icon: Icons.currency_rupee_rounded,
-                                  value: item.price,
-                                  color: item.accent,
-                                ),
-                              ),
-                              if (item.hasRating) ...[
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  flex: 10,
+                          SizedBox(height: isServiceProviderCard ? 10 : 6),
+                          if (isServiceProviderCard)
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                if (item.hasRating)
+                                  SizedBox(
+                                    width: 62,
+                                    child: _ServiceInlineMetaPill(
+                                      icon: Icons.star_rounded,
+                                      value: item.rating,
+                                      color: _ratingColor(item.rating),
+                                    ),
+                                  ),
+                                if (item.distance.trim().isNotEmpty)
+                                  SizedBox(
+                                    width: 78,
+                                    child: _ServiceInlineMetaPill(
+                                      icon: Icons.place_rounded,
+                                      value: item.distance,
+                                      color: const Color(0xFF5C8FD8),
+                                    ),
+                                  ),
+                                SizedBox(
+                                  width: 82,
                                   child: _ServiceInlineMetaPill(
-                                    icon: Icons.star_rounded,
-                                    value: item.rating,
-                                    color: _ratingColor(item.rating),
+                                    icon: Icons.work_history_rounded,
+                                    value: '${item.completedJobsCount ?? 0} bookings',
+                                    color: serviceBadgeColor,
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
+                            )
+                          else
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 11,
+                                  child: _ServiceInlineMetaPill(
+                                    icon: Icons.place_rounded,
+                                    value: item.distance,
+                                    color: const Color(0xFF5C8FD8),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  flex: 14,
+                                  child: _ServiceInlineMetaPill(
+                                    icon: Icons.currency_rupee_rounded,
+                                    value: item.price,
+                                    color: item.accent,
+                                  ),
+                                ),
+                                if (item.hasRating) ...[
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    flex: 10,
+                                    child: _ServiceInlineMetaPill(
+                                      icon: Icons.star_rounded,
+                                      value: item.rating,
+                                      color: _ratingColor(item.rating),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                         ],
                       ),
                     ),

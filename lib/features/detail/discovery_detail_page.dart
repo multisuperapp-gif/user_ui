@@ -19,7 +19,12 @@ class _DiscoveryDetailPage extends StatefulWidget {
   final bool isFavourited;
   final VoidCallback onWishlistToggle;
   final VoidCallback onFavouriteToggle;
-  final Future<bool> Function(String? labourBookingPeriod, int? labourCategoryId) onPrimaryAction;
+  final Future<bool> Function(
+    String? labourBookingPeriod,
+    int? labourCategoryId,
+    int? serviceCategoryId,
+    int? serviceSubcategoryId,
+  ) onPrimaryAction;
 
   @override
   State<_DiscoveryDetailPage> createState() => _DiscoveryDetailPageState();
@@ -32,6 +37,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   late bool _isAuthenticated;
   bool _labourBookedLocally = false;
   bool _primaryActionBusy = false;
+  bool _showServiceSelectionError = false;
 
   @override
   void initState() {
@@ -58,6 +64,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         oldWidget.item.serviceTileLabel != widget.item.serviceTileLabel ||
         oldWidget.item.backendServiceProviderId != widget.item.backendServiceProviderId) {
       _selectedServiceItemLabel = _defaultSelectedServiceItemLabel;
+      _showServiceSelectionError = false;
     }
   }
 
@@ -219,6 +226,9 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   bool get _labourUnavailable =>
       widget.mode == _HomeMode.labour && (widget.item.isDisabled || _labourBookedLocally);
 
+  bool get _serviceUnavailable =>
+      widget.mode == _HomeMode.service && widget.item.isDisabled;
+
   List<_LabourCategoryPricing> get _labourCategoryOptions {
     if (widget.item.labourCategoryPricing.isNotEmpty) {
       final normalized = <_LabourCategoryPricing>[];
@@ -257,6 +267,12 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
 
   List<String> get _serviceCategoryOptions {
     final options = <String>[];
+    for (final option in widget.item.serviceOptions) {
+      final normalized = option.subcategoryName.trim();
+      if (normalized.isNotEmpty && !options.contains(normalized)) {
+        options.add(normalized);
+      }
+    }
     for (final serviceItem in widget.item.serviceItems) {
       final normalized = serviceItem.trim();
       if (normalized.isNotEmpty && !options.contains(normalized)) {
@@ -274,15 +290,52 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     return options.isEmpty ? const <String>['Service'] : options;
   }
 
-  String get _defaultSelectedServiceItemLabel {
+  String? get _defaultSelectedServiceItemLabel {
+    if (_serviceCategoryOptions.length > 1) {
+      return null;
+    }
     final preferred = widget.item.serviceTileLabel.trim();
     if (preferred.isNotEmpty && _serviceCategoryOptions.contains(preferred)) {
       return preferred;
     }
-    return _serviceCategoryOptions.first;
+    return _serviceCategoryOptions.firstOrNull;
   }
 
-  String get _serviceTilePriceLabel => widget.item.price.isEmpty ? 'Visit charge on request' : widget.item.price;
+  _ServicePricingOption? get _selectedServiceOption {
+    final selectedLabel = _selectedServiceItemLabel?.trim() ?? '';
+    if (selectedLabel.isEmpty) {
+      return null;
+    }
+    for (final option in widget.item.serviceOptions) {
+      if (option.subcategoryName.trim() == selectedLabel) {
+        return option;
+      }
+    }
+    return null;
+  }
+
+  String get _serviceTilePriceLabel {
+    final option = _selectedServiceOption;
+    if (option != null && option.visitingChargeLabel.trim().isNotEmpty) {
+      return option.visitingChargeLabel.trim();
+    }
+    if (widget.item.serviceOptions.length > 1) {
+      return 'Select subcategory';
+    }
+    return widget.item.price.isEmpty ? 'Visit charge on request' : widget.item.price;
+  }
+
+  String _serviceTilePriceLabelFor(String label) {
+    final normalizedLabel = label.trim();
+    for (final option in widget.item.serviceOptions) {
+      if (option.subcategoryName.trim() == normalizedLabel) {
+        return option.visitingChargeLabel.trim().isEmpty
+            ? 'Visit charge on request'
+            : option.visitingChargeLabel.trim();
+      }
+    }
+    return _serviceTilePriceLabel;
+  }
 
   String get _labourUnavailableLabel {
     if (_labourBookedLocally) {
@@ -300,7 +353,14 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         }
         return _isAuthenticated ? 'Book labour' : 'Login to book labour';
       case _HomeMode.service:
-        return _isAuthenticated ? 'Pay visiting charge' : 'Login to book service';
+        if (_serviceUnavailable) {
+          final label = widget.item.disabledLabel.trim();
+          return label.isEmpty ? 'Offline' : label;
+        }
+        if (widget.item.serviceOptions.length > 1 && _selectedServiceOption == null) {
+          return 'Select subcategory';
+        }
+        return _isAuthenticated ? 'Book service' : 'Login to book service';
       case _HomeMode.shop:
         return 'Add item to cart';
       case _HomeMode.all:
@@ -468,36 +528,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
             ],
           ],
           if (mode == _HomeMode.service) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             _serviceCategorySelector(),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Profile details',
-                    style: TextStyle(
-                      color: Color(0xFF22314D),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _detailRow('Name', item.title),
-                  _detailRow('Category', item.subtitle),
-                  _detailRow('Visit charge', item.price.isEmpty ? 'As per profile' : item.price),
-                  _detailRow('Distance', item.distance),
-                  _detailRow('Total bookings', _completedJobsLabel),
-                  _detailRow('Mobile', item.maskedPhone),
-                ],
-              ),
-            ),
           ],
           if (mode != _HomeMode.labour && mode != _HomeMode.service) ...[
             const SizedBox(height: 18),
@@ -583,6 +615,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _labourUnavailable
+                  || _serviceUnavailable
                   ? null
                   : () async {
                       if (_primaryActionBusy) {
@@ -608,11 +641,20 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                         );
                         return;
                       }
+                      if (mode == _HomeMode.service && _selectedServiceOption == null) {
+                        setState(() => _showServiceSelectionError = true);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select a service subcategory before booking.')),
+                        );
+                        return;
+                      }
                       setState(() => _primaryActionBusy = true);
                       try {
                         final bookingLocked = await widget.onPrimaryAction(
                           _selectedLabourBookingPeriod,
                           _selectedLabourCategoryId,
+                          _selectedServiceOption?.categoryId,
+                          _selectedServiceOption?.subcategoryId,
                         );
                         await _refreshAuthStateFromSession();
                         if (mounted && mode == _HomeMode.labour && bookingLocked) {
@@ -776,22 +818,17 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                 const SizedBox(height: 6),
                 Text(
                   item.subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 3,
+                  softWrap: true,
                   style: const TextStyle(
                     color: Color(0xFF6D7A91),
-                    fontSize: 12.5,
+                    fontSize: 12.2,
                     fontWeight: FontWeight.w800,
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 8),
                 _buildLabourDistanceAndRatingRow(item),
-                const SizedBox(height: 10),
-                _labourInfoLine(
-                  label: 'Visit charge',
-                  value: _serviceTilePriceLabel,
-                ),
                 const SizedBox(height: 8),
                 _labourInfoLine(
                   label: 'Total bookings',
@@ -801,22 +838,54 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.phone_android_rounded,
-                      size: 15,
-                      color: Color(0xFF8090A6),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3EEE9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.phone_rounded,
+                        size: 14,
+                        color: Color(0xFF66748C),
+                      ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        item.maskedPhone,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF22314D),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12.4,
-                        ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.maskedPhone,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13.2,
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: _showPhoneUnmaskInfo,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3EEE9),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Icon(
+                                Icons.info_outline_rounded,
+                                size: 14,
+                                color: Color(0xFF66748C),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -829,63 +898,198 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     );
   }
 
+  (IconData, Color) _serviceCategoryVisual(String label) {
+    final normalized = label.trim().toLowerCase();
+    if (normalized.contains('2 wheeler') || normalized.contains('two wheeler')) {
+      return (Icons.two_wheeler_rounded, const Color(0xFF4F83E1));
+    }
+    if (normalized.contains('3 wheeler') || normalized.contains('three wheeler')) {
+      return (Icons.electric_rickshaw_rounded, const Color(0xFFF09E3E));
+    }
+    if (normalized.contains('4 wheeler') || normalized.contains('four wheeler')) {
+      return (Icons.directions_car_filled_rounded, const Color(0xFFE06764));
+    }
+    if (normalized.contains('plumb') || normalized.contains('leak') || normalized.contains('drain')) {
+      return (Icons.plumbing_rounded, const Color(0xFF4B89E7));
+    }
+    if (normalized.contains('elect') || normalized.contains('wiring') || normalized.contains('fan')) {
+      return (Icons.electrical_services_rounded, const Color(0xFFF0AA29));
+    }
+    if (normalized.contains('ac') || normalized.contains('cool')) {
+      return (Icons.ac_unit_rounded, const Color(0xFF5D95EA));
+    }
+    if (normalized.contains('fridge') || normalized.contains('washing') || normalized.contains('kitchen')) {
+      return (Icons.kitchen_rounded, const Color(0xFFD87BA4));
+    }
+    return (Icons.miscellaneous_services_rounded, const Color(0xFFCB6E5B));
+  }
+
   Widget _serviceCategorySelector() {
     final options = _serviceCategoryOptions;
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: options.map((label) {
-        final selected = label == _selectedServiceItemLabel;
-        return InkWell(
-          onTap: () => setState(() => _selectedServiceItemLabel = label),
-          borderRadius: BorderRadius.circular(18),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: options.length == 1 ? double.infinity : null,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xFFFFF1EB) : Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: selected ? const Color(0xFFCB6E5B) : const Color(0xFFE8DCD6),
-                width: selected ? 1.8 : 1.1,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFFCB6E5B).withValues(alpha: 0.10),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
+    final showError = _showServiceSelectionError && _selectedServiceOption == null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fullWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0;
+        final tileWidth = options.length == 1
+            ? fullWidth
+            : ((fullWidth - 14) / 2).clamp(144.0, fullWidth);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: options.map((label) {
+                final selected = label == _selectedServiceItemLabel;
+                final (icon, accent) = _serviceCategoryVisual(label);
+                final borderColor = selected
+                    ? accent
+                    : showError
+                        ? const Color(0xFFD53F4B)
+                        : const Color(0xFFE7DBD4);
+                final background = selected
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          accent.withValues(alpha: 0.14),
+                          accent.withValues(alpha: 0.05),
+                          Colors.white,
+                        ],
+                      )
+                    : showError
+                        ? const LinearGradient(
+                            colors: [
+                              Color(0xFFFFF0F1),
+                              Color(0xFFFFFBFB),
+                            ],
+                          )
+                        : const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFFFFFBF7),
+                              Color(0xFFFFFFFF),
+                            ],
+                          );
+                return InkWell(
+                  onTap: () => setState(() {
+                    _selectedServiceItemLabel = label;
+                    _showServiceSelectionError = false;
+                  }),
+                  borderRadius: BorderRadius.circular(24),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: tileWidth,
+                    constraints: const BoxConstraints(minHeight: 94),
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                    decoration: BoxDecoration(
+                      gradient: background,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: borderColor,
+                        width: selected || showError ? 1.9 : 1.1,
                       ),
-                    ]
-                  : const [],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: const Color(0xFF22314D),
-                    fontSize: 15,
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (selected ? accent : const Color(0xFF1E2430))
+                              .withValues(alpha: selected ? 0.16 : 0.05),
+                          blurRadius: selected ? 20 : 12,
+                          offset: const Offset(0, 9),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? accent.withValues(alpha: 0.16)
+                                    : accent.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                icon,
+                                size: 19,
+                                color: selected ? accent : accent.withValues(alpha: 0.92),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                label,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: selected
+                                      ? const Color(0xFF2A2433)
+                                      : showError
+                                          ? const Color(0xFF9F2434)
+                                          : const Color(0xFF22314D),
+                                  fontSize: 14.2,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.08,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? accent.withValues(alpha: 0.12)
+                                  : const Color(0xFFF4EEE8),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              _serviceTilePriceLabelFor(label),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected
+                                    ? accent
+                                    : showError
+                                        ? const Color(0xFFD53F4B)
+                                        : const Color(0xFF6B768A),
+                                fontSize: 11.4,
+                                fontWeight: FontWeight.w900,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _serviceTilePriceLabel,
-                  style: TextStyle(
-                    color: selected ? const Color(0xFFCB6E5B) : const Color(0xFF66748C),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+                );
+              }).toList(growable: false),
             ),
-          ),
+            if (showError) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Select a subcategory before booking.',
+                style: TextStyle(
+                  color: Color(0xFFD53F4B),
+                  fontSize: 12.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
         );
-      }).toList(growable: false),
+      },
     );
   }
 

@@ -1168,6 +1168,54 @@ class _VerticalProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isServiceMode = mode == _HomeMode.service;
+    final primaryTitle = isServiceMode
+        ? (item.subtitle.trim().isNotEmpty ? item.subtitle : item.title)
+        : item.title;
+    final secondaryTitle = isServiceMode ? '' : item.subtitle;
+    final servedCategories = isServiceMode
+        ? item.serviceItems
+            .map((entry) => entry.trim())
+            .where((entry) => entry.isNotEmpty)
+            .take(3)
+            .toList(growable: false)
+        : const <String>[];
+    final selectedServiceLabel = isServiceMode ? item.serviceTileLabel.trim() : '';
+
+    Widget serviceMetaPill({
+      required IconData icon,
+      required String value,
+      required Color color,
+    }) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10.1,
+                  height: 1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
       child: InkWell(
@@ -1175,34 +1223,35 @@ class _VerticalProfileCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Stack(
           children: [
-	            Container(
-	              padding: const EdgeInsets.all(12),
-	              decoration: BoxDecoration(
-	                color: Colors.white,
-	                borderRadius: BorderRadius.circular(20),
-	                border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
-	                boxShadow: [
-	                  BoxShadow(
-	                    color: Colors.black.withValues(alpha: 0.20),
-	                    blurRadius: 70,
-	                    spreadRadius: -20,
-	                    offset: const Offset(0, 58),
-	                  ),
-	                  BoxShadow(
-	                    color: Colors.black.withValues(alpha: 0.12),
-	                    blurRadius: 34,
-	                    spreadRadius: -10,
-	                    offset: const Offset(0, 24),
-	                  ),
-	                  BoxShadow(
-	                    color: Colors.black.withValues(alpha: 0.05),
-	                    blurRadius: 12,
-	                    spreadRadius: -4,
-	                    offset: const Offset(0, 8),
-	                  ),
-	                ],
-	              ),
+            Container(
+              padding: EdgeInsets.fromLTRB(12, isServiceMode ? 10 : 12, 12, 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.20),
+                    blurRadius: 70,
+                    spreadRadius: -20,
+                    offset: const Offset(0, 58),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 34,
+                    spreadRadius: -10,
+                    offset: const Offset(0, 24),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 12,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
               child: Row(
+                crossAxisAlignment: isServiceMode ? CrossAxisAlignment.start : CrossAxisAlignment.center,
                 children: [
                   SizedBox(
                     width: 74,
@@ -1216,62 +1265,106 @@ class _VerticalProfileCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-	                  Expanded(
-	                    child: Padding(
-	                      padding: const EdgeInsets.only(right: 26),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: isServiceMode ? 32 : 26),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.title,
+                            primaryTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Color(0xFF22314D),
                               fontWeight: FontWeight.w900,
                               fontSize: 15,
+                              height: 1.05,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            item.subtitle,
-                            style: const TextStyle(
-                              color: Color(0xFF69778E),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
+                          if (secondaryTitle.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              secondaryTitle,
+                              style: const TextStyle(
+                                color: Color(0xFF69778E),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-	                              Expanded(
-	                                flex: 11,
-                                child: _ServiceInlineMetaPill(
+                          ],
+                          if (isServiceMode && servedCategories.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              servedCategories.join('  •  '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF7A879C),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10.8,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
+                          SizedBox(height: isServiceMode ? 8 : 6),
+                          if (isServiceMode)
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              children: [
+                                serviceMetaPill(
                                   icon: Icons.place_rounded,
                                   value: item.distance,
                                   color: const Color(0xFF5C8FD8),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-	                              Expanded(
-	                                flex: 16,
-                                child: _ServiceInlineMetaPill(
-                                  icon: Icons.currency_rupee_rounded,
-                                  value: item.price,
-                                  color: item.accent,
-                                ),
-                              ),
-                              if (_hasVisibleRating(item.rating)) ...[
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  flex: 10,
-                                  child: _ServiceInlineMetaPill(
+                                if (_hasVisibleRating(item.rating))
+                                  serviceMetaPill(
                                     icon: Icons.star_rounded,
                                     value: item.rating,
                                     color: _ratingColor(item.rating),
                                   ),
-                                ),
+                                if (selectedServiceLabel.isNotEmpty)
+                                  serviceMetaPill(
+                                    icon: Icons.local_offer_rounded,
+                                    value: selectedServiceLabel,
+                                    color: item.accent,
+                                  ),
                               ],
-                            ],
-                          ),
+                            )
+                          else
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 11,
+                                  child: _ServiceInlineMetaPill(
+                                    icon: Icons.place_rounded,
+                                    value: item.distance,
+                                    color: const Color(0xFF5C8FD8),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  flex: 16,
+                                  child: _ServiceInlineMetaPill(
+                                    icon: Icons.currency_rupee_rounded,
+                                    value: item.price,
+                                    color: item.accent,
+                                  ),
+                                ),
+                                if (_hasVisibleRating(item.rating)) ...[
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    flex: 10,
+                                    child: _ServiceInlineMetaPill(
+                                      icon: Icons.star_rounded,
+                                      value: item.rating,
+                                      color: _ratingColor(item.rating),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                         ],
                       ),
                     ),

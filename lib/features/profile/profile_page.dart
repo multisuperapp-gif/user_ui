@@ -18,7 +18,7 @@ class _ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<_ProfilePage> {
   _UserProfileData? _profile;
   bool _savingProfile = false;
-  static const int _maxProfilePhotoBytes = 3 * 1024 * 1024;
+  static const int _maxProfilePhotoBytes = 5 * 1024 * 1024;
   static const List<String> _genderOptions = ['Male', 'Female', 'Other'];
 
   @override
@@ -106,6 +106,15 @@ class _ProfilePageState extends State<_ProfilePage> {
 
   bool _isPhotoTooLarge(Uint8List bytes) => bytes.length > _maxProfilePhotoBytes;
 
+  void _showProfilePhotoError(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   String _profilePhotoDataUriFromBytes(Uint8List bytes, {String mimeType = 'image/png'}) {
     return 'data:$mimeType;base64,${base64Encode(bytes)}';
   }
@@ -114,25 +123,35 @@ class _ProfilePageState extends State<_ProfilePage> {
     required bool saving,
     required ValueSetter<String> setDraftPhotoDataUri,
     required ValueSetter<Uint8List?> setDraftPhotoBytes,
+    ValueSetter<String>? onError,
   }) async {
     if (saving) {
       return;
     }
-    final picked = await _pickProfilePhotoDraft();
-    if (picked == null) {
-      return;
-    }
-    final cropped = await _cropProfilePhotoDraft(picked.bytes);
-    if (cropped != null) {
+    try {
+      final picked = await _pickProfilePhotoDraft(onError: onError);
+      if (picked == null) {
+        return;
+      }
+      final cropped = await _cropProfilePhotoDraft(picked.bytes, onError: onError);
+      if (cropped == null) {
+        return;
+      }
       setDraftPhotoDataUri(cropped.dataUri);
       setDraftPhotoBytes(cropped.bytes);
-      return;
+    } catch (_) {
+      final message = 'Could not open this image. Please choose a JPG, PNG, or WEBP photo up to 5 MB.';
+      if (onError != null) {
+        onError(message);
+      } else {
+        _showProfilePhotoError(message);
+      }
     }
-    setDraftPhotoDataUri(picked.dataUri);
-    setDraftPhotoBytes(picked.bytes);
   }
 
-  Future<({String dataUri, Uint8List bytes})?> _pickProfilePhotoDraft() async {
+  Future<({String dataUri, Uint8List bytes})?> _pickProfilePhotoDraft({
+    ValueSetter<String>? onError,
+  }) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
@@ -142,10 +161,11 @@ class _ProfilePageState extends State<_ProfilePage> {
     }
     final bytes = await picked.readAsBytes();
     if (_isPhotoTooLarge(bytes)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please choose a photo up to 3 MB.')),
-        );
+      const message = 'Please choose a photo up to 5 MB.';
+      if (onError != null) {
+        onError(message);
+      } else {
+        _showProfilePhotoError(message);
       }
       return null;
     }
@@ -155,7 +175,10 @@ class _ProfilePageState extends State<_ProfilePage> {
     );
   }
 
-  Future<({String dataUri, Uint8List bytes})?> _cropProfilePhotoDraft(Uint8List currentBytes) async {
+  Future<({String dataUri, Uint8List bytes})?> _cropProfilePhotoDraft(
+    Uint8List currentBytes, {
+    ValueSetter<String>? onError,
+  }) async {
     final cropped = await _openSquareCropperDialog(
       context,
       bytes: currentBytes,
@@ -165,10 +188,11 @@ class _ProfilePageState extends State<_ProfilePage> {
       return null;
     }
     if (_isPhotoTooLarge(cropped.bytes)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please keep the cropped photo within 3 MB.')),
-        );
+      const message = 'Please keep the cropped photo within 5 MB.';
+      if (onError != null) {
+        onError(message);
+      } else {
+        _showProfilePhotoError(message);
       }
       return null;
     }
@@ -193,6 +217,7 @@ class _ProfilePageState extends State<_ProfilePage> {
     String selectedGender = _profile?.gender.trim() ?? '';
     DateTime? selectedDob = _profile?.dob == null ? null : DateUtils.dateOnly(_profile!.dob!);
     bool saving = false;
+    String? photoError;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -209,6 +234,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                 );
                 return;
               }
+              setSheetState(() => photoError = null);
               setSheetState(() => saving = true);
               setState(() => _savingProfile = true);
               try {
@@ -232,10 +258,12 @@ class _ProfilePageState extends State<_ProfilePage> {
                   await widget.onLogout();
                 }
               } on _UserAppApiException catch (error) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(error.message)),
-                  );
+                if (sheetContext.mounted) {
+                  setSheetState(() {
+                    photoError = error.message.trim().isEmpty
+                        ? 'Could not update your profile right now.'
+                        : error.message;
+                  });
                 }
               } finally {
                 if (mounted) {
@@ -292,13 +320,18 @@ class _ProfilePageState extends State<_ProfilePage> {
                             InkWell(
                               onTap: () => _pickAndApplyDraftPhoto(
                                 saving: saving,
-                                setDraftPhotoDataUri: (value) => setSheetState(() => draftPhotoDataUri = value),
+                                setDraftPhotoDataUri: (value) => setSheetState(() {
+                                  draftPhotoDataUri = value;
+                                  photoError = null;
+                                }),
                                 setDraftPhotoBytes: (value) => setSheetState(() {
                                   draftPhotoBytes = value;
+                                  photoError = null;
                                   if (value != null) {
                                     draftPhotoUrl = '';
                                   }
                                 }),
+                                onError: (message) => setSheetState(() => photoError = message),
                               ),
                               customBorder: const CircleBorder(),
                               child: Container(
@@ -334,13 +367,18 @@ class _ProfilePageState extends State<_ProfilePage> {
                                   customBorder: const CircleBorder(),
                                   onTap: () => _pickAndApplyDraftPhoto(
                                     saving: saving,
-                                    setDraftPhotoDataUri: (value) => setSheetState(() => draftPhotoDataUri = value),
+                                    setDraftPhotoDataUri: (value) => setSheetState(() {
+                                      draftPhotoDataUri = value;
+                                      photoError = null;
+                                    }),
                                     setDraftPhotoBytes: (value) => setSheetState(() {
                                       draftPhotoBytes = value;
+                                      photoError = null;
                                       if (value != null) {
                                         draftPhotoUrl = '';
                                       }
                                     }),
+                                    onError: (message) => setSheetState(() => photoError = message),
                                   ),
                                   child: const Padding(
                                     padding: EdgeInsets.all(9),
@@ -353,6 +391,22 @@ class _ProfilePageState extends State<_ProfilePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      if (photoError != null) ...[
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              photoError!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFFB94F4F),
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (draftPhotoDataUri.isNotEmpty || draftPhotoUrl.trim().isNotEmpty)
                         Center(
                           child: Wrap(
@@ -364,7 +418,10 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 onPressed: saving || draftPhotoBytes == null
                                     ? null
                                     : () async {
-                                        final cropped = await _cropProfilePhotoDraft(draftPhotoBytes!);
+                                        final cropped = await _cropProfilePhotoDraft(
+                                          draftPhotoBytes!,
+                                          onError: (message) => setSheetState(() => photoError = message),
+                                        );
                                         if (cropped == null) {
                                           return;
                                         }
@@ -372,6 +429,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                                           draftPhotoDataUri = cropped.dataUri;
                                           draftPhotoBytes = cropped.bytes;
                                           draftPhotoUrl = '';
+                                          photoError = null;
                                         });
                                       },
                                 icon: const Icon(Icons.crop_rounded, size: 18),
@@ -382,8 +440,15 @@ class _ProfilePageState extends State<_ProfilePage> {
                                     ? null
                                     : () => _pickAndApplyDraftPhoto(
                                           saving: saving,
-                                          setDraftPhotoDataUri: (value) => setSheetState(() => draftPhotoDataUri = value),
-                                          setDraftPhotoBytes: (value) => setSheetState(() => draftPhotoBytes = value),
+                                          setDraftPhotoDataUri: (value) => setSheetState(() {
+                                            draftPhotoDataUri = value;
+                                            photoError = null;
+                                          }),
+                                          setDraftPhotoBytes: (value) => setSheetState(() {
+                                            draftPhotoBytes = value;
+                                            photoError = null;
+                                          }),
+                                          onError: (message) => setSheetState(() => photoError = message),
                                         ),
                                 icon: const Icon(Icons.upload_rounded, size: 18),
                                 label: const Text('Upload photo'),
@@ -395,6 +460,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                                           draftPhotoDataUri = '';
                                           draftPhotoBytes = null;
                                           draftPhotoUrl = '';
+                                          photoError = null;
                                         }),
                                 child: const Text('Remove photo'),
                               ),
@@ -758,36 +824,69 @@ class _MyBookingsPage extends StatefulWidget {
 }
 
 class _MyBookingsPageState extends State<_MyBookingsPage> {
-  static final RegExp _otpRegex = RegExp(r'^\d{6}$');
-  final TextEditingController _startWorkOtpController = TextEditingController();
+  static const String _historyPeriodAllTime = 'All time';
+  static const String _historyPeriodLastWeek = 'Last week';
+  static const String _historyPeriodLastMonth = 'Last month';
+  static const String _historyPeriodLastSixMonths = '6 months';
+  static const int _historyPageSize = 20;
   bool _loading = true;
   bool _paying = false;
-  bool _verifyingStartOtp = false;
-  bool _generatingCompleteOtp = false;
-  bool _requestingMutualCancelOtp = false;
+  bool _historyLoadingMore = false;
+  bool _historyHasMore = true;
   String? _error;
-  String? _startWorkOtpError;
-  String? _completeWorkOtpCode;
-  String? _mutualCancelOtpCode;
   _ActiveBookingStatus? _status;
   List<_ActiveBookingStatus> _activeStatuses = const <_ActiveBookingStatus>[];
   List<_ActiveBookingStatus> _historyStatuses = const <_ActiveBookingStatus>[];
   String _selectedBookingStatusFilter = 'All';
   String _selectedBookingTypeFilter = 'All';
   String _selectedPaymentStatusFilter = 'All';
-  DateTime? _selectedHistoryStartDate;
-  DateTime? _selectedHistoryEndDate;
+  String _selectedHistoryPeriodFilter = _historyPeriodAllTime;
+  int _historyPage = 0;
+  final ScrollController _scrollController = ScrollController();
+  bool _showHistoryScrollToTop = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScroll);
     unawaited(_load());
   }
 
   @override
   void dispose() {
-    _startWorkOtpController.dispose();
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final shouldShowScrollToTop = _scrollController.position.pixels >= 420;
+    if (shouldShowScrollToTop != _showHistoryScrollToTop && mounted) {
+      setState(() {
+        _showHistoryScrollToTop = shouldShowScrollToTop;
+      });
+    }
+    if (_loading || _historyLoadingMore || !_historyHasMore) {
+      return;
+    }
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 220) {
+      unawaited(_loadMoreHistory());
+    }
+  }
+
+  Future<void> _scrollHistoryToTop() async {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _applyActiveBookingStatusUpdate(_ActiveBookingStatus? latestStatus) {
@@ -838,16 +937,6 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     );
   }
 
-  void _hideHomeBookingTip() {
-    _ActiveBookingPopupVisibilityController.dismissForDuration(const Duration(minutes: 1));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Home booking tip hidden for 1 minute.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -855,7 +944,7 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     });
     try {
       final activeStatuses = await _UserAppApi.fetchActiveBookingStatuses();
-      final historyStatuses = await _UserAppApi.fetchBookingHistoryStatuses();
+      final historyStatuses = await _UserAppApi.fetchBookingHistoryStatuses(page: 0, size: _historyPageSize);
       if (!mounted) {
         return;
       }
@@ -863,11 +952,8 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
         _activeStatuses = activeStatuses;
         _historyStatuses = historyStatuses;
         _status = activeStatuses.isEmpty ? null : activeStatuses.first;
-        _startWorkOtpError = null;
-        if (_status?.bookingStatus.toUpperCase() != 'IN_PROGRESS') {
-          _completeWorkOtpCode = null;
-          _mutualCancelOtpCode = null;
-        }
+        _historyPage = 0;
+        _historyHasMore = historyStatuses.length >= _historyPageSize;
       });
     } on _UserAppApiException catch (error) {
       if (!mounted) {
@@ -880,6 +966,46 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
       if (mounted) {
         setState(() {
           _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreHistory() async {
+    if (_loading || _historyLoadingMore || !_historyHasMore) {
+      return;
+    }
+    setState(() {
+      _historyLoadingMore = true;
+    });
+    try {
+      final nextPage = _historyPage + 1;
+      final nextItems = await _UserAppApi.fetchBookingHistoryStatuses(
+        page: nextPage,
+        size: _historyPageSize,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        final existingRequestIds = _historyStatuses.map((item) => item.requestId).toSet();
+        final merged = List<_ActiveBookingStatus>.from(_historyStatuses)
+          ..addAll(nextItems.where((item) => !existingRequestIds.contains(item.requestId)));
+        _historyStatuses = merged;
+        _historyPage = nextPage;
+        _historyHasMore = nextItems.length >= _historyPageSize;
+      });
+    } on _UserAppApiException {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _historyHasMore = false;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _historyLoadingMore = false;
         });
       }
     }
@@ -913,19 +1039,7 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
               _bookingTypeCodeFromFilter(_selectedBookingTypeFilter);
         })
         .where((item) {
-          if (item.createdAt == null) {
-            return _selectedHistoryStartDate == null && _selectedHistoryEndDate == null;
-          }
-          final created = DateUtils.dateOnly(item.createdAt!);
-          if (_selectedHistoryStartDate != null &&
-              created.isBefore(DateUtils.dateOnly(_selectedHistoryStartDate!))) {
-            return false;
-          }
-          if (_selectedHistoryEndDate != null &&
-              created.isAfter(DateUtils.dateOnly(_selectedHistoryEndDate!))) {
-            return false;
-          }
-          return true;
+          return _matchesHistoryPeriod(item.createdAt);
         })
         .toList(growable: false);
     source.sort((a, b) {
@@ -1045,69 +1159,48 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     }
   }
 
-  Future<void> _pickFilterDate({required bool isStart}) async {
+  List<String> get _historyPeriodOptions {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: isStart
-          ? (_selectedHistoryStartDate ?? _selectedHistoryEndDate ?? now)
-          : (_selectedHistoryEndDate ?? _selectedHistoryStartDate ?? now),
-      firstDate: DateTime(now.year - 2),
-      lastDate: now,
-    );
-    if (!mounted || picked == null) {
-      return;
+    final years = _historyStatuses
+        .map((item) => item.createdAt?.year)
+        .whereType<int>()
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    if (!years.contains(now.year)) {
+      years.insert(0, now.year);
     }
-    setState(() {
-      final normalized = DateUtils.dateOnly(picked);
-      if (isStart) {
-        _selectedHistoryStartDate = normalized;
-        if (_selectedHistoryEndDate != null && normalized.isAfter(_selectedHistoryEndDate!)) {
-          _selectedHistoryEndDate = normalized;
-        }
-      } else {
-        _selectedHistoryEndDate = normalized;
-        if (_selectedHistoryStartDate != null && normalized.isBefore(_selectedHistoryStartDate!)) {
-          _selectedHistoryStartDate = normalized;
-        }
-      }
-    });
+    return <String>[
+      _historyPeriodLastWeek,
+      _historyPeriodLastMonth,
+      _historyPeriodLastSixMonths,
+      ...years.map((year) => '$year'),
+      _historyPeriodAllTime,
+    ];
   }
 
-  String _formatHistoryDate(DateTime? value) {
-    if (value == null) {
-      return '';
+  bool _matchesHistoryPeriod(DateTime? createdAt) {
+    if (_selectedHistoryPeriodFilter == _historyPeriodAllTime) {
+      return true;
     }
-    return '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year.toString().padLeft(4, '0')}';
-  }
-
-  _BookingHistoryStatusStyle _historyStatusStyleFor(_ActiveBookingStatus item) {
-    switch (_normalizedHistoryStatus(item)) {
-      case 'COMPLETED':
-        return const _BookingHistoryStatusStyle(
-          label: 'Completed',
-          backgroundColor: Color(0xFFE4F6E8),
-          textColor: Color(0xFF177245),
-        );
-      case 'NO_SHOW':
-        return const _BookingHistoryStatusStyle(
-          label: 'No show',
-          backgroundColor: Color(0xFFF7D7D7),
-          textColor: Color(0xFF7E1111),
-        );
-      case 'PAYMENT_FAILED':
-        return const _BookingHistoryStatusStyle(
-          label: 'Payment failed',
-          backgroundColor: Color(0xFFFFF2C9),
-          textColor: Color(0xFF8A6400),
-        );
-      case 'CANCELLED':
+    if (createdAt == null) {
+      return false;
+    }
+    final created = DateUtils.dateOnly(createdAt);
+    final today = DateUtils.dateOnly(DateTime.now());
+    switch (_selectedHistoryPeriodFilter) {
+      case _historyPeriodLastWeek:
+        final start = today.subtract(const Duration(days: 7));
+        return !created.isBefore(start);
+      case _historyPeriodLastMonth:
+        final start = DateTime(today.year, today.month - 1, today.day);
+        return !created.isBefore(DateUtils.dateOnly(start));
+      case _historyPeriodLastSixMonths:
+        final start = DateTime(today.year, today.month - 6, today.day);
+        return !created.isBefore(DateUtils.dateOnly(start));
       default:
-        return const _BookingHistoryStatusStyle(
-          label: 'Canceled',
-          backgroundColor: Color(0xFFFCE4E2),
-          textColor: Color(0xFFB04C4C),
-        );
+        final year = int.tryParse(_selectedHistoryPeriodFilter);
+        return year == null ? true : created.year == year;
     }
   }
 
@@ -1191,104 +1284,20 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     }
   }
 
-  Future<void> _verifyStartWorkOtp() async {
-    final status = _status;
-    final otp = _startWorkOtpController.text.trim();
-    if (status == null || status.bookingId <= 0 || _verifyingStartOtp) {
-      return;
-    }
-    if (!_otpRegex.hasMatch(otp)) {
-      setState(() => _startWorkOtpError = 'Enter the 6-digit OTP shared by labour.');
-      return;
-    }
-    setState(() {
-      _verifyingStartOtp = true;
-      _startWorkOtpError = null;
-    });
-    try {
-      await _UserAppApi.verifyBookingOtp(
-        bookingId: status.bookingId,
-        purpose: 'START_WORK',
-        otpCode: otp,
-      );
-      if (!mounted) {
-        return;
-      }
-      _startWorkOtpController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Work started successfully.')),
-      );
-      await _load();
-    } on _UserAppApiException catch (error) {
-      if (mounted) {
-        setState(() => _startWorkOtpError = error.message);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _verifyingStartOtp = false);
-      }
-    }
-  }
-
-  Future<void> _generateCompleteWorkOtp() async {
-    final status = _status;
-    if (status == null || status.bookingId <= 0 || _generatingCompleteOtp) {
-      return;
-    }
-    setState(() => _generatingCompleteOtp = true);
-    try {
-      final otp = await _UserAppApi.generateBookingOtp(
-        bookingId: status.bookingId,
-        purpose: 'COMPLETE_WORK',
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() => _completeWorkOtpCode = otp);
-    } on _UserAppApiException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _generatingCompleteOtp = false);
-      }
-    }
-  }
-
-  Future<void> _requestMutualCancelOtp() async {
-    final status = _status;
-    if (status == null || status.bookingId <= 0 || _requestingMutualCancelOtp) {
-      return;
-    }
-    setState(() => _requestingMutualCancelOtp = true);
-    try {
-      final otp = await _UserAppApi.generateBookingOtp(
-        bookingId: status.bookingId,
-        purpose: 'MUTUAL_CANCEL',
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() => _mutualCancelOtpCode = otp);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mutual cancel OTP sent to labour.')),
-      );
-    } on _UserAppApiException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _requestingMutualCancelOtp = false);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F2EC),
+      floatingActionButton: _showHistoryScrollToTop
+          ? FloatingActionButton.small(
+              heroTag: 'booking-history-top',
+              onPressed: _scrollHistoryToTop,
+              backgroundColor: const Color(0xFFCB6E5B),
+              foregroundColor: Colors.white,
+              elevation: 6,
+              child: const Icon(Icons.keyboard_arrow_up_rounded, size: 24),
+            )
+          : null,
       appBar: AppBar(
         backgroundColor: const Color(0xFFF7F2EC),
         surfaceTintColor: const Color(0xFFF7F2EC),
@@ -1341,325 +1350,43 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                   ],
                 )
               : ListView(
+                  controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
                   children: [
                     if (_status != null) ...[
-                      const Text(
-                        'Latest live booking',
-                        style: TextStyle(
+                      Text(
+                        _activeStatuses.length == 1 ? 'Live booking' : 'Live bookings',
+                        style: const TextStyle(
                           color: Color(0xFF22314D),
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
                         ),
                       ),
                       const SizedBox(height: 12),
-                      if (_activeStatuses.length > 1) ...[
-                        SizedBox(
-                          height: 42,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _activeStatuses.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 8),
-                            itemBuilder: (context, index) {
-                              final active = _activeStatuses[index];
-                              final selected = active.requestId == _status!.requestId;
-                              return ChoiceChip(
-                                label: Text(
-                                  active.bookingCode.trim().isNotEmpty ? active.bookingCode : active.requestCode,
-                                ),
-                                selected: selected,
-                                onSelected: (_) {
-                                  setState(() {
-                                    _status = active;
-                                  });
-                                },
-                                selectedColor: const Color(0xFFF7D7CF),
-                                backgroundColor: Colors.white,
-                                labelStyle: TextStyle(
-                                  color: selected ? const Color(0xFF9F4F40) : const Color(0xFF66748C),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                                side: BorderSide(
-                                  color: selected ? const Color(0xFFCB6E5B) : const Color(0xFFE4D8D0),
-                                ),
-                              );
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _activeStatuses.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final active = _activeStatuses[index];
+                          final selected = _status != null && active.requestId == _status!.requestId;
+                          return _ProfileLiveBookingListCard(
+                            status: active,
+                            selected: selected,
+                            onSelected: () {
+                              setState(() {
+                                _status = active;
+                              });
                             },
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(26),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0x14000000),
-                              blurRadius: 20,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                          Text(
-                            _status!.providerName.trim().isNotEmpty
-                                ? _status!.providerName
-                                : _status!.bookingType.toUpperCase() == 'SERVICE'
-                                    ? 'Service booking'
-                                    : 'Labour booking',
-                            style: const TextStyle(
-                              color: Color(0xFF22314D),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 20,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _status!.canMakePayment
+                            onOpenDetails: _openLiveBookingDetails,
+                            statusText: active.canMakePayment
                                 ? 'Accepted. Confirm booking by making booking charges.'
-                                : _status!.bookingStatus.trim().isNotEmpty
-                                    ? _titleCase(_status!.bookingStatus)
-                                    : _titleCase(_status!.requestStatus),
-                            style: const TextStyle(
-                              color: Color(0xFF5F6E85),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _ProfileBookingInfoRow(label: 'Request code', value: _status!.requestCode),
-                          if (_status!.bookingCode.trim().isNotEmpty)
-                            _ProfileBookingInfoRow(label: 'Booking code', value: _status!.bookingCode),
-                          if (_status!.distanceLabel.trim().isNotEmpty)
-                            _ProfileBookingInfoRow(label: 'Distance', value: _status!.distanceLabel),
-                          if (_status!.providerPhone.trim().isNotEmpty)
-                            _ProfileBookingInfoRow(label: 'Phone', value: _status!.providerPhone),
-                          if (_status!.totalAcceptedQuotedPriceAmount.trim().isNotEmpty)
-                            _ProfileBookingInfoRow(label: 'Labour amount', value: _status!.totalAcceptedQuotedPriceAmount),
-                          if (_status!.totalAcceptedBookingChargeAmount.trim().isNotEmpty)
-                            _ProfileBookingInfoRow(label: 'Booking fees', value: _status!.totalAcceptedBookingChargeAmount)
-                          else if (_status!.quotedPriceAmount.trim().isNotEmpty)
-                            _ProfileBookingInfoRow(label: 'Booking fees', value: _status!.quotedPriceAmount),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _openLiveBookingDetails,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF22314D),
-                                    side: const BorderSide(color: Color(0xFFD9CCC5)),
-                                    minimumSize: const Size.fromHeight(48),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                                  ),
-                                  icon: const Icon(Icons.open_in_new_rounded),
-                                  label: const Text(
-                                    'Open details',
-                                    style: TextStyle(fontWeight: FontWeight.w800),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _hideHomeBookingTip,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF9F4F40),
-                                    side: const BorderSide(color: Color(0xFFE2B8AF)),
-                                    minimumSize: const Size.fromHeight(48),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                                  ),
-                                  icon: const Icon(Icons.close_rounded),
-                                  label: const Text(
-                                    'Hide home tip',
-                                    style: TextStyle(fontWeight: FontWeight.w800),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_status!.bookingStatus.toUpperCase() == 'ARRIVED' ||
-                              (_status!.bookingType.toUpperCase() == 'SERVICE' &&
-                                  _status!.bookingStatus.toUpperCase() == 'PAYMENT_COMPLETED')) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF8EA),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFFE8CA82)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _status!.bookingType.toUpperCase() == 'SERVICE' ? 'Service start OTP' : 'Start work OTP',
-                                    style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _status!.bookingType.toUpperCase() == 'SERVICE'
-                                        ? 'Enter the OTP shared by the service provider to start the visit.'
-                                        : 'Enter the OTP shared by labour after reaching your destination.',
-                                    style: TextStyle(color: Color(0xFF5F6E85), fontWeight: FontWeight.w700, height: 1.35),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Builder(
-                                    builder: (fieldContext) => TextField(
-                                      controller: _startWorkOtpController,
-                                      keyboardType: TextInputType.number,
-                                      scrollPadding: const EdgeInsets.only(bottom: 120),
-                                      onTap: () => _ensureFieldVisibleAboveKeyboard(fieldContext),
-                                      maxLength: 6,
-                                      onChanged: (_) {
-                                        if (_startWorkOtpError != null) {
-                                          setState(() => _startWorkOtpError = null);
-                                        }
-                                      },
-                                      decoration: InputDecoration(
-                                        counterText: '',
-                                        labelText: '6-digit start OTP',
-                                        errorText: _startWorkOtpError,
-                                        prefixIcon: const Icon(Icons.password_rounded),
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FilledButton(
-                                      onPressed: _verifyingStartOtp ? null : _verifyStartWorkOtp,
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: const Color(0xFFCB6E5B),
-                                        foregroundColor: Colors.white,
-                                        minimumSize: const Size.fromHeight(48),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      ),
-                                      child: Text(_verifyingStartOtp ? 'Verifying...' : 'Start work'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          if (_status!.bookingStatus.toUpperCase() == 'IN_PROGRESS') ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFF7FF),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFFC4DFFF)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Work in progress',
-                                    style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'When the work is complete, generate an OTP and share it with labour to complete the booking.',
-                                    style: TextStyle(color: Color(0xFF5F6E85), fontWeight: FontWeight.w700, height: 1.35),
-                                  ),
-                                  if ((_completeWorkOtpCode ?? '').trim().isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      _completeWorkOtpCode!,
-                                      style: const TextStyle(
-                                        color: Color(0xFF245FA8),
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 26,
-                                        letterSpacing: 2,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FilledButton(
-                                      onPressed: _generatingCompleteOtp ? null : _generateCompleteWorkOtp,
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: const Color(0xFF245FA8),
-                                        foregroundColor: Colors.white,
-                                        minimumSize: const Size.fromHeight(48),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      ),
-                                      child: Text(_generatingCompleteOtp ? 'Generating...' : 'Generate completion OTP'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFEBEB),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFFFFB3B3)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Need mutual cancellation?',
-                                    style: TextStyle(color: Color(0xFF8A1212), fontWeight: FontWeight.w900),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    'Use this only if both you and labour agree to cancel after work has started.',
-                                    style: TextStyle(color: Color(0xFF7A1010), fontWeight: FontWeight.w700, height: 1.35),
-                                  ),
-                                  if ((_mutualCancelOtpCode ?? '').trim().isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'Cancel OTP: $_mutualCancelOtpCode',
-                                      style: const TextStyle(
-                                        color: Color(0xFFB42318),
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 18,
-                                        letterSpacing: 0.6,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton(
-                                      onPressed: _requestingMutualCancelOtp ? null : _requestMutualCancelOtp,
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFFB42318),
-                                        side: const BorderSide(color: Color(0xFFB42318)),
-                                        minimumSize: const Size.fromHeight(48),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      ),
-                                      child: Text(_requestingMutualCancelOtp ? 'Sending...' : 'Request mutual cancel OTP'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 18),
-                          FilledButton(
-                            onPressed: _status!.canMakePayment && !_paying ? _makePayment : null,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFCB6E5B),
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(50),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                            ),
-                            child: Text(_paying ? 'Processing...' : _status!.canMakePayment ? 'Make payment' : 'Waiting for provider'),
-                          ),
-                          ],
-                        ),
+                                : active.bookingStatus.trim().isNotEmpty
+                                    ? _titleCase(active.bookingStatus)
+                                    : _titleCase(active.requestStatus),
+                          );
+                        },
                       ),
                       const SizedBox(height: 20),
                     ],
@@ -1679,10 +1406,10 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: const Color(0xFFE8DDD4)),
                       ),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
                           PopupMenuButton<String>(
                             initialValue: _selectedBookingStatusFilter,
                             onSelected: (value) => setState(() => _selectedBookingStatusFilter = value),
@@ -1697,6 +1424,7 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                               active: _selectedBookingStatusFilter != 'All',
                             ),
                           ),
+                          const SizedBox(width: 8),
                           PopupMenuButton<String>(
                             initialValue: _selectedBookingTypeFilter,
                             onSelected: (value) => setState(() => _selectedBookingTypeFilter = value),
@@ -1711,6 +1439,7 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                               active: _selectedBookingTypeFilter != 'All',
                             ),
                           ),
+                          const SizedBox(width: 8),
                           PopupMenuButton<String>(
                             initialValue: _selectedPaymentStatusFilter,
                             onSelected: (value) => setState(() => _selectedPaymentStatusFilter = value),
@@ -1725,51 +1454,44 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                               active: _selectedPaymentStatusFilter != 'All',
                             ),
                           ),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => _pickFilterDate(isStart: true),
+                          const SizedBox(width: 8),
+                          PopupMenuButton<String>(
+                            initialValue: _selectedHistoryPeriodFilter,
+                            onSelected: (value) => setState(() => _selectedHistoryPeriodFilter = value),
+                            itemBuilder: (context) => _historyPeriodOptions
+                                .map((value) => PopupMenuItem<String>(value: value, child: Text(value)))
+                                .toList(growable: false),
                             child: _BookingFilterChip(
                               icon: Icons.calendar_today_rounded,
-                              label: _selectedHistoryStartDate == null
-                                  ? 'Start date'
-                                  : 'From ${_formatHistoryDate(_selectedHistoryStartDate)}',
-                              active: _selectedHistoryStartDate != null,
+                              label: _selectedHistoryPeriodFilter,
+                              active: _selectedHistoryPeriodFilter != _historyPeriodAllTime,
                             ),
                           ),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => _pickFilterDate(isStart: false),
-                            child: _BookingFilterChip(
-                              icon: Icons.event_available_rounded,
-                              label: _selectedHistoryEndDate == null
-                                  ? 'End date'
-                                  : 'To ${_formatHistoryDate(_selectedHistoryEndDate)}',
-                              active: _selectedHistoryEndDate != null,
-                            ),
-                          ),
-                          if (_selectedHistoryStartDate != null ||
-                              _selectedHistoryEndDate != null ||
+                          if (_selectedHistoryPeriodFilter != _historyPeriodAllTime ||
                               _selectedBookingStatusFilter != 'All' ||
                               _selectedBookingTypeFilter != 'All' ||
                               _selectedPaymentStatusFilter != 'All')
-                            InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () => setState(() {
-                                _selectedHistoryStartDate = null;
-                                _selectedHistoryEndDate = null;
-                                _selectedBookingStatusFilter = 'All';
-                                _selectedBookingTypeFilter = 'All';
-                                _selectedPaymentStatusFilter = 'All';
-                              }),
-                              child: const _BookingFilterChip(
+                            ...[
+                              const SizedBox(width: 8),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => setState(() {
+                                  _selectedHistoryPeriodFilter = _historyPeriodAllTime;
+                                  _selectedBookingStatusFilter = 'All';
+                                  _selectedBookingTypeFilter = 'All';
+                                  _selectedPaymentStatusFilter = 'All';
+                                }),
+                                child: const _BookingFilterChip(
                                 icon: Icons.close_rounded,
                                 label: 'Clear filters',
                                 active: true,
                                 showChevron: false,
                                 accent: Color(0xFFCB6E5B),
                               ),
-                            ),
-                        ],
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1782,79 +1504,32 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                     else
                       ..._filteredHistoryStatuses.map(
                         (item) {
-                          final historyStyle = _historyStatusStyleFor(item);
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          _historyTitleFor(item),
-                                          style: const TextStyle(
-                                            color: Color(0xFF22314D),
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: historyStyle.backgroundColor,
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          historyStyle.label,
-                                          style: TextStyle(
-                                            color: historyStyle.textColor,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 11.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _ProfileBookingInfoRow(
-                                    label: 'Booking code',
-                                    value: item.bookingCode.trim().isNotEmpty ? item.bookingCode : item.requestCode,
-                                  ),
-                                  _ProfileBookingInfoRow(
-                                    label: 'Payment',
-                                    value: item.paymentStatus.trim().isEmpty ? 'Not started' : _titleCase(item.paymentStatus),
-                                  ),
-                                  if (item.totalAcceptedBookingChargeAmount.trim().isNotEmpty)
-                                    _ProfileBookingInfoRow(
-                                      label: 'Booking fees',
-                                      value: item.totalAcceptedBookingChargeAmount,
-                                    )
-                                  else if (item.quotedPriceAmount.trim().isNotEmpty)
-                                    _ProfileBookingInfoRow(
-                                      label: 'Amount',
-                                      value: item.quotedPriceAmount,
-                                    ),
-                                  if (item.createdAt != null)
-                                    _ProfileBookingInfoRow(
-                                      label: 'Date',
-                                      value: _formatHistoryDate(item.createdAt),
-                                    ),
-                                ],
-                              ),
+                            child: _ProfileBookingHistoryCard(
+                              key: ValueKey<String>('history-${item.requestId}'),
+                              item: item,
+                              title: _historyTitleFor(item),
                             ),
                           );
                         },
                       ),
+                    if (_historyLoadingMore) ...[
+                      const SizedBox(height: 10),
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFCB6E5B)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
         ),
@@ -1910,26 +1585,16 @@ class _BookingFilterChip extends StatelessWidget {
   }
 }
 
-class _BookingHistoryStatusStyle {
-  const _BookingHistoryStatusStyle({
-    required this.label,
-    required this.backgroundColor,
-    required this.textColor,
-  });
-
-  final String label;
-  final Color backgroundColor;
-  final Color textColor;
-}
-
 class _ProfileBookingInfoRow extends StatelessWidget {
   const _ProfileBookingInfoRow({
     required this.label,
     required this.value,
+    this.valueColor = const Color(0xFF22314D),
   });
 
   final String label;
   final String value;
+  final Color valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1951,13 +1616,826 @@ class _ProfileBookingInfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                color: Color(0xFF22314D),
+              style: TextStyle(
+                color: valueColor,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileLiveBookingListCard extends StatelessWidget {
+  const _ProfileLiveBookingListCard({
+    required this.status,
+    required this.selected,
+    required this.onSelected,
+    required this.onOpenDetails,
+    required this.statusText,
+  });
+
+  final _ActiveBookingStatus status;
+  final bool selected;
+  final VoidCallback onSelected;
+  final VoidCallback onOpenDetails;
+  final String statusText;
+
+  @override
+  Widget build(BuildContext context) {
+    final bookingTitle = status.providerName.trim().isNotEmpty
+        ? status.providerName
+        : status.bookingType.toUpperCase() == 'SERVICE'
+            ? 'Service provider'
+            : 'Labour';
+    return _ActiveBookingOverviewCard(
+      key: ValueKey<int>(status.requestId),
+      status: status,
+      title: bookingTitle,
+      statusLabel: statusText,
+      paymentLabel: status.paymentStatus.trim().isEmpty ? 'Unpaid' : _titleCase(status.paymentStatus),
+      selected: selected,
+      initiallyExpanded: selected,
+      onExpansionChanged: (expanded) {
+        if (expanded) {
+          onSelected();
+        }
+      },
+      onOpenDetails: () {
+        onSelected();
+        onOpenDetails();
+      },
+    );
+  }
+}
+
+class _ProfileBookingHistoryCard extends StatefulWidget {
+  const _ProfileBookingHistoryCard({
+    super.key,
+    required this.item,
+    required this.title,
+  });
+
+  final _ActiveBookingStatus item;
+  final String title;
+
+  @override
+  State<_ProfileBookingHistoryCard> createState() => _ProfileBookingHistoryCardState();
+}
+
+class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> {
+  final TextEditingController _reviewController = TextEditingController();
+  final FocusNode _reviewFocusNode = FocusNode();
+  int _pendingRating = 0;
+  bool _submittingReview = false;
+  bool _reviewExpanded = false;
+  int? _submittedRating;
+  String _submittedReviewComment = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _submittedRating = widget.item.reviewRating;
+    _submittedReviewComment = widget.item.reviewComment.trim();
+    _reviewFocusNode.addListener(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _reviewExpanded = _reviewFocusNode.hasFocus;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _reviewController.dispose();
+    _reviewFocusNode.dispose();
+    super.dispose();
+  }
+
+  bool _hasUsefulAmount(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    final normalized = trimmed.replaceAll(RegExp(r'[^0-9.]'), '');
+    final parsed = double.tryParse(normalized);
+    return parsed == null ? true : parsed > 0;
+  }
+
+  String _amountLabel(_ActiveBookingStatus item) {
+    final accepted = item.totalAcceptedQuotedPriceAmount.trim();
+    if (_hasUsefulAmount(accepted)) {
+      return accepted;
+    }
+    final quoted = item.quotedPriceAmount.trim();
+    if (_hasUsefulAmount(quoted)) {
+      return quoted;
+    }
+    final bookingCharge = item.totalAcceptedBookingChargeAmount.trim();
+    if (_hasUsefulAmount(bookingCharge)) {
+      return bookingCharge;
+    }
+    if (accepted.isNotEmpty) {
+      return accepted;
+    }
+    if (quoted.isNotEmpty) {
+      return quoted;
+    }
+    if (bookingCharge.isNotEmpty) {
+      return bookingCharge;
+    }
+    return '-';
+  }
+
+  String _bookingTypeLabel(_ActiveBookingStatus item) {
+    return item.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Service' : 'Labour';
+  }
+
+  String _providerLabel(_ActiveBookingStatus item) {
+    return item.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Servicemen' : 'Labour';
+  }
+
+  String _categoryLabel(_ActiveBookingStatus item) {
+    final category = item.categoryLabel.trim();
+    final subcategory = item.subcategoryLabel.trim();
+    if (category.isNotEmpty) {
+      return category;
+    }
+    if (subcategory.isNotEmpty) {
+      return subcategory;
+    }
+    return _bookingTypeLabel(item);
+  }
+
+  String _subcategoryLabel(_ActiveBookingStatus item) {
+    final category = item.categoryLabel.trim().toLowerCase();
+    final subcategory = item.subcategoryLabel.trim();
+    if (subcategory.isEmpty || subcategory.toLowerCase() == category) {
+      return '';
+    }
+    return subcategory;
+  }
+
+  String _paymentLabel(_ActiveBookingStatus item) {
+    final paymentStatus = item.paymentStatus.trim();
+    return paymentStatus.isEmpty ? 'Unpaid' : _titleCase(paymentStatus);
+  }
+
+  String _statusLabel(_ActiveBookingStatus item) {
+    final explicit = item.historyStatus.trim().toUpperCase();
+    if (explicit == 'PAYMENT_FAILED') {
+      return 'Payment failed';
+    }
+    if (explicit == 'NO_SHOW') {
+      return 'No show';
+    }
+    if (explicit.isNotEmpty) {
+      return _titleCase(explicit.replaceAll('_', ' '));
+    }
+    final bookingStatus = item.bookingStatus.trim();
+    return bookingStatus.isEmpty ? _titleCase(item.requestStatus) : _titleCase(bookingStatus);
+  }
+
+  String _maskedHistoryPhone(String phone) {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) {
+      return '-';
+    }
+    if (trimmed.contains('*') || trimmed.toLowerCase().contains('x')) {
+      return trimmed;
+    }
+    final digitsOnly = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.length < 4) {
+      return '****';
+    }
+    final visibleTail = digitsOnly.substring(digitsOnly.length - 4);
+    return '******$visibleTail';
+  }
+
+  Color _historyTopTone(_ActiveBookingStatus item) {
+    final label = _statusLabel(item).trim().toUpperCase();
+    if (label == 'COMPLETED') {
+      return const Color(0xFFDDF2E4);
+    }
+    if (label == 'PAYMENT FAILED') {
+      return const Color(0xFFFFE8C7);
+    }
+    if (label == 'NO SHOW' || label == 'CANCELLED' || label == 'CANCELED') {
+      return const Color(0xFFF9E0DA);
+    }
+    return const Color(0xFFE3EEF9);
+  }
+
+  Color _statusColor(_ActiveBookingStatus item) {
+    final label = _statusLabel(item).trim().toUpperCase();
+    if (label == 'COMPLETED') {
+      return const Color(0xFF177245);
+    }
+    if (label == 'PAYMENT FAILED') {
+      return const Color(0xFFC67A1F);
+    }
+    if (label == 'NO SHOW' || label == 'CANCELLED' || label == 'CANCELED') {
+      return const Color(0xFFB84B4B);
+    }
+    return const Color(0xFF49637D);
+  }
+
+  Color _paymentColor(_ActiveBookingStatus item) {
+    switch (item.paymentStatus.trim().toUpperCase()) {
+      case 'PAID':
+        return const Color(0xFF177245);
+      case 'FAILED':
+        return const Color(0xFFB84B4B);
+      case 'REFUNDED':
+        return const Color(0xFF8552D8);
+      default:
+        return const Color(0xFFC67A1F);
+    }
+  }
+
+  Color _bookingStatusColor(_ActiveBookingStatus item) {
+    final normalized = item.bookingStatus.trim().toUpperCase();
+    switch (normalized) {
+      case 'COMPLETED':
+        return const Color(0xFF177245);
+      case 'CANCELLED':
+        return const Color(0xFFB84B4B);
+      case 'IN_PROGRESS':
+      case 'ARRIVED':
+        return const Color(0xFFCB6E5B);
+      case 'PAYMENT_PENDING':
+      case 'PAYMENT_COMPLETED':
+        return const Color(0xFFC67A1F);
+      default:
+        return const Color(0xFF49637D);
+    }
+  }
+
+  (String, Color) _ratingTone(int rating) {
+    switch (rating) {
+      case 1:
+        return ('Bad', const Color(0xFF8B1E1E));
+      case 2:
+        return ('Poor', const Color(0xFFE53935));
+      case 3:
+        return ('Okay', const Color(0xFFE7B928));
+      case 4:
+        return ('Good', const Color(0xFF53B96A));
+      case 5:
+        return ('Excellent', const Color(0xFF0B7A3B));
+      default:
+        return ('', const Color(0xFF22314D));
+    }
+  }
+
+  bool _canSubmitReview(_ActiveBookingStatus item) {
+    if (item.bookingId <= 0) {
+      return false;
+    }
+    final paymentStatus = item.paymentStatus.trim().toUpperCase();
+    if (paymentStatus == 'FAILED') {
+      return false;
+    }
+    final historyStatus = item.historyStatus.trim().toUpperCase();
+    final bookingStatus = item.bookingStatus.trim().toUpperCase();
+    return historyStatus == 'COMPLETED' ||
+        historyStatus == 'CANCELLED' ||
+        historyStatus == 'NO_SHOW' ||
+        bookingStatus == 'COMPLETED' ||
+        bookingStatus == 'CANCELLED';
+  }
+
+  Future<void> _submitReview({required int rating, required String comment}) async {
+    final item = widget.item;
+    if (rating <= 0 || _submittingReview) {
+      return;
+    }
+    setState(() => _submittingReview = true);
+    try {
+      await _UserAppApi.submitBookingReview(
+        bookingId: item.bookingId,
+        rating: rating,
+        comment: comment.trim(),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submittedRating = rating;
+        _submittedReviewComment = comment.trim();
+        _submittingReview = false;
+        if (_submittedReviewComment.isNotEmpty) {
+          _reviewController.text = _submittedReviewComment;
+        }
+      });
+      _reviewFocusNode.unfocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            comment.trim().isEmpty ? 'Rating saved.' : 'Review saved.',
+          ),
+        ),
+      );
+    } on _UserAppApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submittingReview = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submittingReview = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not submit review right now.')),
+      );
+    }
+  }
+
+  Future<void> _submitRatingOnly(int rating) async {
+    setState(() {
+      _pendingRating = rating;
+    });
+    await _submitReview(
+      rating: rating,
+      comment: _submittedReviewComment.isNotEmpty ? _submittedReviewComment : _reviewController.text.trim(),
+    );
+  }
+
+  String _formatCreatedAt(DateTime? value) {
+    if (value == null) {
+      return '-';
+    }
+    final local = value.toLocal();
+    final months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final meridiem = local.hour >= 12 ? 'PM' : 'AM';
+    return '${local.day} ${months[local.month - 1]} ${local.year}, $hour:$minute $meridiem';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final amountLabel = _amountLabel(item);
+    final providerLabel = _providerLabel(item);
+    final categoryLabel = _categoryLabel(item);
+    final subcategoryLabel = _subcategoryLabel(item);
+    final paymentLabel = _paymentLabel(item);
+    final statusLabel = _statusLabel(item);
+    final maskedPhone = _maskedHistoryPhone(item.providerPhone);
+    final canSubmitReview = _canSubmitReview(item);
+    final submittedRating = _submittedRating;
+    final submittedReviewComment = _submittedReviewComment.trim();
+    final effectiveReviewRating = submittedRating ?? (_pendingRating > 0 ? _pendingRating : null);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _historyTopTone(item),
+            const Color(0xFFEAF3FF),
+            Colors.white,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE4EE)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x161F2430),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    item.bookingCode.trim().isNotEmpty ? item.bookingCode : item.requestCode,
+                    style: const TextStyle(
+                      color: Color(0xFFBE6F5D),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12.4,
+                      letterSpacing: 0.28,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  statusLabel,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    color: _statusColor(item),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11.8,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFF0E1D9)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              providerLabel,
+                              style: const TextStyle(
+                                color: Color(0xFF6E7A8E),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11.8,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _ActiveBookingAvatar(status: item, size: 40),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Amount',
+                            style: TextStyle(
+                              color: Color(0xFF6E7A8E),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11.4,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            amountLabel,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color: _paymentColor(item),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              categoryLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14.2,
+                              ),
+                            ),
+                            if (subcategoryLabel.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subcategoryLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF7D889A),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11.8,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Mobile',
+                            style: const TextStyle(
+                              color: Color(0xFF8D8A86),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7F3F0),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: const Color(0xFFE6D9D1),
+                              ),
+                            ),
+                            child: Text(
+                              maskedPhone,
+                              style: const TextStyle(
+                                color: Color(0xFF7D889A),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ProfileBookingInfoRow(
+                    label: 'Booking status',
+                    value: item.bookingStatus.trim().isEmpty ? statusLabel : _titleCase(item.bookingStatus),
+                    valueColor: _bookingStatusColor(item),
+                  ),
+                  _ProfileBookingInfoRow(
+                    label: 'Payment status',
+                    value: paymentLabel,
+                    valueColor: _paymentColor(item),
+                  ),
+                  if (item.cancelReason.trim().isNotEmpty)
+                    _ProfileBookingInfoRow(
+                      label: 'Cancel reason',
+                      value: item.cancelReason.trim(),
+                      valueColor: const Color(0xFFB84B4B),
+                    ),
+                  if (submittedRating != null) ...[
+                    Builder(
+                      builder: (context) {
+                        final (ratingLabel, ratingColor) = _ratingTone(submittedRating);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(
+                                width: 116,
+                                child: Text(
+                                  'Rating',
+                                  style: TextStyle(
+                                    color: Color(0xFF8C7E73),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      spacing: 2,
+                                      children: List.generate(5, (index) {
+                                        final star = index + 1;
+                                        final selected = index < submittedRating;
+                                        final (_, tappedColor) = _ratingTone(star);
+                                        return InkWell(
+                                          onTap: _submittingReview ? null : () => _submitRatingOnly(star),
+                                          borderRadius: BorderRadius.circular(999),
+                                          child: Icon(
+                                            selected ? Icons.star_rounded : Icons.star_border_rounded,
+                                            size: 18,
+                                            color: selected ? tappedColor : tappedColor.withValues(alpha: 0.38),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                    if (ratingLabel.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$submittedRating.0 • $ratingLabel',
+                                        style: TextStyle(
+                                          color: ratingColor,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ] else if (canSubmitReview) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(
+                            width: 116,
+                            child: Text(
+                              'Rating',
+                              style: TextStyle(
+                                color: Color(0xFF8C7E73),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                                child: Wrap(
+                                  spacing: 4,
+                                  children: List.generate(5, (index) {
+                                    final star = index + 1;
+                                    final (_, ratingColor) = _ratingTone(star);
+                                    final selected = star <= _pendingRating;
+                                    return InkWell(
+                                  onTap: _submittingReview ? null : () => _submitRatingOnly(star),
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Icon(
+                                      selected ? Icons.star_rounded : Icons.star_border_rounded,
+                                      size: 22,
+                                      color: selected ? ratingColor : const Color(0xFFD1C4B8),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (canSubmitReview && submittedReviewComment.isEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(
+                            width: 116,
+                            child: Text(
+                              'Review',
+                              style: TextStyle(
+                                color: Color(0xFF8C7E73),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 180),
+                                        height: _reviewExpanded ? 78 : 40,
+                                        curve: Curves.easeOut,
+                                        child: TextField(
+                                          controller: _reviewController,
+                                          focusNode: _reviewFocusNode,
+                                          enabled: !_submittingReview,
+                                          maxLines: null,
+                                          expands: true,
+                                          textCapitalization: TextCapitalization.sentences,
+                                          onTapOutside: (_) => _reviewFocusNode.unfocus(),
+                                          decoration: InputDecoration(
+                                            hintText: 'Write review',
+                                            hintStyle: const TextStyle(
+                                              fontSize: 7.0,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFFB2A79B),
+                                            ),
+                                            isDense: true,
+                                            filled: true,
+                                            fillColor: const Color(0xFFFDFCFA),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(14),
+                                              borderSide: const BorderSide(color: Color(0xFFE5D9D0)),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(14),
+                                              borderSide: const BorderSide(color: Color(0xFFE5D9D0)),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(14),
+                                              borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.2),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      height: 36,
+                                      child: ElevatedButton(
+                                        onPressed: (effectiveReviewRating == null || _submittingReview)
+                                            ? null
+                                            : () => _submitReview(
+                                                  rating: effectiveReviewRating,
+                                                  comment: _reviewController.text.trim(),
+                                                ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFCB6E5B),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _submittingReview ? 'Saving...' : 'Submit',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11.8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (submittedReviewComment.isNotEmpty)
+                    _ProfileBookingInfoRow(
+                      label: 'Review',
+                      value: submittedReviewComment,
+                    ),
+                  const SizedBox(height: 2),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Text(
+                      _formatCreatedAt(item.createdAt),
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(
+                        color: Color(0xFF8C7E73),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11.6,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

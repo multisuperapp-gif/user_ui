@@ -18,7 +18,7 @@ class _ModeFilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 50,
+      height: 62,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: filters.length,
@@ -27,10 +27,11 @@ class _ModeFilterRow extends StatelessWidget {
           final filter = filters[index];
           final active = filter == selected;
           final disabled = disabledFilters.contains(filter);
+          final longLabel = filter.trim().length >= 9;
           return GestureDetector(
             onTap: () => onSelected(filter),
             child: Container(
-              width: 68,
+              width: longLabel ? 84 : 68,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0.5),
               child: Stack(
                 clipBehavior: Clip.none,
@@ -43,7 +44,7 @@ class _ModeFilterRow extends StatelessWidget {
                       children: [
                         SizedBox(
                           width: 42,
-                          height: 22,
+                          height: 18,
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -52,35 +53,38 @@ class _ModeFilterRow extends StatelessWidget {
                                   opacity: disabled ? 0.4 : 1,
                                   child: Text(
                                     _sceneVisual(filter).$1,
-                                    style: const TextStyle(fontSize: 20, height: 1),
+                                    style: const TextStyle(fontSize: 17, height: 1),
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Text(
-                          filter,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: disabled
-                                ? const Color(0xFF9CA3AF)
-                                : active
-                                    ? const Color(0xFF202435)
-                                    : const Color(0xFF202435).withValues(alpha: 0.78),
-                            fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-                            fontSize: 10,
-                            height: 1,
+                        SizedBox(
+                          height: 18,
+                          child: Text(
+                            filter,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: disabled
+                                  ? const Color(0xFF9CA3AF)
+                                  : active
+                                      ? const Color(0xFF202435)
+                                      : const Color(0xFF202435).withValues(alpha: 0.78),
+                              fontWeight: active ? FontWeight.w800 : FontWeight.w700,
+                              fontSize: 9.1,
+                              height: 0.94,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOut,
                           width: active ? 38 : 18,
-                          height: active ? 3.2 : 1.4,
+                          height: active ? 2.8 : 1.2,
                           decoration: BoxDecoration(
                             color: active
                                 ? const Color(0xFFD92D20)

@@ -20,12 +20,88 @@ class _PaymentFlow {
     'PENDING',
   ];
 
+  static Future<void> _showBlockingPaymentDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) async {
+    if (!context.mounted) {
+      return;
+    }
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true,
+        builder: (dialogContext) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFFCB6E5B),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: Color(0xFFCB6E5B),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF22314D),
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+  }
+
+  static Future<void> _hideBlockingPaymentDialog(
+    BuildContext context, {
+    required bool isVisible,
+  }) async {
+    if (!isVisible || !context.mounted) {
+      return;
+    }
+    final navigator = Navigator.of(context, rootNavigator: true);
+    if (navigator.canPop()) {
+      navigator.pop();
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+    }
+  }
+
   static Future<_PaymentFlowResult> start(
     BuildContext context, {
     required String paymentCode,
     required String title,
   }) async {
+    var redirectingDialogVisible = false;
+    var progressDialogVisible = false;
     try {
+      await _showBlockingPaymentDialog(
+        context,
+        title: 'Redirecting to payment',
+        message: "Redirecting to payment. Please don't close this screen or go back.",
+      );
+      redirectingDialogVisible = true;
       final initiation = await _UserAppApi.initiatePayment(paymentCode);
       if (initiation.gatewayKeyId.isEmpty || initiation.gatewayOrderId.isEmpty) {
         throw const _UserAppApiException(
@@ -43,6 +119,16 @@ class _PaymentFlow {
           return;
         }
         finished = true;
+        await _hideBlockingPaymentDialog(
+          context,
+          isVisible: progressDialogVisible,
+        );
+        progressDialogVisible = false;
+        await _hideBlockingPaymentDialog(
+          context,
+          isVisible: redirectingDialogVisible,
+        );
+        redirectingDialogVisible = false;
         razorpay.clear();
         if (!completer.isCompleted) {
           completer.complete(result);
@@ -53,6 +139,12 @@ class _PaymentFlow {
         Razorpay.EVENT_PAYMENT_SUCCESS,
         (dynamic raw) async {
           final response = raw is PaymentSuccessResponse ? raw : null;
+          await _showBlockingPaymentDialog(
+            context,
+            title: 'Payment in progress',
+            message: "Payment is being confirmed. Please wait and don't go back or close the app.",
+          );
+          progressDialogVisible = true;
           try {
             final verifiedStatus = await _UserAppApi.verifyPayment(
               paymentCode,
@@ -89,7 +181,7 @@ class _PaymentFlow {
                     : status == null
                         ? error.message
                         : _pendingStatuses.contains(status.paymentStatus.trim().toUpperCase())
-                            ? 'Payment confirmation is still in progress. We will keep the latest status in your orders.'
+                            ? 'Payment verification could not be confirmed yet: ${error.message}'
                             : error.message,
                 status: status,
               ),
@@ -102,6 +194,12 @@ class _PaymentFlow {
         Razorpay.EVENT_PAYMENT_ERROR,
         (dynamic raw) async {
           final response = raw is PaymentFailureResponse ? raw : null;
+          await _showBlockingPaymentDialog(
+            context,
+            title: 'Payment in progress',
+            message: "Checking the latest payment status. Please wait and don't go back or close the app.",
+          );
+          progressDialogVisible = true;
           try {
             final failedStatus = await _UserAppApi.failPayment(
               paymentCode,
@@ -137,7 +235,7 @@ class _PaymentFlow {
                 message: status?.isSuccess == true
                     ? 'Payment completed successfully.'
                     : status != null && _pendingStatuses.contains(status.paymentStatus.trim().toUpperCase())
-                        ? 'Payment confirmation is still in progress. Please check the latest status in your orders.'
+                        ? 'Payment confirmation is still pending: ${error.message}'
                         : error.message,
                 status: status,
               ),
@@ -151,6 +249,11 @@ class _PaymentFlow {
         (dynamic _) {},
       );
 
+      await _hideBlockingPaymentDialog(
+        context,
+        isVisible: redirectingDialogVisible,
+      );
+      redirectingDialogVisible = false;
       razorpay.open(
         <String, Object?>{
           'key': initiation.gatewayKeyId,
@@ -185,7 +288,7 @@ class _PaymentFlow {
               message: status.isSuccess
                   ? 'Payment completed successfully.'
                   : isPending
-                      ? 'Payment confirmation is still in progress. Please check the latest status in your orders.'
+                      ? 'Payment confirmation is still pending. If this does not clear shortly, please retry or contact support with the payment code.'
                       : 'Payment session timed out.',
               status: status,
             );
@@ -196,11 +299,29 @@ class _PaymentFlow {
               message: error.message,
             );
           } finally {
+            await _hideBlockingPaymentDialog(
+              context,
+              isVisible: progressDialogVisible,
+            );
+            progressDialogVisible = false;
+            await _hideBlockingPaymentDialog(
+              context,
+              isVisible: redirectingDialogVisible,
+            );
+            redirectingDialogVisible = false;
             razorpay.clear();
           }
         },
       );
     } on _UserAppApiException catch (error) {
+      await _hideBlockingPaymentDialog(
+        context,
+        isVisible: progressDialogVisible,
+      );
+      await _hideBlockingPaymentDialog(
+        context,
+        isVisible: redirectingDialogVisible,
+      );
       return _PaymentFlowResult(
         success: false,
         cancelled: false,

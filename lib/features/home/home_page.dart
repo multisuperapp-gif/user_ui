@@ -49,6 +49,26 @@ class _HomeLocationChoice {
   final bool isCurrentLocation;
 }
 
+class _HomeLocationSearchSuggestion {
+  const _HomeLocationSearchSuggestion({
+    required this.placeId,
+    required this.title,
+    required this.subtitle,
+    required this.description,
+    this.latitude,
+    this.longitude,
+    this.city = '',
+  });
+
+  final String placeId;
+  final String title;
+  final String subtitle;
+  final String description;
+  final double? latitude;
+  final double? longitude;
+  final String city;
+}
+
 class UserHomePage extends StatefulWidget {
   const UserHomePage({
     super.key,
@@ -65,6 +85,8 @@ class _UserHomePageState extends State<UserHomePage> {
   static const Set<String> _shopComingSoonCategories = <String>{};
   static const double _savedAddressSnapDistanceMeters = 100;
   static const double _activeBookingPopupDragSpeedMultiplier = 1.85;
+  static const String _androidPlacesApiKey = 'AIzaSyA51i0ow9o6wBQzJ1km94Hv_9g2rzesgRA';
+  static const String _iosPlacesApiKey = 'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Set<String> _favouriteProfiles = <String>{};
@@ -89,8 +111,9 @@ class _UserHomePageState extends State<UserHomePage> {
   _HomeMode _mode = _HomeMode.all;
   _LabourViewMode _labourViewMode = _LabourViewMode.individual;
   _ShopBrowseMode _shopBrowseMode = _ShopBrowseMode.itemWise;
-  String _selectedServiceCategory = 'All services';
-  String _selectedServiceSubCategory = 'All';
+  String _selectedServiceCategory = '';
+  String _selectedServiceSubCategory = '';
+  String _selectedServiceSort = 'Best service';
   String _selectedShopCategory = 'All Deals';
   String _selectedShopSubCategory = 'All';
   String _selectedRestaurantCuisine = 'All';
@@ -118,9 +141,9 @@ class _UserHomePageState extends State<UserHomePage> {
   _HomeLocationChoice? _selectedLocationChoice;
   bool _homeLocationLoading = true;
   String? _homeLocationError;
+  bool _cartPageOpening = false;
   bool _showScrollToTop = false;
   bool _remoteSyncInFlight = false;
-  String? _homeBootstrapError;
   bool _labourRemoteLoading = false;
   bool _serviceRemoteLoading = false;
   bool _restaurantRemoteLoading = false;
@@ -195,7 +218,7 @@ class _UserHomePageState extends State<UserHomePage> {
     _searchController.addListener(_handleSearchChanged);
     _notificationEventSubscription = _NotificationBootstrap.events.listen(_handleNotificationEvent);
     _ActiveBookingPopupVisibilityController.hiddenUntil.addListener(_handleActiveBookingPopupVisibilityChanged);
-    unawaited(_restoreCachedProfilePreview());
+    unawaited(_warmProfilePreviewOnAppOpen());
     unawaited(_hydrateRemoteState());
     unawaited(_loadLabourBookingPolicy());
     _syncActiveBookingRefreshPolling();
@@ -296,7 +319,7 @@ class _UserHomePageState extends State<UserHomePage> {
     _syncActiveBookingRefreshPolling();
   }
 
-  bool _shouldPollActiveBookings() => _isAuthenticated && _activeBookingStatuses.isNotEmpty;
+  bool _shouldPollActiveBookings() => _isAuthenticated;
 
   void _syncActiveBookingRefreshPolling() {
     if (!_shouldPollActiveBookings()) {
@@ -446,16 +469,7 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   void _dismissActiveBookingPopupTemporarily() {
-    _ActiveBookingPopupVisibilityController.dismissForDuration(const Duration(minutes: 1));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Booking tip hidden for 1 minute.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    _ActiveBookingPopupVisibilityController.dismissForDuration(const Duration(seconds: 30));
   }
 
   void _markLabourBookedLocally(int labourId) {
@@ -483,6 +497,8 @@ class _UserHomePageState extends State<UserHomePage> {
       bookingType: 'LABOUR',
       requestStatus: status.requestStatus,
       historyStatus: '',
+      providerEntityType: 'LABOUR',
+      providerEntityId: null,
       providerName: status.providerName.trim().isNotEmpty ? status.providerName : request.labourName,
       providerPhone: status.providerPhone,
       quotedPriceAmount: status.quotedPriceAmount,
@@ -497,10 +513,15 @@ class _UserHomePageState extends State<UserHomePage> {
       paymentDueAt: null,
       reachByAt: null,
       labourPricingModel: '',
+      categoryLabel: '',
+      subcategoryLabel: '',
       bookingId: status.bookingId,
       bookingCode: status.bookingCode,
       bookingStatus: status.bookingStatus,
       paymentStatus: status.paymentStatus,
+      cancelReason: '',
+      reviewRating: null,
+      reviewComment: '',
       createdAt: DateTime.now(),
       canMakePayment: status.canMakePayment,
       reviewSubmitted: false,
@@ -518,6 +539,8 @@ class _UserHomePageState extends State<UserHomePage> {
       bookingType: 'SERVICE',
       requestStatus: status.requestStatus,
       historyStatus: '',
+      providerEntityType: 'SERVICE_PROVIDER',
+      providerEntityId: null,
       providerName: status.providerName.trim().isNotEmpty ? status.providerName : request.providerName,
       providerPhone: status.providerPhone,
       quotedPriceAmount: status.quotedPriceAmount,
@@ -532,10 +555,15 @@ class _UserHomePageState extends State<UserHomePage> {
       paymentDueAt: null,
       reachByAt: null,
       labourPricingModel: '',
+      categoryLabel: request.serviceName,
+      subcategoryLabel: '',
       bookingId: status.bookingId,
       bookingCode: status.bookingCode,
       bookingStatus: status.bookingStatus,
       paymentStatus: status.paymentStatus,
+      cancelReason: '',
+      reviewRating: null,
+      reviewComment: '',
       createdAt: DateTime.now(),
       canMakePayment: status.canMakePayment,
       reviewSubmitted: false,
@@ -550,24 +578,16 @@ class _UserHomePageState extends State<UserHomePage> {
   if (mounted) {
     setState(() {
       _remoteSyncInFlight = true;
-      _homeBootstrapError = null;
     });
   } else {
     _remoteSyncInFlight = true;
-    _homeBootstrapError = null;
   }
   try {
     List<_DiscoveryItem> remoteProducts = const <_DiscoveryItem>[];
     try {
       remoteProducts = await _UserAppApi.fetchHomeTopProducts();
-    } on _UserAppApiException catch (error) {
-      if (!silent && mounted) {
-        _showCartSnack(error.message);
-      }
+    } on _UserAppApiException catch (_) {
     } catch (_) {
-      if (!silent && mounted) {
-        _showCartSnack('Could not refresh nearby shop picks right now.');
-      }
     }
     _RemoteCartState? remoteCart;
     List<_ActiveBookingStatus> activeBookings = const <_ActiveBookingStatus>[];
@@ -600,33 +620,12 @@ class _UserHomePageState extends State<UserHomePage> {
       _headerProfilePhotoDataUri = _isAuthenticated ? (profile?.profilePhotoDataUri.trim() ?? '') : '';
       _headerProfilePhotoObjectKey = _isAuthenticated ? (profile?.profilePhotoObjectKey.trim() ?? '') : '';
       _setActiveBookingStatuses(_isAuthenticated ? activeBookings : const <_ActiveBookingStatus>[]);
-      _homeBootstrapError = null;
     });
     if (_isAuthenticated) {
       unawaited(_refreshNotificationPreview(silent: true));
     }
-  } on _UserAppApiException catch (error) {
-    if (mounted) {
-      setState(() {
-        _homeBootstrapError = error.message;
-      });
-    } else {
-      _homeBootstrapError = error.message;
-    }
-    if (!silent && mounted) {
-      _showCartSnack(error.message);
-    }
+  } on _UserAppApiException catch (_) {
   } catch (_) {
-    if (mounted) {
-      setState(() {
-        _homeBootstrapError = 'Could not refresh live user app data right now.';
-      });
-    } else {
-      _homeBootstrapError = 'Could not refresh live user app data right now.';
-    }
-    if (!silent && mounted) {
-      _showCartSnack('Could not refresh live user app data right now.');
-    }
   } finally {
     if (mounted) {
       setState(() {
@@ -840,7 +839,7 @@ Future<_UserProfileData?> _readCachedProfilePreview() async {
   }
 }
 
-Future<void> _restoreCachedProfilePreview() async {
+  Future<void> _restoreCachedProfilePreview() async {
   if (!_isAuthenticated) {
     return;
   }
@@ -853,6 +852,14 @@ Future<void> _restoreCachedProfilePreview() async {
     _headerProfilePhotoDataUri = cached.profilePhotoDataUri.trim();
     _headerProfilePhotoObjectKey = cached.profilePhotoObjectKey.trim();
   });
+}
+
+Future<void> _warmProfilePreviewOnAppOpen() async {
+  await _restoreCachedProfilePreview();
+  if (_cachedUserProfile != null || !_isAuthenticated) {
+    return;
+  }
+  await _ensureProfilePreviewWarmed();
 }
 
 void _markDiscoveryPending() {
@@ -1104,20 +1111,421 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
         left.subtitle == right.subtitle;
   }
 
-  Future<List<_HomeLocationChoice>> _searchHomeLocationChoices(String query) async {
+  String get _placesApiKey => Platform.isIOS ? _iosPlacesApiKey : _androidPlacesApiKey;
+
+  List<String> _homeLocationSearchQueryVariants(String query) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
-      return const <_HomeLocationChoice>[];
+      return const <String>[];
     }
-    final resolvedLocations = await locationFromAddress(trimmed);
-    if (resolvedLocations.isEmpty) {
-      return const <_HomeLocationChoice>[];
+    final variants = <String>[trimmed];
+    final normalizedQuery = trimmed.toLowerCase();
+    final selectedCity = _selectedLocationCity.trim();
+    if (selectedCity.isNotEmpty && !normalizedQuery.contains(selectedCity.toLowerCase())) {
+      variants.add('$trimmed, $selectedCity');
+    }
+    if (!normalizedQuery.contains('india')) {
+      variants.add('$trimmed, India');
     }
     final seen = <String>{};
-    final results = <_HomeLocationChoice>[];
-    for (final location in resolvedLocations.take(5)) {
-      final key =
-          '${location.latitude.toStringAsFixed(5)}:${location.longitude.toStringAsFixed(5)}';
+    return variants.where((variant) => seen.add(variant.trim().toLowerCase())).toList(growable: false);
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestions(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    final merged = <_HomeLocationSearchSuggestion>[];
+    for (final variant in _homeLocationSearchQueryVariants(trimmed)) {
+      try {
+        merged.addAll(await _searchHomeLocationSuggestionsWithQueryAutocomplete(variant));
+      } catch (_) {
+        // Keep going and enrich results from the next sources.
+      }
+      try {
+        merged.addAll(await _searchHomeLocationSuggestionsWithAutocomplete(variant));
+      } catch (_) {
+        // Keep going and enrich results from the next sources.
+      }
+      try {
+        merged.addAll(await _searchHomeLocationSuggestionsWithTextSearch(variant));
+      } catch (_) {
+        // Keep going and enrich results from the next sources.
+      }
+      try {
+        merged.addAll(await _searchHomeLocationSuggestionsWithGeocode(variant));
+      } catch (_) {
+        // Keep going and enrich results from the next sources.
+      }
+      final enriched = _dedupeHomeLocationSuggestions(merged);
+      if (enriched.length >= 8) {
+        return enriched;
+      }
+    }
+    if (merged.length < 8) {
+      try {
+        merged.addAll(await _searchHomeLocationSuggestionsWithOpenStreetMap(trimmed));
+      } catch (_) {
+        // Keep whatever remote suggestions we already have.
+      }
+    }
+    if (merged.length < 8) {
+      try {
+        merged.addAll(await _searchHomeLocationSuggestionsWithDeviceGeocoder(trimmed));
+      } catch (_) {
+        // Keep whatever richer remote suggestions we already have.
+      }
+    }
+    final deduped = _dedupeHomeLocationSuggestions(merged);
+    if (deduped.isNotEmpty) {
+      return deduped;
+    }
+    return const <_HomeLocationSearchSuggestion>[];
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithOpenStreetMap(
+    String query,
+  ) async {
+    final response = await http.get(
+      Uri.https('nominatim.openstreetmap.org', '/search', {
+        'q': query,
+        'format': 'jsonv2',
+        'limit': '10',
+        'addressdetails': '1',
+        'countrycodes': 'in',
+      }),
+      headers: const <String, String>{
+        'User-Agent': 'MSAUserApp/1.0 location-search',
+        'Accept': 'application/json',
+      },
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('OpenStreetMap search failed with ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw Exception('OpenStreetMap search returned an invalid response.');
+    }
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final raw in decoded.whereType<Map<dynamic, dynamic>>()) {
+      final entry = Map<String, dynamic>.from(raw);
+      final latitude = double.tryParse('${entry['lat'] ?? ''}');
+      final longitude = double.tryParse('${entry['lon'] ?? ''}');
+      final description = '${entry['display_name'] ?? ''}'.trim();
+      if (latitude == null || longitude == null || description.isEmpty) {
+        continue;
+      }
+      final key = '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}';
+      if (!seen.add(key)) {
+        continue;
+      }
+      final address = Map<String, dynamic>.from((entry['address'] as Map?) ?? const {});
+      final title = <String>[
+        '${address['name'] ?? ''}'.trim(),
+        '${address['suburb'] ?? ''}'.trim(),
+        '${address['neighbourhood'] ?? ''}'.trim(),
+        '${address['city'] ?? ''}'.trim(),
+        '${address['town'] ?? ''}'.trim(),
+        '${address['village'] ?? ''}'.trim(),
+      ].firstWhere((value) => value.isNotEmpty, orElse: () => description.split(',').first.trim());
+      final subtitle = description == title
+          ? ''
+          : description.substring(title.length).replaceFirst(RegExp(r'^,\s*'), '').trim();
+      final city = <String>[
+        '${address['city'] ?? ''}'.trim(),
+        '${address['town'] ?? ''}'.trim(),
+        '${address['village'] ?? ''}'.trim(),
+        '${address['county'] ?? ''}'.trim(),
+      ].firstWhere((value) => value.isNotEmpty, orElse: () => '');
+      results.add(
+        _HomeLocationSearchSuggestion(
+          placeId: '',
+          title: title,
+          subtitle: subtitle,
+          description: description,
+          latitude: latitude,
+          longitude: longitude,
+          city: city,
+        ),
+      );
+    }
+    return results;
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithQueryAutocomplete(
+    String query,
+  ) async {
+    final response = await http.get(
+      Uri.https('maps.googleapis.com', '/maps/api/place/queryautocomplete/json', {
+        'input': query,
+        'key': _placesApiKey,
+        'language': 'en',
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Query autocomplete request failed with ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Query autocomplete returned an invalid response.');
+    }
+    final status = '${decoded['status'] ?? ''}'.trim().toUpperCase();
+    if (status == 'ZERO_RESULTS') {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    if (status != 'OK') {
+      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Query autocomplete failed'}');
+    }
+    final predictions = (decoded['predictions'] as List? ?? const []);
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final raw in predictions.whereType<Map<dynamic, dynamic>>()) {
+      final prediction = Map<String, dynamic>.from(raw);
+      final placeId = '${prediction['place_id'] ?? ''}'.trim();
+      final description = '${prediction['description'] ?? ''}'.trim();
+      if (description.isEmpty) {
+        continue;
+      }
+      final key = placeId.isNotEmpty ? 'place:$placeId' : description.toLowerCase();
+      if (!seen.add(key)) {
+        continue;
+      }
+      final formatting = Map<String, dynamic>.from(
+        (prediction['structured_formatting'] as Map?) ?? const {},
+      );
+      final title = '${formatting['main_text'] ?? ''}'.trim();
+      final subtitle = '${formatting['secondary_text'] ?? ''}'.trim();
+      results.add(
+        _HomeLocationSearchSuggestion(
+          placeId: placeId,
+          title: title.isEmpty ? description : title,
+          subtitle: subtitle,
+          description: description,
+        ),
+      );
+    }
+    return results;
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithAutocomplete(String query) async {
+    final response = await http.get(
+      Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
+        'input': query,
+        'key': _placesApiKey,
+        'language': 'en',
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Autocomplete request failed with ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Autocomplete returned an invalid response.');
+    }
+    final status = '${decoded['status'] ?? ''}'.trim().toUpperCase();
+    if (status == 'ZERO_RESULTS') {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    if (status != 'OK') {
+      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Autocomplete failed'}');
+    }
+    final predictions = (decoded['predictions'] as List? ?? const []);
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final raw in predictions.whereType<Map<dynamic, dynamic>>()) {
+      final prediction = Map<String, dynamic>.from(raw);
+      final placeId = '${prediction['place_id'] ?? ''}'.trim();
+      final description = '${prediction['description'] ?? ''}'.trim();
+      if (placeId.isEmpty || description.isEmpty || !seen.add(placeId)) {
+        continue;
+      }
+      final formatting = Map<String, dynamic>.from(
+        (prediction['structured_formatting'] as Map?) ?? const {},
+      );
+      final title = '${formatting['main_text'] ?? ''}'.trim();
+      final subtitle = '${formatting['secondary_text'] ?? ''}'.trim();
+      results.add(
+        _HomeLocationSearchSuggestion(
+          placeId: placeId,
+          title: title.isEmpty ? description : title,
+          subtitle: subtitle,
+          description: description,
+        ),
+      );
+    }
+    return results;
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithTextSearch(String query) async {
+    final response = await http.get(
+      Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', {
+        'query': query,
+        'key': _placesApiKey,
+        'language': 'en',
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Text search request failed with ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Text search returned an invalid response.');
+    }
+    final status = '${decoded['status'] ?? ''}'.trim().toUpperCase();
+    if (status == 'ZERO_RESULTS') {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    if (status != 'OK') {
+      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Text search failed'}');
+    }
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final raw in (decoded['results'] as List? ?? const []).whereType<Map<dynamic, dynamic>>()) {
+      final result = Map<String, dynamic>.from(raw);
+      final placeId = '${result['place_id'] ?? ''}'.trim();
+      final name = '${result['name'] ?? ''}'.trim();
+      final formattedAddress = '${result['formatted_address'] ?? ''}'.trim();
+      final geometry = Map<String, dynamic>.from((result['geometry'] as Map?) ?? const {});
+      final location = Map<String, dynamic>.from((geometry['location'] as Map?) ?? const {});
+      final latitude = (location['lat'] as num?)?.toDouble();
+      final longitude = (location['lng'] as num?)?.toDouble();
+      if ((placeId.isEmpty && formattedAddress.isEmpty) || latitude == null || longitude == null) {
+        continue;
+      }
+      final key = placeId.isNotEmpty
+          ? 'place:$placeId'
+          : '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}';
+      if (!seen.add(key)) {
+        continue;
+      }
+      final title = name.isEmpty ? (formattedAddress.isEmpty ? query : formattedAddress) : name;
+      final subtitle = formattedAddress == title ? '' : formattedAddress;
+      results.add(
+        _HomeLocationSearchSuggestion(
+          placeId: placeId,
+          title: title,
+          subtitle: subtitle,
+          description: formattedAddress.isEmpty ? title : formattedAddress,
+          latitude: latitude,
+          longitude: longitude,
+        ),
+      );
+    }
+    return results;
+  }
+
+  List<_HomeLocationSearchSuggestion> _dedupeHomeLocationSuggestions(
+    List<_HomeLocationSearchSuggestion> suggestions,
+  ) {
+    if (suggestions.isEmpty) {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final suggestion in suggestions) {
+      final placeId = suggestion.placeId.trim();
+      final description = suggestion.description.trim().toLowerCase();
+      final latitude = suggestion.latitude;
+      final longitude = suggestion.longitude;
+      final key = placeId.isNotEmpty
+          ? 'place:$placeId'
+          : latitude != null && longitude != null
+              ? '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}'
+              : description;
+      if (!seen.add(key)) {
+        continue;
+      }
+      results.add(suggestion);
+    }
+    return results;
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithGeocode(String query) async {
+    final response = await http.get(
+      Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'address': query,
+        'key': _placesApiKey,
+        'language': 'en',
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Geocode request failed with ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Geocode returned an invalid response.');
+    }
+    final status = '${decoded['status'] ?? ''}'.trim().toUpperCase();
+    if (status == 'ZERO_RESULTS') {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    if (status != 'OK') {
+      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Geocode failed'}');
+    }
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final raw in (decoded['results'] as List? ?? const []).whereType<Map<dynamic, dynamic>>()) {
+      final result = Map<String, dynamic>.from(raw);
+      final formattedAddress = '${result['formatted_address'] ?? ''}'.trim();
+      final placeId = '${result['place_id'] ?? ''}'.trim();
+      final geometry = Map<String, dynamic>.from((result['geometry'] as Map?) ?? const {});
+      final location = Map<String, dynamic>.from((geometry['location'] as Map?) ?? const {});
+      final latitude = (location['lat'] as num?)?.toDouble();
+      final longitude = (location['lng'] as num?)?.toDouble();
+      if (formattedAddress.isEmpty || latitude == null || longitude == null) {
+        continue;
+      }
+      final key = placeId.isNotEmpty
+          ? 'place:$placeId'
+          : '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}';
+      if (!seen.add(key)) {
+        continue;
+      }
+      final parts = formattedAddress.split(',');
+      final title = parts.firstOrNull?.trim() ?? formattedAddress;
+      final subtitle = parts.length > 1 ? parts.skip(1).join(',').trim() : formattedAddress;
+      String city = '';
+      final components = (result['address_components'] as List? ?? const [])
+          .whereType<Map<dynamic, dynamic>>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+      for (final component in components) {
+        final types = (component['types'] as List? ?? const [])
+            .map((item) => '$item')
+            .toList(growable: false);
+        if (types.contains('locality') || types.contains('administrative_area_level_2')) {
+          city = '${component['long_name'] ?? ''}'.trim();
+          if (city.isNotEmpty) {
+            break;
+          }
+        }
+      }
+      results.add(
+        _HomeLocationSearchSuggestion(
+          placeId: placeId,
+          title: title,
+          subtitle: subtitle,
+          description: formattedAddress,
+          latitude: latitude,
+          longitude: longitude,
+          city: city,
+        ),
+      );
+    }
+    return results;
+  }
+
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithDeviceGeocoder(String query) async {
+    final resolvedLocations = await locationFromAddress(query);
+    if (resolvedLocations.isEmpty) {
+      return const <_HomeLocationSearchSuggestion>[];
+    }
+    final seen = <String>{};
+    final results = <_HomeLocationSearchSuggestion>[];
+    for (final location in resolvedLocations) {
+      final key = '${location.latitude.toStringAsFixed(5)}:${location.longitude.toStringAsFixed(5)}';
       if (!seen.add(key)) {
         continue;
       }
@@ -1144,19 +1552,96 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
           placemark!.administrativeArea!.trim(),
         if ((placemark?.postalCode ?? '').trim().isNotEmpty) placemark!.postalCode!.trim(),
       ];
+      final title = titleParts.isEmpty ? query : titleParts.join(', ');
+      final subtitle = subtitleParts.isEmpty
+          ? 'Lat ${location.latitude.toStringAsFixed(5)}, Lng ${location.longitude.toStringAsFixed(5)}'
+          : subtitleParts.join(', ');
       results.add(
-        _HomeLocationChoice(
-          title: titleParts.isEmpty ? trimmed : titleParts.join(', '),
-          subtitle: subtitleParts.isEmpty
-              ? 'Lat ${location.latitude.toStringAsFixed(5)}, Lng ${location.longitude.toStringAsFixed(5)}'
-              : subtitleParts.join(', '),
-          city: (placemark?.locality ?? placemark?.subAdministrativeArea ?? '').trim(),
+        _HomeLocationSearchSuggestion(
+          placeId: '',
+          title: title,
+          subtitle: subtitle,
+          description: '$title, $subtitle',
           latitude: location.latitude,
           longitude: location.longitude,
+          city: (placemark?.locality ?? placemark?.subAdministrativeArea ?? '').trim(),
         ),
       );
     }
     return results;
+  }
+
+  Future<_HomeLocationChoice?> _resolveHomeLocationSuggestion(
+    _HomeLocationSearchSuggestion suggestion,
+  ) async {
+    if (suggestion.latitude != null && suggestion.longitude != null) {
+      return _HomeLocationChoice(
+        title: suggestion.title,
+        subtitle: suggestion.subtitle.isEmpty ? suggestion.description : suggestion.subtitle,
+        city: suggestion.city,
+        latitude: suggestion.latitude!,
+        longitude: suggestion.longitude!,
+      );
+    }
+    final response = await http.get(
+      Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'place_id': suggestion.placeId,
+        'key': _placesApiKey,
+        'language': 'en',
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Place lookup failed with ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Place lookup returned an invalid response.');
+    }
+    final status = '${decoded['status'] ?? ''}'.trim().toUpperCase();
+    if (status == 'ZERO_RESULTS') {
+      return null;
+    }
+    if (status != 'OK') {
+      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Place lookup failed'}');
+    }
+    final raw = (decoded['results'] as List? ?? const [])
+        .whereType<Map<dynamic, dynamic>>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .firstOrNull;
+    if (raw == null) {
+      return null;
+    }
+    final geometry = Map<String, dynamic>.from((raw['geometry'] as Map?) ?? const {});
+    final location = Map<String, dynamic>.from((geometry['location'] as Map?) ?? const {});
+    final latitude = (location['lat'] as num?)?.toDouble();
+    final longitude = (location['lng'] as num?)?.toDouble();
+    if (latitude == null || longitude == null) {
+      return null;
+    }
+    final components = (raw['address_components'] as List? ?? const [])
+        .whereType<Map<dynamic, dynamic>>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
+    String city = '';
+    for (final component in components) {
+      final types = (component['types'] as List? ?? const [])
+          .map((item) => '$item')
+          .toList(growable: false);
+      if (types.contains('locality') || types.contains('administrative_area_level_2')) {
+        city = '${component['long_name'] ?? ''}'.trim();
+        if (city.isNotEmpty) {
+          break;
+        }
+      }
+    }
+    final formattedAddress = '${raw['formatted_address'] ?? suggestion.description}'.trim();
+    return _HomeLocationChoice(
+      title: suggestion.title,
+      subtitle: suggestion.subtitle.isEmpty ? formattedAddress : suggestion.subtitle,
+      city: city,
+      latitude: latitude,
+      longitude: longitude,
+    );
   }
 
   _HomeLocationChoice? _nearestSavedAddressChoice(
@@ -1185,214 +1670,42 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
 
   Future<void> _openHomeLocationSelector({bool? showManageAddresses}) async {
     final canManageAddresses = showManageAddresses ?? _isAuthenticated;
-    final searchController = TextEditingController();
-    final selectedLocation = _selectedLocationChoice;
-    List<_HomeLocationChoice> searchResults = const <_HomeLocationChoice>[];
-    bool searching = false;
-    String? searchError;
-    final result = await showModalBottomSheet<Object?>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) {
-        final options = <_HomeLocationChoice>[
-          ...?_currentLocationChoice == null ? null : <_HomeLocationChoice>[_currentLocationChoice!],
-          ..._savedAddresses.map(_locationChoiceFromAddress),
-        ];
-        final safeBottom = MediaQuery.viewPaddingOf(context).bottom > 12
-            ? MediaQuery.viewPaddingOf(context).bottom
-            : 12.0;
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            Future<void> runSearch() async {
-              final query = searchController.text.trim();
-              if (query.isEmpty) {
-                setSheetState(() {
-                  searchResults = const <_HomeLocationChoice>[];
-                  searchError = null;
-                });
-                return;
-              }
-              setSheetState(() {
-                searching = true;
-                searchError = null;
-              });
-              try {
-                final results = await _searchHomeLocationChoices(query);
-                if (!context.mounted) {
-                  return;
-                }
-                setSheetState(() {
-                  searchResults = results;
-                  searchError = results.isEmpty ? 'No matching address found.' : null;
-                  searching = false;
-                });
-              } catch (_) {
-                if (!context.mounted) {
-                  return;
-                }
-                setSheetState(() {
-                  searchResults = const <_HomeLocationChoice>[];
-                  searchError = 'Could not search that address right now.';
-                  searching = false;
-                });
-              }
-            }
-
-            return Container(
-              width: double.infinity,
-              padding: EdgeInsets.fromLTRB(18, 16, 18, safeBottom + 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0D7D0),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Choose delivery location',
-                      style: TextStyle(
-                        color: Color(0xFF202435),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 20,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Nearby shops will refresh from the location you choose here.',
-                      style: TextStyle(
-                        color: const Color(0xFF202435).withValues(alpha: 0.65),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: searchController,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) => unawaited(runSearch()),
-                      decoration: InputDecoration(
-                        hintText: 'Search address or area',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: searching
-                            ? const Padding(
-                                padding: EdgeInsets.all(14),
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2.2),
-                                ),
-                              )
-                            : IconButton(
-                                onPressed: () => unawaited(runSearch()),
-                                icon: const Icon(Icons.arrow_forward_rounded),
-                              ),
-                        filled: true,
-                        fillColor: const Color(0xFFF8F4EF),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(color: Color(0xFFE9DED5)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(color: Color(0xFFE9DED5)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.3),
-                        ),
-                      ),
-                    ),
-                    if (searchError != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        searchError!,
-                        style: const TextStyle(
-                          color: Color(0xFFB04C4C),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (searchResults.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Search results',
-                                style: TextStyle(
-                                  color: Color(0xFF22314D),
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              for (final option in searchResults)
-                                _HomeLocationOptionTile(
-                                  option: option,
-                                  selected: selectedLocation != null &&
-                                      _sameHomeLocationChoice(option, selectedLocation),
-                                  onTap: () => Navigator.of(context).pop(option),
-                                ),
-                            ],
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Saved and current locations',
-                              style: TextStyle(
-                                color: Color(0xFF22314D),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            for (final option in options)
-                              _HomeLocationOptionTile(
-                                option: option,
-                                selected: selectedLocation != null &&
-                                    _sameHomeLocationChoice(option, selectedLocation),
-                                onTap: () => Navigator.of(context).pop(option),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (canManageAddresses) ...[
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.of(context).pop('manage'),
-                          icon: const Icon(Icons.edit_location_alt_rounded),
-                          label: const Text('Manage saved addresses'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+    final result = await Navigator.of(context).push<Object?>(
+      PageRouteBuilder<Object?>(
+        opaque: false,
+        pageBuilder: (context, animation, secondaryAnimation) => Scaffold(
+          backgroundColor: Colors.white,
+          body: _HomeLocationSelectorSheet(
+            options: <_HomeLocationChoice>[
+              ...?_currentLocationChoice == null ? null : <_HomeLocationChoice>[_currentLocationChoice!],
+              ..._savedAddresses.map(_locationChoiceFromAddress),
+            ],
+            selectedLocation: _selectedLocationChoice,
+            canManageAddresses: canManageAddresses,
+            searchSuggestions: _searchHomeLocationSuggestions,
+            resolveSuggestion: _resolveHomeLocationSuggestion,
+            sameChoice: _sameHomeLocationChoice,
+          ),
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      ),
     );
-    searchController.dispose();
     if (!mounted || result == null) {
       return;
     }
@@ -1541,9 +1854,6 @@ Future<void> _loadLabourLanding({bool silent = true}) async {
     } else {
       _labourRemoteError = hadExistingProfiles ? null : error.message;
     }
-    if (!silent && mounted && !hadExistingProfiles) {
-      _showCartSnack(error.message);
-    }
   } catch (_) {
     if (mounted) {
       setState(() {
@@ -1551,9 +1861,6 @@ Future<void> _loadLabourLanding({bool silent = true}) async {
       });
     } else {
       _labourRemoteError = hadExistingProfiles ? null : 'Could not load labour profiles right now.';
-    }
-    if (!silent && mounted && !hadExistingProfiles) {
-      _showCartSnack('Could not load labour profiles right now.');
     }
   } finally {
     if (mounted) {
@@ -1595,15 +1902,18 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _serviceRemoteReady = true;
         _serviceRemoteError = null;
         if (!categoryLabels.contains(_selectedServiceCategory)) {
-          _selectedServiceCategory = categoryLabels.isEmpty ? 'All services' : categoryLabels.first;
+          _selectedServiceCategory = categoryLabels.isEmpty ? '' : categoryLabels.first;
         }
         final subcategoryOptions = _selectedServiceSubcategories;
-        if (!subcategoryOptions.contains(_selectedServiceSubCategory)) {
-          _selectedServiceSubCategory = subcategoryOptions.isEmpty ? 'All' : subcategoryOptions.first;
+        final defaultSubcategory = _defaultServiceSubcategoryLabelFor(_selectedServiceCategory);
+        if (!subcategoryOptions.contains(_selectedServiceSubCategory) ||
+            _selectedServiceSubCategory.trim().isEmpty ||
+            _selectedServiceSubCategory == 'All') {
+          _selectedServiceSubCategory = defaultSubcategory;
         }
       });
-    } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+  } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _serviceRemoteReady = true;
@@ -1626,9 +1936,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _serviceRemoteError = error.message;
       }
-      if (!silent && mounted) {
-        _showCartSnack(error.message);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1636,9 +1943,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _serviceRemoteError = 'Could not load service providers right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load service providers right now.');
       }
     } finally {
       if (mounted) {
@@ -1681,7 +1985,7 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _restaurantRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _restaurantRemoteCuisines = const <_RestaurantCuisineItem>[];
@@ -1704,9 +2008,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _restaurantRemoteError = error.message;
       }
-      if (!silent && mounted) {
-        _showCartSnack(error.message);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1714,9 +2015,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _restaurantRemoteError = 'Could not load restaurant data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load restaurant data right now.');
       }
     } finally {
       if (mounted) {
@@ -1770,7 +2068,7 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _fashionRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _fashionRemoteReady = true;
@@ -1799,9 +2097,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _fashionRemoteError = friendlyMessage;
       }
-      if (!silent && mounted) {
-        _showCartSnack(friendlyMessage);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1809,9 +2104,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _fashionRemoteError = 'Could not load fashion data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load fashion data right now.');
       }
     } finally {
       if (mounted) {
@@ -1865,7 +2157,7 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _footwearRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _footwearRemoteReady = true;
@@ -1894,9 +2186,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _footwearRemoteError = friendlyMessage;
       }
-      if (!silent && mounted) {
-        _showCartSnack(friendlyMessage);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1904,9 +2193,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _footwearRemoteError = 'Could not load footwear data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load footwear data right now.');
       }
     } finally {
       if (mounted) {
@@ -1953,7 +2239,7 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _giftRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _giftRemoteReady = true;
@@ -1982,9 +2268,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _giftRemoteError = friendlyMessage;
       }
-      if (!silent && mounted) {
-        _showCartSnack(friendlyMessage);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1992,9 +2275,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _giftRemoteError = 'Could not load gift data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load gift data right now.');
       }
     } finally {
       if (mounted) {
@@ -2042,7 +2322,7 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _groceryRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _groceryRemoteReady = true;
@@ -2071,9 +2351,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _groceryRemoteError = friendlyMessage;
       }
-      if (!silent && mounted) {
-        _showCartSnack(friendlyMessage);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -2081,9 +2358,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _groceryRemoteError = 'Could not load grocery data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load grocery data right now.');
       }
     } finally {
       if (mounted) {
@@ -2131,7 +2405,7 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _pharmacyRemoteError = null;
       });
     } on _UserAppApiException catch (error) {
-      if (_shouldTreatAsEmptyResults(error.message)) {
+      if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
             _pharmacyRemoteReady = true;
@@ -2160,9 +2434,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       } else {
         _pharmacyRemoteError = friendlyMessage;
       }
-      if (!silent && mounted) {
-        _showCartSnack(friendlyMessage);
-      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -2170,9 +2441,6 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         });
       } else {
         _pharmacyRemoteError = 'Could not load pharmacy data right now.';
-      }
-      if (!silent && mounted) {
-        _showCartSnack('Could not load pharmacy data right now.');
       }
     } finally {
       if (mounted) {
@@ -2207,9 +2475,27 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
     return null;
   }
 
-  Future<int?> _resolveGroupLabourCategoryId() async {
-    final selectedId = _labourCategoryIdForLabel(_selectedGroupLabourCategory ?? '');
-    if (selectedId != null) {
+  bool get _isGroupBookingUsingAllLabourFilter {
+    final selected = _selectedLabourCategory.trim();
+    return selected.isEmpty || selected == 'All labour';
+  }
+
+  String? _effectiveGroupLabourCategoryLabel() {
+    if (!_isGroupBookingUsingAllLabourFilter) {
+      final selected = _selectedLabourCategory.trim();
+      return selected.isEmpty ? null : selected;
+    }
+    final selected = _selectedGroupLabourCategory?.trim() ?? '';
+    if (selected.isEmpty || selected == 'All labour') {
+      return null;
+    }
+    return selected;
+  }
+
+  Future<int?> _resolveGroupLabourCategoryId({bool allowExistingSelection = true}) async {
+    final forcedLabel = _effectiveGroupLabourCategoryLabel();
+    final selectedId = _labourCategoryIdForLabel(forcedLabel ?? '');
+    if (allowExistingSelection && selectedId != null) {
       return selectedId;
     }
     final options = _labourRemoteCategories
@@ -2304,7 +2590,11 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
   int _availableLabourCountForGroupCategory(int? categoryId) {
     final profiles = categoryId == null
         ? _labourRemoteProfiles
-        : _labourRemoteProfiles.where((item) => item.backendCategoryId == categoryId);
+        : _labourRemoteProfiles.where(
+            (item) =>
+                item.backendCategoryId == categoryId ||
+                item.labourCategoryPricing.any((pricing) => pricing.categoryId == categoryId),
+          );
     return profiles.where((item) => !item.isDisabled).length;
   }
 
@@ -2940,7 +3230,7 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   }) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
         child: _AsyncStateCard(
           icon: icon,
           title: title,
@@ -2960,7 +3250,7 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   }) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+        padding: const EdgeInsets.fromLTRB(18, 2, 18, 0),
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
           decoration: BoxDecoration(
@@ -3011,7 +3301,7 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
                   letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 message,
                 textAlign: TextAlign.center,
@@ -3036,9 +3326,12 @@ Widget? _buildLabourStateSliver() {
   }
   if (_labourRemoteError != null && _labourRemoteProfiles.isEmpty) {
     return _buildRemoteStateSliver(
-      icon: Icons.cloud_off_rounded,
-      title: 'Could not load labour',
-      message: _labourRemoteError!,
+      icon: Icons.engineering_rounded,
+      title: 'Labour is temporarily unavailable',
+      message: _friendlyShopErrorMessage(
+        rawMessage: _labourRemoteError!,
+        fallback: 'We could not load labour right now. Please try again in a moment.',
+      ),
       actionLabel: 'Try Again',
       onAction: () => unawaited(_loadLabourLanding(silent: false)),
     );
@@ -3104,12 +3397,9 @@ Widget? _buildServiceStateSliver() {
       );
     }
     if (_serviceRemoteError != null && _serviceRemoteProviders.isEmpty) {
-      return _buildRemoteStateSliver(
-        icon: Icons.cloud_off_rounded,
-        title: 'Could not load services',
-        message: _serviceRemoteError!,
-        actionLabel: 'Try Again',
-        onAction: () => unawaited(_loadServiceLanding(silent: false)),
+      return _buildAreaComingSoonSliver(
+        icon: Icons.handyman_rounded,
+        message: 'Service providers are not available in your selected area right now.',
       );
     }
     if (_serviceRemoteReady && _serviceRemoteProviders.isEmpty) {
@@ -3155,12 +3445,9 @@ Widget? _buildServiceStateSliver() {
         );
       }
       if (_restaurantRemoteError != null && !hasData) {
-        return _buildRemoteStateSliver(
-          icon: Icons.cloud_off_rounded,
-          title: 'Could not load restaurants',
-          message: _restaurantRemoteError!,
-          actionLabel: 'Try Again',
-          onAction: () => unawaited(_loadRestaurantLanding(silent: false)),
+        return _buildAreaComingSoonSliver(
+          icon: Icons.restaurant_menu_rounded,
+          message: 'Restaurants are not available in your selected area right now.',
         );
       }
       if (!hasData) {
@@ -3184,12 +3471,9 @@ Widget? _buildServiceStateSliver() {
           );
         }
         if (_fashionRemoteError != null && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.cloud_off_rounded,
-            title: 'Could not load fashion',
-            message: _fashionRemoteError!,
-            actionLabel: 'Try Again',
-            onAction: () => unawaited(_loadFashionLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.checkroom_rounded,
+            message: 'Fashion shops are not available in your selected area right now.',
           );
         }
         if (_fashionRemoteReady && !hasData) {
@@ -3210,12 +3494,9 @@ Widget? _buildServiceStateSliver() {
           );
         }
         if (_footwearRemoteError != null && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.cloud_off_rounded,
-            title: 'Could not load footwear',
-            message: _footwearRemoteError!,
-            actionLabel: 'Try Again',
-            onAction: () => unawaited(_loadFootwearLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.shopping_bag_outlined,
+            message: 'Footwear shops are not available in your selected area right now.',
           );
         }
         if (_footwearRemoteReady && !hasData) {
@@ -3236,12 +3517,9 @@ Widget? _buildServiceStateSliver() {
           );
         }
         if (_giftRemoteError != null && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.cloud_off_rounded,
-            title: 'Could not load gifts',
-            message: _giftRemoteError!,
-            actionLabel: 'Try Again',
-            onAction: () => unawaited(_loadGiftLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.redeem_rounded,
+            message: 'Gift shops are not available in your selected area right now.',
           );
         }
         if (_giftRemoteReady && !hasData) {
@@ -3262,12 +3540,9 @@ Widget? _buildServiceStateSliver() {
           );
         }
         if (_groceryRemoteError != null && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.cloud_off_rounded,
-            title: 'Could not load groceries',
-            message: _groceryRemoteError!,
-            actionLabel: 'Try Again',
-            onAction: () => unawaited(_loadGroceryLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.local_grocery_store_rounded,
+            message: 'Grocery shops are not available in your selected area right now.',
           );
         }
         if (_groceryRemoteReady && !hasData) {
@@ -3288,12 +3563,9 @@ Widget? _buildServiceStateSliver() {
           );
         }
         if (_pharmacyRemoteError != null && !hasData) {
-          return _buildRemoteStateSliver(
-            icon: Icons.cloud_off_rounded,
-            title: 'Could not load pharmacy',
-            message: _pharmacyRemoteError!,
-            actionLabel: 'Try Again',
-            onAction: () => unawaited(_loadPharmacyLanding(silent: false)),
+          return _buildAreaComingSoonSliver(
+            icon: Icons.local_pharmacy_rounded,
+            message: 'Pharmacy shops are not available in your selected area right now.',
           );
         }
         if (_pharmacyRemoteReady && !hasData) {
@@ -3371,6 +3643,10 @@ Widget? _buildServiceStateSliver() {
         normalized.contains('no data');
   }
 
+  bool _shouldTreatAsSilentDiscoveryFallback(String message) {
+    return _shouldTreatAsEmptyResults(message) || _shouldUseFriendlyShopErrorMessage(message);
+  }
+
   bool _shouldUseFriendlyShopErrorMessage(String message) {
     final normalized = message.trim().toLowerCase();
     return normalized.isEmpty ||
@@ -3436,30 +3712,82 @@ Widget? _buildServiceStateSliver() {
             : const <String>[];
       case _HomeMode.service:
         return _serviceRemoteCategories.isNotEmpty
-            ? <String>['All services', ..._serviceRemoteCategories.map((item) => item.label)]
-            : const <String>['All services'];
+            ? _serviceRemoteCategories.map((item) => item.label).toList(growable: false)
+            : const <String>[];
       case _HomeMode.shop:
         return _availableShopCategories;
     }
   }
 
 
-  List<String> get _selectedServiceSubcategories {
-    if (_selectedServiceCategory == 'All services') {
-      return const <String>['All'];
+  String get _defaultServiceCategoryLabel =>
+      _serviceRemoteCategories.isEmpty ? '' : _serviceRemoteCategories.first.label;
+
+  String _defaultServiceSubcategoryLabelFor(String categoryLabel) {
+    for (final category in _serviceRemoteCategories) {
+      if (category.label != categoryLabel) {
+        continue;
+      }
+      for (final subcategory in category.subcategories) {
+        if (subcategory.label != 'All') {
+          return subcategory.label;
+        }
+      }
+      return category.subcategories.firstOrNull?.label ?? '';
     }
+    return '';
+  }
+
+  List<String> get _selectedServiceSubcategories {
+    final activeCategory = _selectedServiceCategory.trim().isEmpty
+        ? _defaultServiceCategoryLabel
+        : _selectedServiceCategory;
     return _serviceRemoteCategories.isNotEmpty
         ? _serviceRemoteCategories
-            .where((category) => category.label == _selectedServiceCategory)
+            .where((category) => category.label == activeCategory)
             .expand((category) => category.subcategories)
             .map((subcategory) => subcategory.label)
             .toList(growable: false)
         : const <String>['All'];
   }
 
+  String get _serviceSubcategoryStripCategoryLabel {
+    return _selectedServiceCategory.trim().isEmpty
+        ? _defaultServiceCategoryLabel
+        : _selectedServiceCategory;
+  }
+
+  List<String> get _serviceSubcategoryStripOptions {
+    return _selectedServiceSubcategories.where((label) => label != 'All').toList(growable: false);
+  }
+
+  String get _selectedServiceBookingLabel {
+    if (_selectedServiceSubCategory.trim().isNotEmpty) {
+      return _selectedServiceSubCategory;
+    }
+    if (_selectedServiceCategory.trim().isNotEmpty) {
+      return _selectedServiceCategory;
+    }
+    return 'service';
+  }
+
   List<_DiscoveryItem> get _filteredServiceProviders {
     final normalizedQuery = _searchController.text.trim().toLowerCase();
+    final selectedCategoryId = _serviceCategoryIdForLabel(_selectedServiceCategory);
+    final selectedSubcategoryId = _serviceSubcategoryIdForSelection(
+      _selectedServiceCategory,
+      _selectedServiceSubCategory,
+    );
     final providers = _serviceRemoteProviders
+        .where((item) {
+          if (selectedCategoryId != null && item.backendCategoryId != selectedCategoryId) {
+            return false;
+          }
+          if (selectedSubcategoryId != null && item.backendSubcategoryId != selectedSubcategoryId) {
+            return false;
+          }
+          return true;
+        })
         .where((item) => _matchesServiceSearch(item, normalizedQuery))
         .toList(growable: true);
     providers.sort((left, right) {
@@ -3469,23 +3797,50 @@ Widget? _buildServiceStateSliver() {
       if (availabilityCompare != 0) {
         return availabilityCompare;
       }
-      final priceCompare = _servicePriceSortValue(left).compareTo(
-        _servicePriceSortValue(right),
-      );
-      if (priceCompare != 0) {
-        return priceCompare;
-      }
-      final ratingCompare = _serviceRatingRank(right).compareTo(
-        _serviceRatingRank(left),
-      );
-      if (ratingCompare != 0) {
-        return ratingCompare;
-      }
-      final distanceCompare = _serviceDistanceRank(left).compareTo(
-        _serviceDistanceRank(right),
-      );
-      if (distanceCompare != 0) {
-        return distanceCompare;
+      switch (_selectedServiceSort.trim().toUpperCase()) {
+        case 'PRICE HIGH-LOW':
+          final priceCompare = _servicePriceSortValue(right).compareTo(
+            _servicePriceSortValue(left),
+          );
+          if (priceCompare != 0) {
+            return priceCompare;
+          }
+          final ratingCompare = _serviceRatingRank(right).compareTo(
+            _serviceRatingRank(left),
+          );
+          if (ratingCompare != 0) {
+            return ratingCompare;
+          }
+          break;
+        case 'PRICE LOW-HIGH':
+          final priceCompare = _servicePriceSortValue(left).compareTo(
+            _servicePriceSortValue(right),
+          );
+          if (priceCompare != 0) {
+            return priceCompare;
+          }
+          final ratingCompare = _serviceRatingRank(right).compareTo(
+            _serviceRatingRank(left),
+          );
+          if (ratingCompare != 0) {
+            return ratingCompare;
+          }
+          break;
+        case 'BEST SERVICE':
+        default:
+          final promotedCompare = _servicePromotedRank(left).compareTo(
+            _servicePromotedRank(right),
+          );
+          if (promotedCompare != 0) {
+            return promotedCompare;
+          }
+          final ratingCompare = _serviceRatingRank(right).compareTo(
+            _serviceRatingRank(left),
+          );
+          if (ratingCompare != 0) {
+            return ratingCompare;
+          }
+          break;
       }
       final bookingsCompare = (right.completedJobsCount ?? 0).compareTo(
         left.completedJobsCount ?? 0,
@@ -3509,17 +3864,7 @@ Widget? _buildServiceStateSliver() {
     return 2;
   }
 
-  double _serviceDistanceRank(_DiscoveryItem item) {
-    final raw = item.distance.trim().toLowerCase();
-    if (raw.isEmpty) {
-      return double.infinity;
-    }
-    final match = RegExp(r'([0-9]+(?:\.[0-9]+)?)').firstMatch(raw);
-    if (match == null) {
-      return double.infinity;
-    }
-    return double.tryParse(match.group(1)!) ?? double.infinity;
-  }
+  int _servicePromotedRank(_DiscoveryItem item) => item.promoted ? -1 : 0;
 
   double _serviceRatingRank(_DiscoveryItem item) {
     return double.tryParse(item.rating.trim()) ?? 0;
@@ -3695,9 +4040,8 @@ Widget? _buildServiceStateSliver() {
         (_mode != _HomeMode.all && _modeFilters.isNotEmpty ? pinnedFilterHeaderHeight : 0.0);
 
     _ensureShopSelectionIsVisible();
-    final showActiveBookingPopup = _activeBookingStatus != null &&
-        (_mode == _HomeMode.all || _mode == _HomeMode.labour) &&
-        !_ActiveBookingPopupVisibilityController.isHidden;
+    final showActiveBookingPopup =
+        _activeBookingStatus != null && !_ActiveBookingPopupVisibilityController.isHidden;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -3859,7 +4203,9 @@ Widget? _buildServiceStateSliver() {
                                 _shopBrowseMode == _ShopBrowseMode.itemWise &&
                                 _selectedShopSubcategories.length > 1
                             ? 116
-                            : 76,
+                            : _mode == _HomeMode.service && _serviceSubcategoryStripOptions.isNotEmpty
+                                ? 82
+                                : 76,
                       ),
                     ),
                     ..._buildModeSlivers(includeTopControls: false),
@@ -3950,13 +4296,17 @@ Widget? _buildServiceStateSliver() {
 
   Widget _buildActiveBookingFloatingCard() {
     final status = _activeBookingStatus!;
-    final title = status.providerName.trim().isNotEmpty
-        ? status.providerName
-        : status.bookingType.toUpperCase() == 'SERVICE'
-            ? 'Service booking'
-            : 'Labour booking';
-    final canShowPrevious = _activeBookingIndex > 0;
-    final canShowNext = _activeBookingIndex < _activeBookingStatuses.length - 1;
+    final liveBookingCount = _activeBookingStatuses.length;
+    final title = liveBookingCount > 1
+        ? '$liveBookingCount live bookings'
+        : (status.providerName.trim().isNotEmpty
+            ? status.providerName
+            : status.bookingType.toUpperCase() == 'SERVICE'
+                ? 'Service booking'
+                : 'Labour booking');
+    final subtitle = liveBookingCount > 1
+        ? '${status.providerName.trim().isNotEmpty ? status.providerName : _activeBookingProviderTitle(status)} • ${_liveBookingStatusLabel(status)}'
+        : _liveBookingStatusLabel(status);
     final screenSize = MediaQuery.sizeOf(context);
     final width = math.min(screenSize.width * 0.84, 360.0);
     const cardHeight = 108.0;
@@ -3986,6 +4336,12 @@ Widget? _buildServiceStateSliver() {
       top: boundedTop,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
+        onTap: () {
+          if (_activeBookingPopupDragMoved) {
+            return;
+          }
+          _openActiveBookingsOverviewSheet();
+        },
         onPanStart: (_) {
           _activeBookingPopupDragMoved = false;
         },
@@ -4006,14 +4362,6 @@ Widget? _buildServiceStateSliver() {
             );
             _activeBookingPopupPositionInitialized = true;
           });
-        },
-        onHorizontalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0;
-          if (velocity < -120 && canShowNext) {
-            setState(() => _activeBookingIndex++);
-          } else if (velocity > 120 && canShowPrevious) {
-            setState(() => _activeBookingIndex--);
-          }
         },
         onPanEnd: (_) {
           Future<void>.delayed(const Duration(milliseconds: 80), () {
@@ -4045,72 +4393,48 @@ Widget? _buildServiceStateSliver() {
               children: [
                 Row(
                   children: [
-                    if (_activeBookingStatuses.length > 1)
-                      _activeBookingSwitcherButton(
-                        icon: Icons.chevron_left_rounded,
-                        enabled: canShowPrevious,
-                        onTap: canShowPrevious ? () => setState(() => _activeBookingIndex--) : null,
-                      ),
-                    if (_activeBookingStatuses.length > 1) const SizedBox(width: 8),
                     Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () {
-                          if (_activeBookingPopupDragMoved) {
-                            return;
-                          }
-                          _openActiveBookingSheet(status);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Row(
-                            children: [
-                              _ActiveBookingAvatar(status: status, size: 42),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 13.2,
-                                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: [
+                            _ActiveBookingAvatar(status: status, size: 42),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13.2,
                                     ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      _liveBookingStatusLabel(status),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.88),
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 10.6,
-                                        height: 1.1,
-                                      ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.88),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 10.6,
+                                      height: 1.1,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    if (_activeBookingStatuses.length > 1) ...[
-                      _activeBookingSwitcherButton(
-                        icon: Icons.chevron_right_rounded,
-                        enabled: canShowNext,
-                        onTap: canShowNext ? () => setState(() => _activeBookingIndex++) : null,
-                      ),
-                      const SizedBox(width: 8),
-                    ],
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
@@ -4145,7 +4469,7 @@ Widget? _buildServiceStateSliver() {
                           if (_activeBookingPopupDragMoved) {
                             return;
                           }
-                          _openActiveBookingSheet(status);
+                          _openActiveBookingsOverviewSheet();
                         },
                         child: Container(
                           width: 34,
@@ -4164,53 +4488,9 @@ Widget? _buildServiceStateSliver() {
                     ),
                   ],
                 ),
-                if (_activeBookingStatuses.length > 1) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      _activeBookingStatuses.length,
-                      (index) => AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        width: index == _activeBookingIndex ? 16 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: index == _activeBookingIndex
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.38),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _activeBookingSwitcherButton({
-    required IconData icon,
-    required bool enabled,
-    required VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: enabled ? Colors.white.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Icon(
-          icon,
-          color: enabled ? Colors.white : Colors.white.withValues(alpha: 0.42),
-          size: 18,
         ),
       ),
     );
@@ -4259,6 +4539,7 @@ Widget? _buildServiceStateSliver() {
                 };
         case _HomeMode.service:
           _selectedServiceCategory = value;
+          _selectedServiceSubCategory = _defaultServiceSubcategoryLabelFor(value);
           _selectedServiceSubCategory = 'All';
         case _HomeMode.shop:
           _selectedShopCategory = value;
@@ -4331,6 +4612,91 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             _upsertActiveBookingStatus(latestStatus);
           });
         },
+        onOpenProviderProfile: _openActiveBookingProviderProfile,
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    await _hydrateRemoteState(silent: true);
+    if (!mounted) {
+      return;
+    }
+    switch (status.bookingType.trim().toUpperCase()) {
+      case 'LABOUR':
+        await _loadLabourLanding(silent: true);
+        break;
+      case 'SERVICE':
+        await _loadServiceLanding(silent: true);
+        break;
+    }
+  }
+
+  String _activeBookingProviderTitle(_ActiveBookingStatus status) {
+    final name = status.providerName.trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service provider' : 'Labour';
+  }
+
+  String _activeBookingPaymentStatusLabel(_ActiveBookingStatus status) {
+    final normalized = status.paymentStatus.trim().toUpperCase();
+    return switch (normalized) {
+      '' => 'Unpaid',
+      'UNPAID' => 'Unpaid',
+      'PENDING' => 'Pending',
+      'INITIATED' => 'Pending',
+      'PAID' => 'Paid',
+      'FAILED' => 'Failed',
+      'REFUNDED' => 'Refunded',
+      _ => _titleCase(status.paymentStatus),
+    };
+  }
+
+  Future<void> _openActiveBookingProviderProfile(_ActiveBookingStatus status) async {
+    final providerId = status.providerEntityId;
+    if (providerId == null || providerId <= 0) {
+      return;
+    }
+    final normalizedProviderType = status.providerEntityType.trim().toUpperCase();
+    final isService = normalizedProviderType == 'SERVICE_PROVIDER' || status.bookingType.trim().toUpperCase() == 'SERVICE';
+    final detailItem = _DiscoveryItem(
+      title: status.providerName.trim().isNotEmpty
+          ? status.providerName.trim()
+          : (isService ? 'Service provider' : 'Labour'),
+      subtitle: status.categoryLabel.trim().isNotEmpty
+          ? status.categoryLabel.trim()
+          : (isService ? 'Service' : 'Labour'),
+      accent: isService ? const Color(0xFFD48E78) : const Color(0xFF5C8FD8),
+      icon: isService ? Icons.miscellaneous_services_rounded : Icons.handyman_rounded,
+      price: status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
+          ? status.totalAcceptedQuotedPriceAmount.trim()
+          : status.quotedPriceAmount.trim(),
+      rating: '',
+      distance: status.distanceLabel.trim().isEmpty ? 'Nearby' : status.distanceLabel.trim(),
+      maskedPhone: status.providerPhone.trim(),
+      backendLabourId: isService ? null : providerId,
+      backendServiceProviderId: isService ? providerId : null,
+      profileImageUrl: status.providerPhotoUrl.trim(),
+      serviceItems: status.subcategoryLabel.trim().isEmpty ? const <String>[] : <String>[status.subcategoryLabel.trim()],
+      serviceTileLabel: status.subcategoryLabel.trim(),
+    );
+    await _openCard(detailItem, isService ? _HomeMode.service : _HomeMode.labour);
+  }
+
+  Future<void> _openActiveBookingsOverviewSheet() async {
+    final statuses = List<_ActiveBookingStatus>.from(_activeBookingStatuses);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ActiveBookingsOverviewPage(
+          statuses: statuses,
+          statusLabelBuilder: _liveBookingStatusLabel,
+          paymentLabelBuilder: _activeBookingPaymentStatusLabel,
+          titleBuilder: _activeBookingProviderTitle,
+          onOpenDetails: (activeStatus) => _openActiveBookingSheet(activeStatus),
+        ),
       ),
     );
   }
@@ -4341,10 +4707,12 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     }
     final bookingStatus = status.bookingStatus.trim().toUpperCase();
     switch (bookingStatus) {
+      case 'PAYMENT_PENDING':
+        return 'Payment is pending. Please wait up to 5 minutes for confirmation.';
       case 'PAYMENT_COMPLETED':
-        return 'Payment done. Track labour arrival.';
+        return 'Payment done. Start work OTP is ready when the provider reaches you.';
       case 'ARRIVED':
-        return 'Labour arrived. Enter OTP to start.';
+        return 'Provider arrived. Enter OTP to start.';
       case 'IN_PROGRESS':
         return 'Work in progress.';
       case 'COMPLETED':
@@ -4469,17 +4837,28 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         );
       case _HomeMode.service:
         return Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
-          child: _ServiceSubcategoryFilter(
-            selectedCategory: _selectedServiceCategory,
-            options: _selectedServiceSubcategories,
-            selected: _selectedServiceSubCategory,
-            onSelected: (value) {
-              setState(() => _selectedServiceSubCategory = value);
-              if (_serviceRemoteCategories.isNotEmpty) {
-                unawaited(_loadServiceLanding(silent: false));
-              }
-            },
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_serviceSubcategoryStripOptions.isNotEmpty) ...[
+                _ServiceSubcategoryFilter(
+                  selectedCategory: _serviceSubcategoryStripCategoryLabel,
+                  options: _serviceSubcategoryStripOptions,
+                  selected: _selectedServiceSubCategory,
+                  onSelected: (value) {
+                    setState(() {
+                      _selectedServiceSubCategory = value;
+                    });
+                    if (_serviceRemoteCategories.isNotEmpty) {
+                      unawaited(_loadServiceLanding(silent: false));
+                    }
+                  },
+                ),
+                const SizedBox(height: 4),
+              ],
+              _buildServiceSortAndActionControls(),
+            ],
           ),
         );
       case _HomeMode.shop:
@@ -4543,6 +4922,94 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     }
   }
 
+  Widget _buildServiceSortAndActionControls() {
+    return Row(
+      children: [
+        Expanded(
+          child: PopupMenuButton<String>(
+            initialValue: _selectedServiceSort,
+            onSelected: (value) {
+              if (_selectedServiceSort == value) {
+                return;
+              }
+              setState(() => _selectedServiceSort = value);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'Price low-high',
+                child: Text('Price low-high'),
+              ),
+              PopupMenuItem<String>(
+                value: 'Price high-low',
+                child: Text('Price high-low'),
+              ),
+              PopupMenuItem<String>(
+                value: 'Best service',
+                child: Text('Best service'),
+              ),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE7D9D1)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.sort_rounded,
+                    size: 18,
+                    color: Color(0xFFD48E78),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _selectedServiceSort,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF5E4B45),
+                        fontSize: 12.8,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: Color(0xFF5E4B45),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFE36C93),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            onPressed: _serviceRemoteLoading ? null : _startRandomServiceBookingFlow,
+            icon: const Icon(Icons.shuffle_rounded, size: 18),
+            label: const Text(
+              'Random book',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   List<Widget> _buildModeSlivers({bool includeTopControls = true}) {
     switch (_mode) {
       case _HomeMode.all:
@@ -4579,16 +5046,6 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           title: 'Loading nearby options',
           message: 'We are checking live shops, labour, and services around your selected location.',
           loading: true,
-        ),
-      );
-    } else if (_homeBootstrapError != null && _backendTopProducts.isEmpty && !hasAnyLiveSection) {
-      slivers.add(
-        _buildRemoteStateSliver(
-          icon: Icons.cloud_off_rounded,
-          title: 'Could not load live shop picks',
-          message: _homeBootstrapError!,
-          actionLabel: 'Try Again',
-          onAction: () => unawaited(_hydrateRemoteState(silent: false)),
         ),
       );
     }
@@ -4716,7 +5173,10 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
   List<Widget> _buildLabourMode({bool includeTopControls = true}) {
     final labourStateSliver = _buildLabourStateSliver();
     final visibleLabourProfiles = _filteredSingleLabourProfiles;
-    final selectedGroupCategoryId = _labourCategoryIdForLabel(_selectedGroupLabourCategory ?? '');
+    final effectiveGroupLabourCategoryLabel = _effectiveGroupLabourCategoryLabel();
+    final selectedGroupCategoryId = _labourCategoryIdForLabel(effectiveGroupLabourCategoryLabel ?? '');
+    final allowManualGroupLabourTypeSelection = _isGroupBookingUsingAllLabourFilter;
+    final needsManualGroupLabourTypeSelection = _isGroupBookingUsingAllLabourFilter && selectedGroupCategoryId == null;
     final groupAvailableLabour = _availableLabourCountForGroupCategory(selectedGroupCategoryId);
     return [
       if (includeTopControls)
@@ -4772,8 +5232,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             padding: const EdgeInsets.fromLTRB(18, 6, 18, 0),
             child: _GroupBookingCard(
               availableLabour: groupAvailableLabour,
-              selectedLabourType: _selectedGroupLabourCategory ?? 'All labour',
-              needsLabourTypeSelection: selectedGroupCategoryId == null,
+              selectedLabourType: effectiveGroupLabourCategoryLabel ?? 'All labour',
+              needsLabourTypeSelection: needsManualGroupLabourTypeSelection,
               selectedMaxPrice: _selectedLabourPrice,
               selectedPricePeriod: _selectedLabourPricePeriod,
               selectedCount: _selectedLabourCount,
@@ -4782,7 +5242,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               showPriceError: _showLabourPriceError,
               showCountError: _showLabourCountError,
               countErrorText: _labourCountErrorText,
-              onLabourTypeSelected: () => unawaited(_resolveGroupLabourCategoryId()),
+              onLabourTypeSelected: allowManualGroupLabourTypeSelection
+                  ? () => unawaited(_resolveGroupLabourCategoryId(allowExistingSelection: false))
+                  : () {},
               onPriceSelected: (value) => setState(() {
                 _selectedLabourPrice = value;
                 if (value.trim().isNotEmpty) {
@@ -4828,6 +5290,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                   _showLabourCountError = false;
                   _labourCountErrorText = null;
                 });
+                if (!_isAuthenticated) {
+                  final loggedIn = await _ensureAuthenticated();
+                  if (!loggedIn) {
+                    if (mounted) {
+                      _showCartSnack('Please log in to continue group booking.');
+                    }
+                    return;
+                  }
+                }
                 final confirmed = await _confirmBookingLocationUsage(bookingLabel: 'labour');
                 if (!mounted || !confirmed) {
                   return;
@@ -4853,12 +5324,6 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                     _labourCountErrorText = 'Only $selectedTypeAvailableLabour labour available';
                   });
                   return;
-                }
-                if (!_isAuthenticated) {
-                  final loggedIn = await _ensureAuthenticated();
-                  if (!loggedIn) {
-                    return;
-                  }
                 }
                 try {
                   final result = await _UserAppApi.requestGroupLabourBooking(
@@ -5236,26 +5701,38 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         categoryId: item.backendCategoryId,
         subcategoryId: item.backendSubcategoryId,
       );
-      final selectedTileLabel = _deriveSelectedServiceTileLabel(
-        backendProfile.provider.copyWith(
-          title: item.title,
-          serviceTileLabel: item.serviceTileLabel.isNotEmpty ? item.serviceTileLabel : item.title,
-          serviceItems: backendProfile.serviceItems.isNotEmpty
-              ? backendProfile.serviceItems
-              : item.serviceItems,
-        ),
-      );
+      final selectedOption = backendProfile.serviceOptions
+          .where((option) => option.subcategoryId == item.backendSubcategoryId)
+          .firstOrNull ?? backendProfile.serviceOptions.firstOrNull;
+      final serviceLabels = backendProfile.serviceOptions.isNotEmpty
+          ? backendProfile.serviceOptions
+                .map((option) => option.subcategoryName.trim())
+                .where((label) => label.isNotEmpty)
+                .toSet()
+                .toList(growable: false)
+          : (backendProfile.serviceItems.isNotEmpty ? backendProfile.serviceItems : item.serviceItems);
+      final selectedTileLabel = selectedOption?.subcategoryName.trim().isNotEmpty == true
+          ? selectedOption!.subcategoryName.trim()
+          : _deriveSelectedServiceTileLabel(
+              backendProfile.provider.copyWith(
+                title: item.title,
+                serviceTileLabel: item.serviceTileLabel.isNotEmpty ? item.serviceTileLabel : item.title,
+                serviceItems: serviceLabels,
+              ),
+            );
       return backendProfile.provider.copyWith(
         title: backendProfile.provider.subtitle,
-        subtitle: backendProfile.provider.serviceTileLabel.isNotEmpty
-            ? backendProfile.provider.serviceTileLabel
-            : item.title,
-        serviceItems: backendProfile.serviceItems.isNotEmpty
-            ? backendProfile.serviceItems
-            : item.serviceItems,
+        subtitle: selectedOption?.categoryName.trim().isNotEmpty == true
+            ? selectedOption!.categoryName.trim()
+            : (item.subtitle.trim().isNotEmpty ? item.subtitle : 'Service'),
+        price: selectedOption?.visitingChargeLabel.trim().isNotEmpty == true
+            ? selectedOption!.visitingChargeLabel.trim()
+            : backendProfile.provider.price,
+        serviceItems: serviceLabels,
+        serviceOptions: backendProfile.serviceOptions,
         serviceTileLabel: selectedTileLabel,
-        backendCategoryId: item.backendCategoryId ?? backendProfile.provider.backendCategoryId,
-        backendSubcategoryId: item.backendSubcategoryId ?? backendProfile.provider.backendSubcategoryId,
+        backendCategoryId: selectedOption?.categoryId ?? item.backendCategoryId ?? backendProfile.provider.backendCategoryId,
+        backendSubcategoryId: selectedOption?.subcategoryId ?? item.backendSubcategoryId ?? backendProfile.provider.backendSubcategoryId,
         isDisabled: item.isDisabled,
         disabledLabel: item.disabledLabel,
       );
@@ -5306,11 +5783,13 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             isFavourited: _isFavourited(detailItem),
             onWishlistToggle: () => _toggleWishlist(detailItem),
             onFavouriteToggle: () => _toggleFavourite(detailItem),
-            onPrimaryAction: (labourBookingPeriod, labourCategoryId) => _handlePrimaryAction(
+            onPrimaryAction: (labourBookingPeriod, labourCategoryId, serviceCategoryId, serviceSubcategoryId) => _handlePrimaryAction(
               detailItem,
               mode,
               labourBookingPeriod: labourBookingPeriod,
               labourCategoryId: labourCategoryId,
+              serviceCategoryId: serviceCategoryId,
+              serviceSubcategoryId: serviceSubcategoryId,
             ),
           ),
         ),
@@ -6059,7 +6538,7 @@ Future<void> _openProfilePage() async {
     await _hydrateRemoteState(silent: true);
     return;
   }
-  final initialProfile = _cachedUserProfile ?? await (_profilePreviewWarmupFuture ?? _readCachedProfilePreview());
+  final initialProfile = _cachedUserProfile ?? await _readCachedProfilePreview();
   if (!mounted) {
     return;
   }
@@ -6115,27 +6594,35 @@ Future<void> _openNotificationsPage() async {
 }
 
 Future<void> _openCartPage() async {
-  if (_isAuthenticated) {
-    await _hydrateRemoteState();
-    if (!mounted) {
-      return;
-    }
+  if (_cartPageOpening) {
+    return;
   }
-  await Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => _CartPage(
-        shopName: _cartShopName ?? 'Your cart',
-        items: List<_DiscoveryItem>.unmodifiable(_cartItems),
-        isAuthenticated: _isAuthenticated,
-        onCheckout: _checkoutFromCartPage,
-        onBrowseItems: () => Navigator.of(context).pop(),
-        onRequireLogin: _ensureAuthenticated,
-        onItemTap: _openCartItemFromCart,
+  _cartPageOpening = true;
+  try {
+    if (_isAuthenticated) {
+      await _hydrateRemoteState();
+      if (!mounted) {
+        return;
+      }
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _CartPage(
+          shopName: _cartShopName ?? 'Your cart',
+          items: List<_DiscoveryItem>.unmodifiable(_cartItems),
+          isAuthenticated: _isAuthenticated,
+          onCheckout: _checkoutFromCartPage,
+          onBrowseItems: () => Navigator.of(context).pop(),
+          onRequireLogin: _ensureAuthenticated,
+          onItemTap: _openCartItemFromCart,
+        ),
       ),
-    ),
-  );
-  if (mounted) {
-    await _hydrateRemoteState(silent: true);
+    );
+    if (mounted) {
+      await _hydrateRemoteState(silent: true);
+    }
+  } finally {
+    _cartPageOpening = false;
   }
 }
 
@@ -6204,6 +6691,8 @@ Future<bool> _handlePrimaryAction(
     _HomeMode mode, {
     String? labourBookingPeriod,
     int? labourCategoryId,
+    int? serviceCategoryId,
+    int? serviceSubcategoryId,
   }) async {
     await _refreshSessionPhoneFromStore();
     if ((mode == _HomeMode.labour || mode == _HomeMode.service) && !_isAuthenticated) {
@@ -6245,7 +6734,12 @@ Future<bool> _handlePrimaryAction(
           );
           return false;
         }
-        await _startServiceBookingRequestFlow(item);
+        await _startServiceBookingRequestFlow(
+          item.copyWith(
+            backendCategoryId: serviceCategoryId ?? item.backendCategoryId,
+            backendSubcategoryId: serviceSubcategoryId ?? item.backendSubcategoryId,
+          ),
+        );
         return false;
       case _HomeMode.all:
         ScaffoldMessenger.of(context).showSnackBar(
@@ -6584,7 +7078,7 @@ Future<bool> _handlePrimaryAction(
         if (cancelledByUser.isCompleted) {
           await _UserAppApi.cancelLabourBookingRequest(
             request.requestId,
-            reason: 'User cancelled the waiting request.',
+            reason: 'You cancelled this booking request while we were still finding a matching labour.',
           );
           status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
           return status;
@@ -6850,6 +7344,107 @@ Future<bool> _handlePrimaryAction(
     }
   }
 
+  Future<void> _startRandomServiceBookingFlow() async {
+    final canContinue = await _ensureAuthenticated();
+    if (!mounted) {
+      return;
+    }
+    if (!canContinue) {
+      _showCartSnack('Please log in to continue service booking.');
+      return;
+    }
+
+    final categoryId = _serviceCategoryIdForLabel(_selectedServiceCategory);
+    final subcategoryId = _serviceSubcategoryIdForSelection(
+      _selectedServiceCategory,
+      _selectedServiceSubCategory,
+    );
+    if (categoryId == null && subcategoryId == null) {
+      _showCartSnack('Please choose a service category or subcategory first.');
+      return;
+    }
+
+    try {
+      final confirmed = await _confirmBookingLocationUsage(bookingLabel: 'service');
+      if (!mounted || !confirmed) {
+        return;
+      }
+      final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
+        bookingLabel: 'service',
+      );
+      if (bookingAddressId == null || !mounted) {
+        return;
+      }
+      final request = await _UserAppApi.bookServiceRandom(
+        categoryId: categoryId,
+        subcategoryId: subcategoryId,
+        serviceName: _selectedServiceBookingLabel,
+        addressId: bookingAddressId,
+      );
+      if (!mounted) {
+        return;
+      }
+      final status = await _waitForServiceAcceptance(request);
+      if (!mounted) {
+        return;
+      }
+      if (status == null || !status.canMakePayment) {
+        await _showServiceRequestStateDialog(
+          request: request,
+          status: status,
+        );
+        return;
+      }
+      setState(() {
+        _upsertActiveBookingStatus(
+          _activeBookingStatusFromServiceRequest(
+            request: request,
+            status: status,
+          ),
+        );
+      });
+      final shouldPay = await _showAcceptedServiceDialog(
+        request: request,
+        status: status,
+      );
+      if (!mounted || !shouldPay) {
+        return;
+      }
+      final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
+      if (!mounted) {
+        return;
+      }
+      final paymentResult = await _PaymentFlow.start(
+        context,
+        paymentCode: payment.paymentCode,
+        title: 'Confirm service booking',
+      );
+      if (!mounted) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      if (!mounted) {
+        return;
+      }
+      await _PaymentFlow.showOutcome(
+        context,
+        result: paymentResult,
+        successTitle: 'Service booking confirmed',
+        failureTitle: 'Service payment incomplete',
+        extraLines: [
+          'Booking code: ${payment.bookingCode}',
+          'Provider: ${status.providerName.trim().isNotEmpty ? status.providerName : request.providerName}',
+          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+          'Amount: ${payment.amountLabel}',
+        ],
+      );
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        _showCartSnack(error.message);
+      }
+    }
+  }
+
   Future<int?> _ensureBookingAddressIdForServiceOrLabour({
     required String bookingLabel,
   }) async {
@@ -6857,8 +7452,29 @@ Future<bool> _handlePrimaryAction(
     if (!_isAuthenticated || selectedLocation == null) {
       return selectedLocation?.addressId;
     }
-    if (selectedLocation.addressId != null) {
-      return selectedLocation.addressId;
+    if (_savedAddresses.isNotEmpty) {
+      if (selectedLocation.addressId != null) {
+        return selectedLocation.addressId;
+      }
+      if (_savedAddresses.length == 1) {
+        final onlyAddress = _locationChoiceFromAddress(_savedAddresses.first);
+        if (mounted) {
+          setState(() {
+            _selectedLocationChoice = onlyAddress;
+          });
+        }
+        return onlyAddress.addressId;
+      }
+      final selectedAddress = await _promptSelectSavedAddressForBooking(
+        bookingLabel: bookingLabel,
+      );
+      if (!mounted || selectedAddress == null) {
+        return null;
+      }
+      setState(() {
+        _selectedLocationChoice = selectedAddress;
+      });
+      return selectedAddress.addressId;
     }
     final saved = await _promptAddAddressForBooking(
       bookingLabel: bookingLabel,
@@ -6868,6 +7484,220 @@ Future<bool> _handlePrimaryAction(
     }
     final updatedLocation = _selectedLocationChoice ?? _currentLocationChoice;
     return updatedLocation?.addressId;
+  }
+
+  Future<_HomeLocationChoice?> _promptSelectSavedAddressForBooking({
+    required String bookingLabel,
+  }) async {
+    var addresses = _savedAddresses;
+    if (_isAuthenticated) {
+      try {
+        final latestAddresses = await _UserAppApi.fetchAddresses();
+        if (mounted) {
+          setState(() {
+            _savedAddresses = latestAddresses;
+          });
+        } else {
+          _savedAddresses = latestAddresses;
+        }
+        addresses = latestAddresses;
+      } catch (_) {
+        addresses = _savedAddresses;
+      }
+    }
+    final options = addresses.map(_locationChoiceFromAddress).toList(growable: false);
+    if (options.isEmpty) {
+      return null;
+    }
+    if (!mounted) {
+      return null;
+    }
+    _HomeLocationChoice? pendingSelection = _selectedLocationChoice?.addressId != null
+        ? options.cast<_HomeLocationChoice?>().firstWhere(
+              (option) => option?.addressId == _selectedLocationChoice?.addressId,
+              orElse: () => options.isNotEmpty ? options.first : null,
+            )
+        : (options.isNotEmpty ? options.first : null);
+    final currentPickedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+    final result = await showModalBottomSheet<Object?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 26,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 46,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE4D7D0),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Select address for booking',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF22314D),
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Choose one of your saved addresses for this $bookingLabel booking.',
+                      style: const TextStyle(
+                        color: Color(0xFF66748C),
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          final isSelected = pendingSelection?.addressId != null &&
+                              pendingSelection!.addressId == option.addressId;
+                          return _HomeLocationOptionTile(
+                            option: option,
+                            selected: isSelected,
+                            onTap: () => setSheetState(() {
+                              pendingSelection = option;
+                            }),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD48E78),
+                          side: const BorderSide(color: Color(0xFFD48E78)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(sheetContext).pop('add'),
+                        icon: const Icon(Icons.add_location_alt_rounded),
+                        label: const Text(
+                          'Add new address',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF22314D),
+                              side: const BorderSide(color: Color(0xFFD9CCC5)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFD48E78),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            onPressed: pendingSelection == null
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(pendingSelection),
+                            child: const Text(
+                              'Continue',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result is _HomeLocationChoice) {
+      return result;
+    }
+    if (result == 'add') {
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => _AddressesPage(
+            autoOpenEditor: true,
+            closeAfterSave: true,
+            initialLocationChoice: currentPickedLocation,
+          ),
+        ),
+      );
+      if (saved != true || !mounted) {
+        return null;
+      }
+      await _loadHomeLocationOptions();
+      await _reloadAddressAwareDiscovery(silent: true);
+      final updatedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+      if (updatedLocation?.addressId != null) {
+        return updatedLocation;
+      }
+      final refreshedOptions = _savedAddresses.map(_locationChoiceFromAddress).toList(growable: false);
+      if (refreshedOptions.isEmpty) {
+        return null;
+      }
+      return refreshedOptions.firstWhere(
+        (option) =>
+            currentPickedLocation != null &&
+            (option.latitude - currentPickedLocation.latitude).abs() < 0.00001 &&
+            (option.longitude - currentPickedLocation.longitude).abs() < 0.00001,
+        orElse: () => refreshedOptions.last,
+      );
+    }
+    return null;
   }
 
   Future<bool> _promptAddAddressForBooking({
@@ -6999,6 +7829,33 @@ Future<bool> _handlePrimaryAction(
 
   Future<bool> _confirmBookingLocationUsage({required String bookingLabel}) async {
     var selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+    if (_isAuthenticated && _savedAddresses.length > 1) {
+      final selectedAddress = await _promptSelectSavedAddressForBooking(
+        bookingLabel: bookingLabel,
+      );
+      if (!mounted || selectedAddress == null) {
+        return false;
+      }
+      setState(() {
+        _selectedLocationChoice = selectedAddress;
+      });
+      return true;
+    }
+    if (_isAuthenticated && _savedAddresses.isNotEmpty && (selectedLocation == null || selectedLocation.addressId == null)) {
+      final selectedAddress = await _promptSelectSavedAddressForBooking(
+        bookingLabel: bookingLabel,
+      );
+      if (!mounted || selectedAddress == null) {
+        return false;
+      }
+      setState(() {
+        _selectedLocationChoice = selectedAddress;
+      });
+      return true;
+    }
+    if (_isAuthenticated && _savedAddresses.isEmpty) {
+      return _promptAddAddressForBooking(bookingLabel: bookingLabel);
+    }
     if (selectedLocation == null) {
       await _openHomeLocationSelector(showManageAddresses: _isAuthenticated);
       if (!mounted) {
@@ -7124,13 +7981,13 @@ Future<bool> _handlePrimaryAction(
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF7A3FF2),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
+                        Expanded(
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFD48E78),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
@@ -7178,6 +8035,12 @@ Future<bool> _handlePrimaryAction(
   Future<_RemoteServiceBookingRequestStatus?> _waitForServiceAcceptance(
     _RemoteServiceBookingResult request,
   ) async {
+    final waitingTitle = request.isBroadcast
+        ? 'Waiting for a provider to accept'
+        : 'Waiting for provider to accept';
+    final waitingLine = request.isBroadcast
+        ? 'Matching service providers have received your booking request.'
+        : '${request.providerName} has received your service booking request.';
     unawaited(
       showDialog<void>(
         context: context,
@@ -7186,7 +8049,7 @@ Future<bool> _handlePrimaryAction(
           canPop: false,
           child: AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: const Text('Waiting for provider to accept'),
+            title: Text(waitingTitle),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -7197,12 +8060,14 @@ Future<bool> _handlePrimaryAction(
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '${request.providerName} has received your service booking request.',
+                  waitingLine,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Please wait while the provider accepts or rejects it.',
+                Text(
+                  request.isBroadcast
+                      ? 'Please wait while one available matching provider accepts or rejects it.'
+                      : 'Please wait while the provider accepts or rejects it.',
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -7251,10 +8116,16 @@ Future<bool> _handlePrimaryAction(
     final normalized = status?.requestStatus.trim().toUpperCase() ?? request.requestStatus.trim().toUpperCase();
     final title = normalized == 'OPEN' ? 'Still waiting' : 'Booking request update';
     final message = switch (normalized) {
-      'CANCELLED' => 'No provider accepted your service booking request.',
-      'EXPIRED' => 'This service booking request timed out before any provider accepted it.',
+      'CANCELLED' => request.isBroadcast
+          ? 'No matching provider accepted your service booking request.'
+          : 'No provider accepted your service booking request.',
+      'EXPIRED' => request.isBroadcast
+          ? 'This request timed out before any matching provider accepted it.'
+          : 'This service booking request timed out before any provider accepted it.',
       'REJECTED' => 'The service provider rejected this booking request.',
-      _ => 'Waiting for the provider to accept the booking. Please try again in a moment.',
+      _ => request.isBroadcast
+          ? 'Waiting for a matching provider to accept the booking. Please try again in a moment.'
+          : 'Waiting for the provider to accept the booking. Please try again in a moment.',
     };
     await showDialog<void>(
       context: context,
@@ -7534,16 +8405,457 @@ class _ActiveBookingAvatar extends StatelessWidget {
   }
 }
 
+class _ActiveBookingsOverviewPage extends StatelessWidget {
+  const _ActiveBookingsOverviewPage({
+    required this.statuses,
+    required this.statusLabelBuilder,
+    required this.paymentLabelBuilder,
+    required this.titleBuilder,
+    required this.onOpenDetails,
+  });
+
+  final List<_ActiveBookingStatus> statuses;
+  final String Function(_ActiveBookingStatus status) statusLabelBuilder;
+  final String Function(_ActiveBookingStatus status) paymentLabelBuilder;
+  final String Function(_ActiveBookingStatus status) titleBuilder;
+  final Future<void> Function(_ActiveBookingStatus status) onOpenDetails;
+
+  Future<void> _handleOpenDetails(BuildContext context, _ActiveBookingStatus status) async {
+    Navigator.of(context).pop();
+    await onOpenDetails(status);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F2EC),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF7F2EC),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF22314D)),
+        ),
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Live bookings',
+              style: TextStyle(
+                color: Color(0xFF22314D),
+                fontWeight: FontWeight.w900,
+                fontSize: 20,
+              ),
+            ),
+            Text(
+              '${statuses.length} booking${statuses.length == 1 ? '' : 's'} active right now',
+              style: const TextStyle(
+                color: Color(0xFF6B7487),
+                fontWeight: FontWeight.w700,
+                fontSize: 12.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: statuses.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No live bookings right now.',
+                  style: TextStyle(
+                    color: Color(0xFF5F6E85),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+              itemCount: statuses.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final activeStatus = statuses[index];
+                return _ActiveBookingOverviewCard(
+                  key: ValueKey<int>(activeStatus.requestId),
+                  status: activeStatus,
+                  statusLabel: statusLabelBuilder(activeStatus),
+                  paymentLabel: paymentLabelBuilder(activeStatus),
+                  title: activeStatus.providerName.trim().isNotEmpty
+                      ? activeStatus.providerName
+                      : titleBuilder(activeStatus),
+                  onOpenDetails: () => unawaited(_handleOpenDetails(context, activeStatus)),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _ActiveBookingOverviewCard extends StatefulWidget {
+  const _ActiveBookingOverviewCard({
+    super.key,
+    required this.status,
+    required this.title,
+    required this.statusLabel,
+    required this.paymentLabel,
+    this.onOpenDetails,
+    this.selected = false,
+    this.initiallyExpanded = false,
+    this.onExpansionChanged,
+    this.showOpenDetailsButton = true,
+  });
+
+  final _ActiveBookingStatus status;
+  final String title;
+  final String statusLabel;
+  final String paymentLabel;
+  final VoidCallback? onOpenDetails;
+  final bool selected;
+  final bool initiallyExpanded;
+  final ValueChanged<bool>? onExpansionChanged;
+  final bool showOpenDetailsButton;
+
+  @override
+  State<_ActiveBookingOverviewCard> createState() => _ActiveBookingOverviewCardState();
+}
+
+class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> {
+  Color _paymentColor(String label) {
+    switch (label.trim().toUpperCase()) {
+      case 'PAID':
+        return const Color(0xFF177245);
+      case 'FAILED':
+        return const Color(0xFFB84B4B);
+      case 'REFUNDED':
+        return const Color(0xFF8552D8);
+      default:
+        return const Color(0xFFC67A1F);
+    }
+  }
+
+  String _bookingTypeLabel(_ActiveBookingStatus status) {
+    return status.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Service' : 'Labour';
+  }
+
+  String _providerLabel(_ActiveBookingStatus status) {
+    return status.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Servicemen' : 'Labour';
+  }
+
+  String _bookingAmountLabel(_ActiveBookingStatus status) {
+    final total = status.totalAcceptedQuotedPriceAmount.trim();
+    if (total.isNotEmpty) {
+      return total;
+    }
+    final quoted = status.quotedPriceAmount.trim();
+    if (quoted.isNotEmpty) {
+      return quoted;
+    }
+    return '-';
+  }
+
+  String _categoryLabel(_ActiveBookingStatus status) {
+    final category = status.categoryLabel.trim();
+    final subcategory = status.subcategoryLabel.trim();
+    if (category.isNotEmpty) {
+      return category;
+    }
+    if (subcategory.isNotEmpty) {
+      return subcategory;
+    }
+    return _bookingTypeLabel(status);
+  }
+
+  String _subcategoryLabel(_ActiveBookingStatus status) {
+    final category = status.categoryLabel.trim().toLowerCase();
+    final subcategory = status.subcategoryLabel.trim();
+    if (subcategory.isEmpty) {
+      return '';
+    }
+    if (subcategory.toLowerCase() == category) {
+      return '';
+    }
+    return subcategory;
+  }
+
+  bool _canDialPhone(String phone) {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty || trimmed.contains('*') || trimmed.toLowerCase().contains('x')) {
+      return false;
+    }
+    final digits = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
+    return digits.replaceAll('+', '').length >= 7;
+  }
+
+  Future<void> _callProviderPhone(String phone) async {
+    final digits = phone.trim().replaceAll(RegExp(r'[^0-9+]'), '');
+    if (digits.isEmpty) {
+      return;
+    }
+    await launchUrl(Uri(scheme: 'tel', path: digits), mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = widget.status;
+    final amountLabel = _bookingAmountLabel(status);
+    final paymentColor = _paymentColor(widget.paymentLabel);
+    final providerLabel = _providerLabel(status);
+    final categoryLabel = _categoryLabel(status);
+    final subcategoryLabel = _subcategoryLabel(status);
+    final canDialPhone = _canDialPhone(status.providerPhone);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF6D8D1),
+            Color(0xFFFFF2D8),
+            Color(0xFFFFFFFF),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: widget.selected ? const Color(0xFFD48E78) : const Color(0xFFE7D8D0),
+          width: widget.selected ? 1.3 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x161F2430),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    status.bookingCode.trim().isNotEmpty ? status.bookingCode : status.requestCode,
+                    style: const TextStyle(
+                      color: Color(0xFFBE6F5D),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12.4,
+                      letterSpacing: 0.28,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.paymentLabel,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    color: paymentColor,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11.8,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFF0E1D9)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              providerLabel,
+                              style: const TextStyle(
+                                color: Color(0xFF6E7A8E),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11.8,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _ActiveBookingAvatar(status: status, size: 40),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Amount',
+                            style: TextStyle(
+                              color: Color(0xFF6E7A8E),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11.4,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            amountLabel,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              color: status.canMakePayment ? const Color(0xFFC67A1F) : const Color(0xFF177245),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              categoryLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14.2,
+                              ),
+                            ),
+                            if (subcategoryLabel.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subcategoryLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF7D889A),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11.8,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Mobile',
+                            style: TextStyle(
+                              color: canDialPhone ? const Color(0xFFBE6F5D) : const Color(0xFF8D8A86),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: canDialPhone ? () => unawaited(_callProviderPhone(status.providerPhone)) : null,
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: canDialPhone ? const Color(0xFFFFF5F2) : const Color(0xFFF7F3F0),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: canDialPhone ? const Color(0xFFE8B7AA) : const Color(0xFFE6D9D1),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (canDialPhone) ...[
+                                    const Icon(Icons.call_rounded, size: 13, color: Color(0xFFBE6F5D)),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  Text(
+                                    status.providerPhone.trim().isEmpty ? '-' : status.providerPhone.trim(),
+                                    style: TextStyle(
+                                      color: canDialPhone ? const Color(0xFF22314D) : const Color(0xFF7D889A),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (widget.showOpenDetailsButton) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: widget.onOpenDetails,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFD48E78),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: const Text(
+                    'Open details',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ActiveBookingDetailsSheet extends StatefulWidget {
   const _ActiveBookingDetailsSheet({
     required this.initialStatus,
     required this.onPayNow,
     required this.onStatusChanged,
+    this.onOpenProviderProfile,
   });
 
   final _ActiveBookingStatus initialStatus;
   final Future<void> Function(_ActiveBookingStatus status) onPayNow;
   final ValueChanged<_ActiveBookingStatus?> onStatusChanged;
+  final Future<void> Function(_ActiveBookingStatus status)? onOpenProviderProfile;
 
   @override
   State<_ActiveBookingDetailsSheet> createState() => _ActiveBookingDetailsSheetState();
@@ -7649,7 +8961,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     }
     _reviewPromptedBookingIds.add(bookingId);
     _reviewDialogOpen = true;
-    await showDialog<void>(
+    final submitted = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) => _BookingReviewDialog(
@@ -7662,6 +8974,17 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       ),
     );
     _reviewDialogOpen = false;
+    if (submitted == true) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _status = null;
+        _completeWorkOtpCode = null;
+      });
+      widget.onStatusChanged(null);
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _reload({bool promptForReview = false}) async {
@@ -8136,13 +9459,18 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                     const SizedBox(height: 14),
                     if (_loading) const LinearProgressIndicator(minHeight: 3),
                     if (status.canMakePayment) _paymentPendingAction(status),
+                    if (!status.canMakePayment &&
+                        status.bookingStatus.trim().toUpperCase() == 'PAYMENT_PENDING') ...[
+                      _paymentProcessingCard(status),
+                      const SizedBox(height: 12),
+                    ],
                     if (!status.canMakePayment && status.bookingId <= 0) _waitingForAcceptanceCard(status),
                     if (!status.canMakePayment && status.bookingId > 0) ...[
                       if (status.bookingStatus.toUpperCase() == 'IN_PROGRESS') ...[
                         _completionOtpCard(status),
                         const SizedBox(height: 12),
                       ],
-                      _detailsCard(status),
+                      _summaryDetailsCard(status),
                       const SizedBox(height: 12),
                       _liveLocationCard(status),
                       const SizedBox(height: 12),
@@ -8206,6 +9534,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 
   Widget _header(_ActiveBookingStatus status) {
+    final isService = status.bookingType.trim().toUpperCase() == 'SERVICE';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -8218,7 +9547,13 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       ),
       child: Row(
         children: [
-          _ActiveBookingAvatar(status: status, size: 58),
+          InkWell(
+            onTap: widget.onOpenProviderProfile == null
+                ? null
+                : () => unawaited(widget.onOpenProviderProfile!(status)),
+            borderRadius: BorderRadius.circular(999),
+            child: _ActiveBookingAvatar(status: status, size: 58),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -8228,14 +9563,15 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   _providerTitle(status),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _statusLabel(status),
+                  'Once ${isService ? 'servicemen' : 'labour'} arrived receive OTP and start work.',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.84),
                     fontWeight: FontWeight.w700,
+                    fontSize: 11,
                     height: 1.25,
                   ),
                 ),
@@ -8298,27 +9634,214 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     );
   }
 
-  Widget _detailsCard(_ActiveBookingStatus status) {
+  Widget _paymentProcessingCard(_ActiveBookingStatus status) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _whiteCardDecoration(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _infoRow('Booking ID', status.bookingCode.trim().isEmpty ? '#${status.bookingId}' : status.bookingCode),
-          _infoRow('Labour name', _providerTitle(status)),
-          _infoRow('Labour phone', status.providerPhone.trim().isEmpty ? 'Visible after payment' : status.providerPhone),
-          _infoRow('Booking type', _pricingModelLabel(status)),
-          _infoRow(
-            'Labour amount',
-            status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
-                ? status.totalAcceptedQuotedPriceAmount
-                : (status.quotedPriceAmount.trim().isEmpty ? 'As quoted' : status.quotedPriceAmount),
+          const Text(
+            'Waiting for payment confirmation',
+            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
           ),
-          _infoRow(
-            'Booking fees',
-            status.totalAcceptedBookingChargeAmount.trim().isNotEmpty
-                ? status.totalAcceptedBookingChargeAmount
-                : 'Pending',
+          const SizedBox(height: 8),
+          const Text(
+            'Your payment is still pending. Please wait up to 5 minutes for the payment to complete. If it does not complete, the booking will return to the previous state.',
+            style: TextStyle(
+              color: Color(0xFF66748C),
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+          if (status.paymentDueAt != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Payment window ends by ${_timeOnly(status.paymentDueAt)}',
+              style: const TextStyle(color: Color(0xFFCB6E5B), fontWeight: FontWeight.w900),
+            ),
+          ],
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : _reload,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Refresh payment status'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryDetailsCard(_ActiveBookingStatus status) {
+    final providerLabel = status.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Servicemen' : 'Labour';
+    final categoryLabel = status.categoryLabel.trim().isNotEmpty
+        ? status.categoryLabel.trim()
+        : (status.subcategoryLabel.trim().isNotEmpty ? status.subcategoryLabel.trim() : _pricingModelLabel(status));
+    final subcategoryLabel = status.subcategoryLabel.trim().isNotEmpty &&
+            status.subcategoryLabel.trim().toLowerCase() != status.categoryLabel.trim().toLowerCase()
+        ? status.subcategoryLabel.trim()
+        : '';
+    final amountLabel = status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
+        ? status.totalAcceptedQuotedPriceAmount.trim()
+        : (status.quotedPriceAmount.trim().isNotEmpty ? status.quotedPriceAmount.trim() : 'As quoted');
+    final phone = status.providerPhone.trim();
+    final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final canDialPhone =
+        phone.isNotEmpty && !phone.contains('*') && !phone.toLowerCase().contains('x') && digits.replaceAll('+', '').length >= 7;
+    final amountColor = status.paymentStatus.trim().toUpperCase() == 'PAID'
+        ? const Color(0xFF177245)
+        : const Color(0xFFC67A1F);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _whiteCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      providerLabel,
+                      style: const TextStyle(
+                        color: Color(0xFF6E7A8E),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11.8,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _providerTitle(status),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ActiveBookingAvatar(status: status, size: 40),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Amount',
+                    style: TextStyle(
+                      color: Color(0xFF6E7A8E),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11.4,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    amountLabel,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      color: amountColor,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      categoryLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF22314D),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.2,
+                      ),
+                    ),
+                    if (subcategoryLabel.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subcategoryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF7D889A),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11.8,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Mobile',
+                    style: TextStyle(
+                      color: canDialPhone ? const Color(0xFFBE6F5D) : const Color(0xFF8D8A86),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: canDialPhone
+                        ? () => unawaited(
+                              launchUrl(
+                                Uri(scheme: 'tel', path: digits),
+                                mode: LaunchMode.externalApplication,
+                              ),
+                            )
+                        : null,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: canDialPhone ? const Color(0xFFFFF5F2) : const Color(0xFFF7F3F0),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: canDialPhone ? const Color(0xFFE8B7AA) : const Color(0xFFE6D9D1),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (canDialPhone) ...[
+                            const Icon(Icons.call_rounded, size: 13, color: Color(0xFFBE6F5D)),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            phone.isEmpty ? '-' : phone,
+                            style: TextStyle(
+                              color: canDialPhone ? const Color(0xFF22314D) : const Color(0xFF7D889A),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -8337,16 +9860,16 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Live trip tracking',
-            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
-          ),
-          if (routeDistanceLabel != null) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Live trip tracking',
+                style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+              if (routeDistanceLabel != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
@@ -8356,25 +9879,29 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   ),
                   child: Text(
                     'Route $routeDistanceLabel',
-                    style: const TextStyle(color: Color(0xFF14516E), fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      color: Color(0xFF14516E),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.2,
+                    ),
                   ),
                 ),
-                if (routeEtaLabel != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEFE7),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFFF1C6B4)),
-                    ),
-                    child: Text(
-                      'ETA $routeEtaLabel',
-                      style: const TextStyle(color: Color(0xFF9A432E), fontWeight: FontWeight.w900),
-                    ),
+              if (routeEtaLabel != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEFE7),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0xFFF1C6B4)),
                   ),
-              ],
-            ),
-          ] else if (_loadingRouteSnapshot) ...[
+                  child: Text(
+                    'ETA $routeEtaLabel',
+                    style: const TextStyle(color: Color(0xFF9A432E), fontWeight: FontWeight.w900),
+                  ),
+                ),
+            ],
+          ),
+          if (routeDistanceLabel == null && _loadingRouteSnapshot) ...[
             const SizedBox(height: 8),
             const Text(
               'Calculating route...',
@@ -8453,20 +9980,15 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
 
   Widget _arrivalOtpCard(_ActiveBookingStatus status) {
     final bookingStatus = status.bookingStatus.toUpperCase();
-    final isServiceBooking = status.bookingType.toUpperCase() == 'SERVICE';
-    final canEnterOtp = isServiceBooking
-        ? bookingStatus == 'PAYMENT_COMPLETED' || bookingStatus == 'ARRIVED'
-        : bookingStatus == 'ARRIVED';
+    final canEnterOtp = bookingStatus == 'PAYMENT_COMPLETED' || bookingStatus == 'ARRIVED';
     final alreadyStarted = bookingStatus == 'IN_PROGRESS';
     final cardTitle = alreadyStarted
         ? 'Work in progress'
-        : isServiceBooking
-            ? 'Enter service OTP'
-            : 'Confirm labour arrival';
+        : 'Enter start work OTP';
     final hintText = canEnterOtp
-        ? (isServiceBooking ? 'Service start OTP' : 'Arrival OTP')
-        : (isServiceBooking ? 'Unlocks after payment confirmation' : 'Unlocks after labour arrives');
-    final actionLabel = isServiceBooking ? 'Confirm OTP and start work' : 'Confirm arrival and start work';
+        ? 'Start work OTP'
+        : 'Unlocks after payment confirmation';
+    final actionLabel = 'Confirm OTP and start work';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _whiteCardDecoration(),
@@ -8579,7 +10101,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             children: [
               Expanded(
                 child: Text(
-                  showMutualCancel ? 'Mutual cancellation' : 'Cancel if labour does not reach',
+                  showMutualCancel
+                      ? 'Mutual cancellation'
+                      : (status.bookingType.toUpperCase() == 'SERVICE'
+                          ? 'Cancel if service provider does not reach'
+                          : 'Cancel if labour does not reach'),
                   style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
                 ),
               ),
@@ -8641,7 +10167,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
           ],
           if (showMutualCancel) ...[
             const Text(
-              'Booking fees will not be refunded after work starts.',
+              'Paid charges will not be refunded after work starts.',
               style: TextStyle(color: Color(0xFF9B433B), fontWeight: FontWeight.w800, height: 1.3),
             ),
             const SizedBox(height: 12),
@@ -8707,30 +10233,6 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     );
   }
 
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(
-              label,
-              style: const TextStyle(color: Color(0xFF8C7E73), fontWeight: FontWeight.w700),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   bool _canCancelAfterReachDeadline(_ActiveBookingStatus status) {
     final reachByAt = status.reachByAt;
     return status.bookingStatus.toUpperCase() == 'PAYMENT_COMPLETED' &&
@@ -8739,9 +10241,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 
   String _cancelButtonLabel(_ActiveBookingStatus status) {
-    return status.bookingType.toUpperCase() == 'SERVICE'
-        ? 'Cancel because service provider did not reach'
-        : 'Cancel because labour did not reach';
+    return 'Cancel';
   }
 
   String _reachCountdownLabel(_ActiveBookingStatus status) {
@@ -8768,17 +10268,6 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       return name;
     }
     return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service provider' : 'Labour';
-  }
-
-  String _statusLabel(_ActiveBookingStatus status) {
-    final bookingStatus = status.bookingStatus.toUpperCase();
-    return switch (bookingStatus) {
-      'PAYMENT_COMPLETED' => 'Payment done. Labour is on the way.',
-      'ARRIVED' => 'Labour reached. Enter OTP to start work.',
-      'IN_PROGRESS' => 'Work in progress.',
-      'COMPLETED' => 'Booking completed.',
-      _ => status.canMakePayment ? 'Accepted. Payment is pending.' : _titleCase(status.requestStatus),
-    };
   }
 
   String _pricingModelLabel(_ActiveBookingStatus status) {
@@ -9147,7 +10636,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
           position: provider,
           infoWindow: InfoWindow(title: _providerTitle(status), snippet: 'Live labour location'),
           flat: true,
-          anchor: const Offset(0.5, 0.5),
+          anchor: const Offset(0.25, 0.60),
           rotation: providerRotation ?? 0,
           icon: _providerScooterMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
@@ -9428,7 +10917,7 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
                           if (!mounted) {
                             return;
                           }
-                          navigator.pop();
+                          navigator.pop(true);
                           messenger.showSnackBar(
                             const SnackBar(content: Text('Thanks for sharing your rating.')),
                           );
@@ -9553,6 +11042,873 @@ class _HomeLocationOptionTile extends StatelessWidget {
                   Icons.check_circle_rounded,
                   color: Color(0xFFCB6E5B),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeLocationSelectorSheet extends StatefulWidget {
+  const _HomeLocationSelectorSheet({
+    required this.options,
+    required this.selectedLocation,
+    required this.canManageAddresses,
+    required this.searchSuggestions,
+    required this.resolveSuggestion,
+    required this.sameChoice,
+  });
+
+  final List<_HomeLocationChoice> options;
+  final _HomeLocationChoice? selectedLocation;
+  final bool canManageAddresses;
+  final Future<List<_HomeLocationSearchSuggestion>> Function(String query) searchSuggestions;
+  final Future<_HomeLocationChoice?> Function(_HomeLocationSearchSuggestion suggestion) resolveSuggestion;
+  final bool Function(_HomeLocationChoice left, _HomeLocationChoice right) sameChoice;
+
+  @override
+  State<_HomeLocationSelectorSheet> createState() => _HomeLocationSelectorSheetState();
+}
+
+class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> {
+  static const double _defaultMapZoom = 17;
+  static const double _savedAddressTileHeight = 58;
+  static const double _savedAddressTileGap = 8;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  List<_HomeLocationSearchSuggestion> _searchResults = const <_HomeLocationSearchSuggestion>[];
+  bool _searching = false;
+  String? _searchError;
+  Timer? _searchDebounce;
+  GoogleMapController? _mapController;
+  _HomeLocationChoice? _previewLocation;
+  _HomeLocationChoice? _resolvedPreviewLocation;
+  bool _resolvingPreviewAddress = false;
+  bool _searchMode = false;
+  LatLng? _pendingCameraTarget;
+  double _currentMapZoom = _defaultMapZoom;
+
+  _HomeLocationChoice _mapPickedLocationFrom(
+    _HomeLocationChoice? source, {
+    required double latitude,
+    required double longitude,
+    String? title,
+    String? subtitle,
+    String? city,
+  }) {
+    return _HomeLocationChoice(
+      title: title ?? source?.title ?? 'Selected location',
+      subtitle: subtitle ??
+          source?.subtitle ??
+          'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}',
+      city: city ?? source?.city ?? '',
+      latitude: latitude,
+      longitude: longitude,
+      isCurrentLocation: true,
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final initialLocation = widget.selectedLocation ??
+        widget.options.where((option) => option.isCurrentLocation).firstOrNull ??
+        widget.options.firstOrNull;
+    _previewLocation = initialLocation;
+    _resolvedPreviewLocation = initialLocation;
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  void _enterSearchMode() {
+    if (_searchMode) {
+      return;
+    }
+    setState(() {
+      _searchMode = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _exitSearchMode({bool clearQuery = false}) {
+    _searchDebounce?.cancel();
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _searchMode = false;
+      _searching = false;
+      _searchError = null;
+      _searchResults = clearQuery ? const <_HomeLocationSearchSuggestion>[] : _searchResults;
+      if (clearQuery) {
+        _searchController.clear();
+      }
+    });
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = const <_HomeLocationSearchSuggestion>[];
+        _searchError = null;
+      });
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_runSearch());
+    });
+  }
+
+  Future<void> _runSearch() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchResults = const <_HomeLocationSearchSuggestion>[];
+        _searchError = null;
+        _searching = false;
+      });
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _searchError = null;
+    });
+    try {
+      final results = await widget.searchSuggestions(query);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchResults = results;
+        _searchError = results.isEmpty ? 'No matching place found for that search.' : null;
+        _searching = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchResults = const <_HomeLocationSearchSuggestion>[];
+        _searchError = 'Could not search places right now.';
+        _searching = false;
+      });
+    }
+  }
+
+  Future<void> _selectSearchResult(_HomeLocationSearchSuggestion suggestion) async {
+    setState(() {
+      _resolvingPreviewAddress = true;
+      _searchError = null;
+    });
+    try {
+      final option = await widget.resolveSuggestion(suggestion);
+      if (!mounted) {
+        return;
+      }
+      if (option == null) {
+        setState(() {
+          _searchError = 'Could not resolve that place right now.';
+          _resolvingPreviewAddress = false;
+        });
+        return;
+      }
+      setState(() {
+        _searchMode = false;
+        _searchController.clear();
+        _searchResults = const <_HomeLocationSearchSuggestion>[];
+        _previewLocation = option;
+        _resolvedPreviewLocation = option;
+        _resolvingPreviewAddress = true;
+        _searchError = null;
+        _currentMapZoom = _defaultMapZoom;
+      });
+      FocusScope.of(context).unfocus();
+      await _moveMapCamera(
+        option.latitude,
+        option.longitude,
+        zoom: _defaultMapZoom,
+      );
+      await _resolvePreviewLocation(option.latitude, option.longitude, fallback: option);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _searchError = 'Could not resolve that place right now.';
+        _resolvingPreviewAddress = false;
+      });
+    }
+  }
+
+  Future<void> _moveMapCamera(
+    double latitude,
+    double longitude, {
+    double? zoom,
+  }) async {
+    final controller = _mapController;
+    if (controller == null) {
+      return;
+    }
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(latitude, longitude),
+          zoom: zoom ?? _currentMapZoom,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    final currentLocation = widget.options.where((option) => option.isCurrentLocation).firstOrNull;
+    if (currentLocation == null) {
+      setState(() {
+        _searchError = 'Current location is not available right now.';
+      });
+      return;
+    }
+    setState(() {
+      _previewLocation = currentLocation;
+      _resolvedPreviewLocation = currentLocation;
+      _resolvingPreviewAddress = true;
+      _searchError = null;
+      _searchMode = false;
+      _currentMapZoom = _defaultMapZoom;
+    });
+    await _moveMapCamera(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      zoom: _defaultMapZoom,
+    );
+    await _resolvePreviewLocation(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      fallback: currentLocation,
+    );
+  }
+
+  Future<void> _resolvePreviewLocation(
+    double latitude,
+    double longitude, {
+    _HomeLocationChoice? fallback,
+  }) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(latitude, longitude);
+      if (!mounted) {
+        return;
+      }
+      final placemark = placemarks.firstOrNull;
+      final titleParts = <String>[
+        if ((placemark?.name ?? '').trim().isNotEmpty) placemark!.name!.trim(),
+        if ((placemark?.subLocality ?? '').trim().isNotEmpty) placemark!.subLocality!.trim(),
+        if ((placemark?.locality ?? '').trim().isNotEmpty) placemark!.locality!.trim(),
+      ];
+      final subtitleParts = <String>[
+        if ((placemark?.thoroughfare ?? '').trim().isNotEmpty) placemark!.thoroughfare!.trim(),
+        if ((placemark?.subAdministrativeArea ?? '').trim().isNotEmpty)
+          placemark!.subAdministrativeArea!.trim(),
+        if ((placemark?.administrativeArea ?? '').trim().isNotEmpty)
+          placemark!.administrativeArea!.trim(),
+        if ((placemark?.postalCode ?? '').trim().isNotEmpty) placemark!.postalCode!.trim(),
+      ];
+      setState(() {
+        _resolvedPreviewLocation = _mapPickedLocationFrom(
+          fallback,
+          title: titleParts.isEmpty
+              ? (fallback?.title ?? 'Selected location')
+              : titleParts.join(', '),
+          subtitle: subtitleParts.isEmpty
+              ? (fallback?.subtitle ??
+                  'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}')
+              : subtitleParts.join(', '),
+          city: (placemark?.locality ?? placemark?.subAdministrativeArea ?? fallback?.city ?? '').trim(),
+          latitude: latitude,
+          longitude: longitude,
+        );
+        _resolvingPreviewAddress = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _resolvedPreviewLocation = _mapPickedLocationFrom(
+          fallback,
+          title: fallback?.title ?? 'Selected location',
+          subtitle: fallback?.subtitle ??
+              'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}',
+          city: fallback?.city ?? '',
+          latitude: latitude,
+          longitude: longitude,
+        );
+        _resolvingPreviewAddress = false;
+      });
+    }
+  }
+
+  Future<void> _updatePreviewPin(LatLng position) async {
+    final previous = _resolvedPreviewLocation ?? _previewLocation;
+    setState(() {
+      _previewLocation = _mapPickedLocationFrom(
+        previous,
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      _resolvedPreviewLocation = previous == null
+          ? null
+          : _mapPickedLocationFrom(
+              previous,
+              latitude: position.latitude,
+              longitude: position.longitude,
+            );
+      _resolvingPreviewAddress = true;
+    });
+    await _resolvePreviewLocation(
+      position.latitude,
+      position.longitude,
+      fallback: previous,
+    );
+  }
+
+  List<_HomeLocationChoice> get _savedAddressOptions => widget.options
+      .where((option) => !option.isCurrentLocation && option.addressId != null)
+      .toList(growable: false);
+
+  List<_HomeLocationChoice> _footerAddressOptions(_HomeLocationChoice previewLocation) {
+    final options = <_HomeLocationChoice>[
+      _mapPickedLocationFrom(
+        previewLocation,
+        title: previewLocation.title,
+        subtitle: previewLocation.subtitle,
+        city: previewLocation.city,
+        latitude: previewLocation.latitude,
+        longitude: previewLocation.longitude,
+      ),
+    ];
+    for (final option in _savedAddressOptions) {
+      final sameCoordinates =
+          (option.latitude - previewLocation.latitude).abs() < 0.000001 &&
+          (option.longitude - previewLocation.longitude).abs() < 0.000001;
+      if (sameCoordinates) {
+        continue;
+      }
+      options.add(option);
+    }
+    return options;
+  }
+
+  double _savedAddressListHeightFor(int count) {
+    if (count <= 0) {
+      return 0;
+    }
+    if (count == 1) {
+      return _savedAddressTileHeight;
+    }
+    return (_savedAddressTileHeight * 2) + _savedAddressTileGap;
+  }
+
+  Future<void> _selectSavedAddressOption(_HomeLocationChoice option) async {
+    setState(() {
+      _previewLocation = option;
+      _resolvedPreviewLocation = option;
+      _resolvingPreviewAddress = true;
+      _searchError = null;
+      _searchMode = false;
+    });
+    FocusScope.of(context).unfocus();
+    await _moveMapCamera(option.latitude, option.longitude);
+    await _resolvePreviewLocation(
+      option.latitude,
+      option.longitude,
+      fallback: option,
+    );
+  }
+
+  Widget _buildSearchResultsView(double safeTop, double safeBottom) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, safeTop + 8, 16, safeBottom + 12),
+      child: Column(
+        children: [
+          Container(
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE3DAEE)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () => _exitSearchMode(clearQuery: true),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF5A2A8D)),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    textInputAction: TextInputAction.search,
+                    onChanged: _onSearchChanged,
+                    onSubmitted: (_) => unawaited(_runSearch()),
+                    decoration: const InputDecoration(
+                      hintText: 'Search for area, street name...',
+                      border: InputBorder.none,
+                    ),
+                    style: const TextStyle(
+                      color: Color(0xFF202435),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (_searching)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 16),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                  )
+                else
+                  IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      _onSearchChanged('');
+                    },
+                    icon: const Icon(Icons.cancel_outlined, color: Color(0xFF7D4BA4), size: 30),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F1FA),
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: _searchResults.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _searchError ?? 'Type an area, street, landmark, or city to see matching places.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF6E6480),
+                            fontWeight: FontWeight.w700,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        final item = _searchResults[index];
+                        return _HomeLocationSuggestionTile(
+                          suggestion: item,
+                          onTap: () => unawaited(_selectSearchResult(item)),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapConfirmView(
+    BuildContext context,
+    _HomeLocationChoice previewLocation,
+    double safeTop,
+    double safeBottom,
+  ) {
+    final footerOptions = _footerAddressOptions(previewLocation);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GoogleMap(
+            onMapCreated: (controller) {
+              _mapController = controller;
+              unawaited(_moveMapCamera(
+                previewLocation.latitude,
+                previewLocation.longitude,
+                zoom: _currentMapZoom,
+              ));
+            },
+            initialCameraPosition: CameraPosition(
+              target: LatLng(previewLocation.latitude, previewLocation.longitude),
+              zoom: _currentMapZoom,
+            ),
+            mapType: MapType.normal,
+            zoomControlsEnabled: false,
+            mapToolbarEnabled: false,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            markers: const <Marker>{},
+            onCameraMove: (position) {
+              _pendingCameraTarget = position.target;
+              _currentMapZoom = position.zoom;
+            },
+            onCameraIdle: () {
+              final target = _pendingCameraTarget;
+              if (target == null) {
+                return;
+              }
+              final current = _resolvedPreviewLocation ?? _previewLocation;
+              if (current != null) {
+                final latitudeChanged = (current.latitude - target.latitude).abs() > 0.000001;
+                final longitudeChanged = (current.longitude - target.longitude).abs() > 0.000001;
+                if (!latitudeChanged && !longitudeChanged) {
+                  return;
+                }
+              }
+              unawaited(_updatePreviewPin(target));
+            },
+          ),
+        ),
+        Positioned(
+          top: safeTop + 18,
+          left: 22,
+          child: InkWell(
+            onTap: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(999),
+            child: const Padding(
+              padding: EdgeInsets.all(7),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Color(0xFF5A2A8D),
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: safeTop + 12,
+          left: 68,
+          right: 34,
+          child: Material(
+            color: Colors.white,
+            elevation: 8,
+            shadowColor: Colors.black.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: _enterSearchMode,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                height: 52,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: const Row(
+                  children: [
+                    Icon(Icons.search_rounded, color: Color(0xFF7D4BA4), size: 23),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Search for area, street name...',
+                        style: TextStyle(
+                          color: Color(0xFF9C8AB8),
+                          fontSize: 13.4,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Center(
+          child: IgnorePointer(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 28),
+              child: Icon(
+                Icons.place_rounded,
+                size: 58,
+                color: Color(0xFFD93025),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 20,
+          bottom: 244,
+          child: Material(
+            color: Colors.white,
+            elevation: 6,
+            shadowColor: Color(0x2E000000),
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: () => unawaited(_goToCurrentLocation()),
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: const Color(0xFFE3DAEE),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.my_location_rounded,
+                  color: Color(0xFFD48E78),
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(20, 6, 20, safeBottom + 14),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: _savedAddressListHeightFor(footerOptions.length),
+                  child: ListView.separated(
+                      padding: EdgeInsets.zero,
+                      itemCount: footerOptions.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final option = footerOptions[index];
+                        final isSelected = widget.sameChoice(previewLocation, option);
+                        return Material(
+                          color: isSelected ? const Color(0xFFF6E7E2) : const Color(0xFFF7F6FA),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            onTap: () => unawaited(_selectSavedAddressOption(option)),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Ink(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? const Color(0xFFD48E78)
+                                      : const Color(0xFFE6E1EF),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? const Color(0xFFD48E78) : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.location_on_rounded,
+                                        color: isSelected ? Colors.white : const Color(0xFFD48E78),
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            option.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFF2E185C),
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 13.2,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            option.subtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFF6F6A7A),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11.6,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      const Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Color(0xFFD48E78),
+                                        size: 20,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                if (_resolvingPreviewAddress) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Updating the address for the current map pin...',
+                    style: TextStyle(
+                      color: Color(0xFF7D4BA4),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(previewLocation),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFD48E78),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    ),
+                    child: const Text(
+                      'Select Address',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final safeBottom = MediaQuery.paddingOf(context).bottom > 12
+        ? MediaQuery.paddingOf(context).bottom
+        : 12.0;
+    final previewLocation = _resolvedPreviewLocation ?? _previewLocation;
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: previewLocation == null
+            ? const Center(child: CircularProgressIndicator())
+            : (_searchMode
+                ? _buildSearchResultsView(safeTop, safeBottom)
+                : _buildMapConfirmView(context, previewLocation, safeTop, safeBottom)),
+      ),
+    );
+  }
+}
+
+class _HomeLocationSuggestionTile extends StatelessWidget {
+  const _HomeLocationSuggestionTile({
+    required this.suggestion,
+    required this.onTap,
+  });
+
+  final _HomeLocationSearchSuggestion suggestion;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = suggestion.subtitle.trim().isEmpty
+        ? suggestion.description.trim()
+        : suggestion.subtitle.trim();
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F3FC),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.location_on_outlined,
+                  color: Color(0xFF5A2A8D),
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      suggestion.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF2E185C),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF6F6A7A),
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

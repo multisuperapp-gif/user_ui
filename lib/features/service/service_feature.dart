@@ -257,7 +257,7 @@ class _ServiceDealMiniTile extends StatelessWidget {
                         ),
                       ),
                       if (item.subtitle.trim().isNotEmpty) ...[
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         Text(
                           item.subtitle,
                           maxLines: 1,
@@ -376,34 +376,34 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: 62,
+          height: 50,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: options.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               final option = options[index];
               final selectedOption = selected == option || (!options.contains(selected) && option == 'All');
               final visual = _serviceSubcategoryVisual(option);
               return GestureDetector(
                 onTap: () => onSelected(option),
-	                child: AnimatedContainer(
-	                  duration: const Duration(milliseconds: 160),
-	                  width: 86,
-	                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
-	                  decoration: BoxDecoration(
-	                    color: selectedOption ? visual.$2 : Colors.white,
-	                    borderRadius: BorderRadius.circular(18),
-	                    border: Border.all(
-	                      color: selectedOption ? visual.$2 : const Color(0xFFE7E0D9),
-	                      width: selectedOption ? 1.3 : 0.9,
-	                    ),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 92,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: selectedOption ? visual.$2 : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: selectedOption ? visual.$2 : const Color(0xFFE7E0D9),
+                      width: selectedOption ? 1.2 : 0.85,
+                    ),
                     boxShadow: selectedOption
                         ? [
                             BoxShadow(
-                              color: visual.$2.withValues(alpha: 0.14),
-	                              blurRadius: 12,
-	                              offset: const Offset(0, 6),
+                              color: visual.$2.withValues(alpha: 0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
                             ),
                           ]
                         : const [],
@@ -411,19 +411,19 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-	                      Icon(
-                          visual.$1,
-                          color: selectedOption ? Colors.white : visual.$2,
-                          size: 21,
-                        ),
-	                      const SizedBox(height: 5),
+                      Icon(
+                        visual.$1,
+                        color: selectedOption ? Colors.white : visual.$2,
+                        size: 17,
+                      ),
+                      const SizedBox(height: 3),
                       Text(
                         option,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: selectedOption ? Colors.white : const Color(0xFF22314D),
-	                          fontSize: 11.5,
+                          fontSize: 10.0,
                           fontWeight: FontWeight.w900,
                           height: 1,
                         ),

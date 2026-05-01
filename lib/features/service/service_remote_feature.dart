@@ -36,10 +36,12 @@ class _RemoteServiceProviderProfile {
   const _RemoteServiceProviderProfile({
     required this.provider,
     required this.serviceItems,
+    required this.serviceOptions,
   });
 
   final _DiscoveryItem provider;
   final List<String> serviceItems;
+  final List<_ServicePricingOption> serviceOptions;
 }
 
 class _RemoteServiceBookingResult {
@@ -50,6 +52,8 @@ class _RemoteServiceBookingResult {
     required this.quotedPriceAmount,
     required this.providerName,
     required this.serviceName,
+    required this.isBroadcast,
+    required this.requestedProviderCount,
   });
 
   final int requestId;
@@ -58,6 +62,8 @@ class _RemoteServiceBookingResult {
   final String quotedPriceAmount;
   final String providerName;
   final String serviceName;
+  final bool isBroadcast;
+  final int requestedProviderCount;
 }
 
 class _RemoteServiceBookingRequestStatus {
@@ -74,6 +80,9 @@ class _RemoteServiceBookingRequestStatus {
     required this.bookingStatus,
     required this.paymentStatus,
     required this.canMakePayment,
+    required this.requestedProviderCount,
+    required this.acceptedProviderCount,
+    required this.pendingProviderCount,
   });
 
   final int requestId;
@@ -88,6 +97,9 @@ class _RemoteServiceBookingRequestStatus {
   final String bookingStatus;
   final String paymentStatus;
   final bool canMakePayment;
+  final int requestedProviderCount;
+  final int acceptedProviderCount;
+  final int pendingProviderCount;
 }
 
 class _RemoteServiceBookingPaymentResult {

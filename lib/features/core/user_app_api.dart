@@ -849,12 +849,26 @@ class _UserAppApi {
         .map((entry) => '$entry'.trim())
         .where((entry) => entry.isNotEmpty)
         .toList(growable: false);
+    final serviceOptions = (data['serviceOptions'] as List? ?? const [])
+        .whereType<Map<dynamic, dynamic>>()
+        .map(
+          (entry) => _ServicePricingOption(
+            categoryId: (entry['categoryId'] as num?)?.toInt(),
+            subcategoryId: (entry['subcategoryId'] as num?)?.toInt(),
+            categoryName: '${entry['categoryName'] ?? 'Service'}',
+            subcategoryName: '${entry['subcategoryName'] ?? 'Service'}',
+            visitingChargeLabel: '${_money(entry['visitingCharge'])} visit',
+          ),
+        )
+        .toList(growable: false);
     return _RemoteServiceProviderProfile(
       provider: _mapServiceProvider(providerRaw).copyWith(
         serviceItems: serviceItems,
         serviceTileLabel: serviceItems.firstOrNull ?? '',
+        serviceOptions: serviceOptions,
       ),
       serviceItems: serviceItems,
+      serviceOptions: serviceOptions,
     );
   }
 
@@ -886,6 +900,39 @@ class _UserAppApi {
       quotedPriceAmount: _money(data['quotedPriceAmount']),
       providerName: '${data['providerName'] ?? item.title}',
       serviceName: '${data['serviceName'] ?? item.subtitle}',
+      isBroadcast: (data['broadcast'] as bool?) ?? false,
+      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+    );
+  }
+
+  static Future<_RemoteServiceBookingResult> bookServiceRandom({
+    required int? categoryId,
+    required int? subcategoryId,
+    required String serviceName,
+    int? addressId,
+  }) async {
+    final body = <String, dynamic>{
+      'categoryId': categoryId,
+      'subcategoryId': subcategoryId,
+    };
+    if (addressId != null) {
+      body['addressId'] = addressId;
+    }
+    final response = await _post(
+      '/service/bookings/random',
+      authenticated: true,
+      body: body,
+    );
+    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    return _RemoteServiceBookingResult(
+      requestId: (data['requestId'] as num?)?.toInt() ?? 0,
+      requestCode: '${data['requestCode'] ?? ''}',
+      requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
+      quotedPriceAmount: _money(data['quotedPriceAmount']),
+      providerName: '${data['providerName'] ?? 'Matching providers'}',
+      serviceName: '${data['serviceName'] ?? serviceName}',
+      isBroadcast: (data['broadcast'] as bool?) ?? true,
+      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -910,6 +957,9 @@ class _UserAppApi {
       bookingStatus: '${data['bookingStatus'] ?? ''}',
       paymentStatus: '${data['paymentStatus'] ?? ''}',
       canMakePayment: (data['canMakePayment'] as bool?) ?? false,
+      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+      acceptedProviderCount: (data['acceptedProviderCount'] as num?)?.toInt() ?? 0,
+      pendingProviderCount: (data['pendingProviderCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -947,9 +997,18 @@ class _UserAppApi {
         .toList(growable: false);
   }
 
-  static Future<List<_ActiveBookingStatus>> fetchBookingHistoryStatuses() async {
+  static Future<List<_ActiveBookingStatus>> fetchBookingHistoryStatuses({
+    int page = 0,
+    int size = 20,
+  }) async {
     final response = await _getAbsolute(
-      _bookingPaymentBaseUri.replace(path: '/booking-requests/history'),
+      _bookingPaymentBaseUri.replace(
+        path: '/booking-requests/history',
+        queryParameters: <String, String>{
+        'page': '$page',
+        'size': '$size',
+        },
+      ),
       authenticated: true,
     );
     final raw = response['data'];
@@ -970,12 +1029,16 @@ class _UserAppApi {
     }
     final bookingStatus = '${data['bookingStatus'] ?? ''}';
     final paymentStatus = '${data['paymentStatus'] ?? ''}';
+    final normalizedBookingStatus = bookingStatus.trim().toUpperCase();
+    final normalizedPaymentStatus = paymentStatus.trim().toUpperCase();
     return _ActiveBookingStatus(
       requestId: requestIdValue,
       requestCode: '${data['requestCode'] ?? ''}',
       bookingType: '${data['bookingType'] ?? ''}',
       requestStatus: '${data['requestStatus'] ?? 'OPEN'}',
       historyStatus: '${data['historyStatus'] ?? ''}',
+      providerEntityType: '${data['providerEntityType'] ?? ''}',
+      providerEntityId: (data['providerEntityId'] as num?)?.toInt(),
       providerName: '${data['providerName'] ?? ''}',
       providerPhone: '${data['providerPhone'] ?? ''}',
       quotedPriceAmount: _money(data['quotedPriceAmount']),
@@ -990,13 +1053,18 @@ class _UserAppApi {
       paymentDueAt: _parseDateTime(data['paymentDueAt']),
       reachByAt: _parseDateTime(data['reachByAt']),
       labourPricingModel: '${data['labourPricingModel'] ?? ''}',
+      categoryLabel: '${data['categoryLabel'] ?? ''}',
+      subcategoryLabel: '${data['subcategoryLabel'] ?? ''}',
       bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
       bookingCode: '${data['bookingCode'] ?? ''}',
       bookingStatus: bookingStatus,
       paymentStatus: paymentStatus,
+      cancelReason: '${data['cancelReason'] ?? ''}',
+      reviewRating: (data['reviewRating'] as num?)?.toInt(),
+      reviewComment: '${data['reviewComment'] ?? ''}',
       createdAt: _parseDateTime(data['createdAt']),
-      canMakePayment: bookingStatus.toUpperCase() == 'PAYMENT_PENDING' &&
-          (paymentStatus.isEmpty || paymentStatus.toUpperCase() == 'UNPAID'),
+      canMakePayment: normalizedBookingStatus == 'PAYMENT_PENDING' &&
+          (normalizedPaymentStatus.isEmpty || normalizedPaymentStatus == 'UNPAID'),
       reviewSubmitted: data['reviewSubmitted'] == true,
     );
   }
@@ -2057,6 +2125,7 @@ class _UserAppApi {
       backendLabourId: (raw['labourId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
       profileImageUrl: _publicFileUrl('${raw['photoObjectKey'] ?? ''}'),
+      promoted: (raw['promoted'] as bool?) ?? (((raw['promotionScore'] as num?)?.toInt() ?? 0) > 0),
       isDisabled: !availableNow,
       disabledLabel: disabledLabel,
       labourHalfDayPrice: halfDay,
@@ -2115,7 +2184,7 @@ class _UserAppApi {
         .where((entry) => entry.isNotEmpty)
         .toList(growable: false);
     return _DiscoveryItem(
-      title: serviceLabel,
+      title: category,
       subtitle: providerName,
       accent: _serviceAccent(category),
       icon: _serviceIcon(category),
@@ -2132,6 +2201,7 @@ class _UserAppApi {
       disabledLabel: disabledLabel,
       serviceItems: serviceItems,
       serviceTileLabel: serviceLabel,
+      serviceOptions: const [],
       completedJobsCount: (raw['completedJobs'] as num?)?.toInt(),
     );
   }
@@ -2660,6 +2730,8 @@ class _ActiveBookingStatus {
     required this.bookingType,
     required this.requestStatus,
     required this.historyStatus,
+    required this.providerEntityType,
+    required this.providerEntityId,
     required this.providerName,
     required this.providerPhone,
     required this.quotedPriceAmount,
@@ -2674,10 +2746,15 @@ class _ActiveBookingStatus {
     required this.paymentDueAt,
     required this.reachByAt,
     required this.labourPricingModel,
+    required this.categoryLabel,
+    required this.subcategoryLabel,
     required this.bookingId,
     required this.bookingCode,
     required this.bookingStatus,
     required this.paymentStatus,
+    required this.cancelReason,
+    required this.reviewRating,
+    required this.reviewComment,
     required this.createdAt,
     required this.canMakePayment,
     required this.reviewSubmitted,
@@ -2688,6 +2765,8 @@ class _ActiveBookingStatus {
   final String bookingType;
   final String requestStatus;
   final String historyStatus;
+  final String providerEntityType;
+  final int? providerEntityId;
   final String providerName;
   final String providerPhone;
   final String quotedPriceAmount;
@@ -2702,10 +2781,15 @@ class _ActiveBookingStatus {
   final DateTime? paymentDueAt;
   final DateTime? reachByAt;
   final String labourPricingModel;
+  final String categoryLabel;
+  final String subcategoryLabel;
   final int bookingId;
   final String bookingCode;
   final String bookingStatus;
   final String paymentStatus;
+  final String cancelReason;
+  final int? reviewRating;
+  final String reviewComment;
   final DateTime? createdAt;
   final bool canMakePayment;
   final bool reviewSubmitted;

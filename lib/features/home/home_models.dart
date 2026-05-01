@@ -19,6 +19,22 @@ class _LabourCategoryPricing {
   final String fullDayPrice;
 }
 
+class _ServicePricingOption {
+  const _ServicePricingOption({
+    required this.categoryId,
+    required this.subcategoryId,
+    required this.categoryName,
+    required this.subcategoryName,
+    required this.visitingChargeLabel,
+  });
+
+  final int? categoryId;
+  final int? subcategoryId;
+  final String categoryName;
+  final String subcategoryName;
+  final String visitingChargeLabel;
+}
+
 class _DiscoveryItem {
   const _DiscoveryItem({
     required this.title,
@@ -39,6 +55,7 @@ class _DiscoveryItem {
     this.backendCategoryId,
     this.backendSubcategoryId,
     this.profileImageUrl = '',
+    this.promoted = false,
     this.isDisabled = false,
     this.disabledLabel = '',
     this.labourHalfDayPrice = '',
@@ -51,6 +68,7 @@ class _DiscoveryItem {
     this.labourWorkLongitude,
     this.serviceItems = const [],
     this.serviceTileLabel = '',
+    this.serviceOptions = const [],
   });
 
   final String title;
@@ -71,6 +89,7 @@ class _DiscoveryItem {
   final int? backendCategoryId;
   final int? backendSubcategoryId;
   final String profileImageUrl;
+  final bool promoted;
   final bool isDisabled;
   final String disabledLabel;
   final String labourHalfDayPrice;
@@ -83,6 +102,7 @@ class _DiscoveryItem {
   final double? labourWorkLongitude;
   final List<String> serviceItems;
   final String serviceTileLabel;
+  final List<_ServicePricingOption> serviceOptions;
 
   bool get hasRating {
     final parsed = double.tryParse(rating.trim());
@@ -108,6 +128,7 @@ class _DiscoveryItem {
     int? backendCategoryId,
     int? backendSubcategoryId,
     String? profileImageUrl,
+    bool? promoted,
     bool? isDisabled,
     String? disabledLabel,
     String? labourHalfDayPrice,
@@ -120,6 +141,7 @@ class _DiscoveryItem {
     double? labourWorkLongitude,
     List<String>? serviceItems,
     String? serviceTileLabel,
+    List<_ServicePricingOption>? serviceOptions,
   }) {
     return _DiscoveryItem(
       title: title ?? this.title,
@@ -140,6 +162,7 @@ class _DiscoveryItem {
       backendCategoryId: backendCategoryId ?? this.backendCategoryId,
       backendSubcategoryId: backendSubcategoryId ?? this.backendSubcategoryId,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      promoted: promoted ?? this.promoted,
       isDisabled: isDisabled ?? this.isDisabled,
       disabledLabel: disabledLabel ?? this.disabledLabel,
       labourHalfDayPrice: labourHalfDayPrice ?? this.labourHalfDayPrice,
@@ -152,6 +175,7 @@ class _DiscoveryItem {
       labourWorkLongitude: labourWorkLongitude ?? this.labourWorkLongitude,
       serviceItems: serviceItems ?? this.serviceItems,
       serviceTileLabel: serviceTileLabel ?? this.serviceTileLabel,
+      serviceOptions: serviceOptions ?? this.serviceOptions,
     );
   }
 }
