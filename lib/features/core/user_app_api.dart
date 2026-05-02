@@ -1,15 +1,42 @@
 part of '../../main.dart';
 
+const Duration _istOffset = Duration(hours: 5, minutes: 30);
+final RegExp _explicitTimezonePattern = RegExp(
+  r'(z|[+-]\d{2}:\d{2})$',
+  caseSensitive: false,
+);
+
+DateTime _currentUtcTime() => DateTime.now().toUtc();
+
+DateTime _currentIstTime() => _currentUtcTime().add(_istOffset);
+
+DateTime? _asIstDisplayTime(DateTime? value) {
+  if (value == null) {
+    return null;
+  }
+  return value.toUtc().add(_istOffset);
+}
+
 class _UserAppApi {
   static Uri get _baseUri {
-    const configured = String.fromEnvironment('USER_API_BASE_URL', defaultValue: 'http://44.217.176.56:8085');
-    final normalized = configured.endsWith('/') ? configured.substring(0, configured.length - 1) : configured;
+    const configured = String.fromEnvironment(
+      'USER_API_BASE_URL',
+      defaultValue: 'http://44.217.176.56:8085',
+    );
+    final normalized = configured.endsWith('/')
+        ? configured.substring(0, configured.length - 1)
+        : configured;
     return Uri.parse('$normalized/api/v1');
   }
 
   static Uri get _authBaseUri {
-    const configured = String.fromEnvironment('AUTH_BASE_URL', defaultValue: 'http://44.207.68.180:8081');
-    final normalized = configured.endsWith('/') ? configured.substring(0, configured.length - 1) : configured;
+    const configured = String.fromEnvironment(
+      'AUTH_BASE_URL',
+      defaultValue: 'http://44.207.68.180:8081',
+    );
+    final normalized = configured.endsWith('/')
+        ? configured.substring(0, configured.length - 1)
+        : configured;
     return Uri.parse(normalized);
   }
 
@@ -18,10 +45,12 @@ class _UserAppApi {
     if (trimmed.isEmpty) {
       return '';
     }
-    return _baseUri.replace(
-      path: '/api/v1/profile/photo/view',
-      queryParameters: <String, String>{'objectKey': trimmed},
-    ).toString();
+    return _baseUri
+        .replace(
+          path: '/api/v1/profile/photo/view',
+          queryParameters: <String, String>{'objectKey': trimmed},
+        )
+        .toString();
   }
 
   static Uri get _bookingPaymentBaseUri {
@@ -36,7 +65,9 @@ class _UserAppApi {
             fallback: 'http://44.217.176.56:8084',
             port: 8084,
           );
-    final normalized = fallback.endsWith('/') ? fallback.substring(0, fallback.length - 1) : fallback;
+    final normalized = fallback.endsWith('/')
+        ? fallback.substring(0, fallback.length - 1)
+        : fallback;
     return Uri.parse(normalized);
   }
 
@@ -48,17 +79,16 @@ class _UserAppApi {
     if (configuredBaseUrl.trim().isEmpty) {
       return fallback;
     }
-    final normalized = configuredBaseUrl.endsWith('/') ? configuredBaseUrl.substring(0, configuredBaseUrl.length - 1) : configuredBaseUrl;
+    final normalized = configuredBaseUrl.endsWith('/')
+        ? configuredBaseUrl.substring(0, configuredBaseUrl.length - 1)
+        : configuredBaseUrl;
     final uri = Uri.tryParse(normalized);
     if (uri == null || uri.host.trim().isEmpty) {
       return fallback;
     }
-    return uri.replace(
-      port: port,
-      path: '',
-      query: null,
-      fragment: null,
-    ).toString();
+    return uri
+        .replace(port: port, path: '', query: null, fragment: null)
+        .toString();
   }
 
   static String _publicFileUrl(String objectKey) {
@@ -66,10 +96,12 @@ class _UserAppApi {
     if (trimmed.isEmpty) {
       return '';
     }
-    return _authBaseUri.replace(
-      path: '/public/files/view',
-      queryParameters: <String, String>{'objectKey': trimmed},
-    ).toString();
+    return _authBaseUri
+        .replace(
+          path: '/public/files/view',
+          queryParameters: <String, String>{'objectKey': trimmed},
+        )
+        .toString();
   }
 
   static Future<_OtpDispatchResult> sendUserOtp(String phoneNumber) async {
@@ -81,10 +113,14 @@ class _UserAppApi {
         'purpose': 'USER_APP_AUTH',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final requestId = '${data['requestId'] ?? ''}';
     if (requestId.isEmpty) {
-      throw const _UserAppApiException('OTP request id was not returned by auth service.');
+      throw const _UserAppApiException(
+        'OTP request id was not returned by auth service.',
+      );
     }
     return _OtpDispatchResult(
       requestId: requestId,
@@ -109,11 +145,15 @@ class _UserAppApi {
         'deviceToken': deviceToken,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final user = Map<String, dynamic>.from((data['user'] as Map?) ?? const {});
     final userId = (user['id'] as num?)?.toInt() ?? 0;
     if (userId <= 0) {
-      throw const _UserAppApiException('Auth service did not return a valid user session.');
+      throw const _UserAppApiException(
+        'Auth service did not return a valid user session.',
+      );
     }
     return _VerifiedUserSession(
       accessToken: '${data['accessToken'] ?? ''}',
@@ -126,12 +166,11 @@ class _UserAppApi {
   static Future<List<_DiscoveryItem>> fetchHomeTopProducts() async {
     final response = await _get(
       '/public/home/bootstrap',
-      queryParameters: const {
-        'page': '0',
-        'size': '8',
-      },
+      queryParameters: const {'page': '0', 'size': '8'},
     );
-    final items = ((response['data'] as Map<String, dynamic>?)?['topProducts'] as Map<String, dynamic>?)?['items'];
+    final items =
+        ((response['data'] as Map<String, dynamic>?)?['topProducts']
+            as Map<String, dynamic>?)?['items'];
     if (items is! List) {
       return const <_DiscoveryItem>[];
     }
@@ -143,13 +182,17 @@ class _UserAppApi {
 
   static Future<_RemoteCartState> fetchCart() async {
     final response = await _get('/cart', authenticated: true);
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _mapCart(data);
   }
 
   static Future<_UserProfileData> fetchProfile() async {
     final response = await _get('/profile', authenticated: true);
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _UserProfileData(
       userId: (data['userId'] as num?)?.toInt() ?? 0,
       publicUserId: '${data['publicUserId'] ?? ''}',
@@ -186,7 +229,9 @@ class _UserAppApi {
       body: body,
       timeout: const Duration(seconds: 20),
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _UserProfileData(
       userId: (data['userId'] as num?)?.toInt() ?? 0,
       publicUserId: '${data['publicUserId'] ?? ''}',
@@ -226,7 +271,9 @@ class _UserAppApi {
         .toList(growable: false);
   }
 
-  static Future<List<_ServiceStateOption>> fetchServiceStates({required int countryId}) async {
+  static Future<List<_ServiceStateOption>> fetchServiceStates({
+    required int countryId,
+  }) async {
     final response = await _getAbsolute(
       _authBaseUri.replace(
         path: '/locations/states',
@@ -243,7 +290,10 @@ class _UserAppApi {
             name: '${raw['name'] ?? ''}'.trim(),
           ),
         )
-        .where((entry) => entry.id > 0 && entry.countryId > 0 && entry.name.isNotEmpty)
+        .where(
+          (entry) =>
+              entry.id > 0 && entry.countryId > 0 && entry.name.isNotEmpty,
+        )
         .toList(growable: false);
   }
 
@@ -253,27 +303,38 @@ class _UserAppApi {
       authenticated: true,
       body: input.toJson(),
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _mapUserAddress(data);
   }
 
-  static Future<_UserAddressData> createTemporaryBookingAddress(_UserAddressInput input) async {
+  static Future<_UserAddressData> createTemporaryBookingAddress(
+    _UserAddressInput input,
+  ) async {
     final response = await _post(
       '/profile/addresses/temporary-booking',
       authenticated: true,
       body: input.toJson(),
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _mapUserAddress(data);
   }
 
-  static Future<_UserAddressData> updateAddress(int addressId, _UserAddressInput input) async {
+  static Future<_UserAddressData> updateAddress(
+    int addressId,
+    _UserAddressInput input,
+  ) async {
     final response = await _put(
       '/profile/addresses/$addressId',
       authenticated: true,
       body: input.toJson(),
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _mapUserAddress(data);
   }
 
@@ -287,7 +348,9 @@ class _UserAppApi {
       authenticated: true,
       body: const <String, dynamic>{},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _mapUserAddress(data);
   }
 
@@ -305,7 +368,9 @@ class _UserAppApi {
         'unreadOnly': '$unreadOnly',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final items = (data['items'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapNotification(Map<String, dynamic>.from(raw)))
@@ -323,10 +388,7 @@ class _UserAppApi {
     final response = await _get(
       '/orders',
       authenticated: true,
-      queryParameters: {
-        'page': '$page',
-        'size': '$size',
-      },
+      queryParameters: {'page': '$page', 'size': '$size'},
     );
     final data = (response['data'] as List? ?? const []);
     return data
@@ -336,11 +398,10 @@ class _UserAppApi {
   }
 
   static Future<_UserOrderDetail> fetchOrderDetail(int orderId) async {
-    final response = await _get(
-      '/orders/$orderId',
-      authenticated: true,
+    final response = await _get('/orders/$orderId', authenticated: true);
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     return _mapOrderDetail(data);
   }
 
@@ -348,9 +409,7 @@ class _UserAppApi {
     await _post(
       '/orders/$orderId/cancel',
       authenticated: true,
-      body: <String, dynamic>{
-        'reason': reason,
-      },
+      body: <String, dynamic>{'reason': reason},
     );
   }
 
@@ -362,10 +421,7 @@ class _UserAppApi {
   }
 
   static Future<void> markAllNotificationsRead() async {
-    await _patch(
-      '/profile/notifications/read-all',
-      authenticated: true,
-    );
+    await _patch('/profile/notifications/read-all', authenticated: true);
   }
 
   static Future<void> registerPushToken({
@@ -394,9 +450,7 @@ class _UserAppApi {
     await _patch(
       '/profile/push-tokens/deactivate',
       authenticated: true,
-      body: <String, dynamic>{
-        'pushToken': pushToken,
-      },
+      body: <String, dynamic>{'pushToken': pushToken},
     );
   }
 
@@ -407,7 +461,9 @@ class _UserAppApi {
     required String pushProvider,
   }) async {
     await _postAbsoluteAuthenticated(
-      _bookingPaymentBaseUri.replace(path: '/booking-notifications/push-tokens'),
+      _bookingPaymentBaseUri.replace(
+        path: '/booking-notifications/push-tokens',
+      ),
       body: <String, dynamic>{
         'deviceToken': deviceToken,
         'platform': platform,
@@ -420,13 +476,12 @@ class _UserAppApi {
 
   static Future<void> deactivateBookingPushToken(String pushToken) async {
     await _patchAbsoluteAuthenticated(
-      _bookingPaymentBaseUri.replace(path: '/booking-notifications/push-tokens/deactivate'),
-      body: <String, dynamic>{
-        'pushToken': pushToken,
-      },
+      _bookingPaymentBaseUri.replace(
+        path: '/booking-notifications/push-tokens/deactivate',
+      ),
+      body: <String, dynamic>{'pushToken': pushToken},
     );
   }
-
 
   static Future<_CheckoutPreviewData> previewCheckout({
     String fulfillmentType = 'DELIVERY',
@@ -440,7 +495,9 @@ class _UserAppApi {
         'fulfillmentType': fulfillmentType,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _CheckoutPreviewData(
       addressId: (data['addressId'] as num?)?.toInt(),
       shopName: '${data['shopName'] ?? ''}',
@@ -475,7 +532,9 @@ class _UserAppApi {
         'fulfillmentType': fulfillmentType,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _PlacedOrderData(
       orderId: (data['orderId'] as num?)?.toInt() ?? 0,
       orderCode: '${data['orderCode'] ?? ''}',
@@ -494,11 +553,11 @@ class _UserAppApi {
     final response = await _post(
       '/payments/$paymentCode/initiate',
       authenticated: true,
-      body: <String, dynamic>{
-        'gatewayName': gatewayName,
-      },
+      body: <String, dynamic>{'gatewayName': gatewayName},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _PaymentInitiationData(
       paymentId: (data['paymentId'] as num?)?.toInt() ?? 0,
       paymentCode: '${data['paymentCode'] ?? paymentCode}',
@@ -512,12 +571,13 @@ class _UserAppApi {
     );
   }
 
-  static Future<_PaymentStatusData> fetchPaymentStatus(String paymentCode) async {
-    final response = await _get(
-      '/payments/$paymentCode',
-      authenticated: true,
+  static Future<_PaymentStatusData> fetchPaymentStatus(
+    String paymentCode,
+  ) async {
+    final response = await _get('/payments/$paymentCode', authenticated: true);
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
     return _PaymentStatusData(
       paymentId: (data['paymentId'] as num?)?.toInt() ?? 0,
       paymentCode: '${data['paymentCode'] ?? paymentCode}',
@@ -546,7 +606,9 @@ class _UserAppApi {
         'razorpaySignature': razorpaySignature,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _PaymentStatusData(
       paymentId: (data['paymentId'] as num?)?.toInt() ?? 0,
       paymentCode: '${data['paymentCode'] ?? paymentCode}',
@@ -575,7 +637,9 @@ class _UserAppApi {
         'failureMessage': failureMessage,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _PaymentStatusData(
       paymentId: (data['paymentId'] as num?)?.toInt() ?? 0,
       paymentCode: '${data['paymentCode'] ?? paymentCode}',
@@ -589,9 +653,14 @@ class _UserAppApi {
     );
   }
 
-  static Future<_RemoteCartState> addItemToCart(_DiscoveryItem item, {int quantity = 1}) async {
+  static Future<_RemoteCartState> addItemToCart(
+    _DiscoveryItem item, {
+    int quantity = 1,
+  }) async {
     if (item.backendProductId == null) {
-      throw _UserAppApiException('This item is not connected to the backend yet.');
+      throw _UserAppApiException(
+        'This item is not connected to the backend yet.',
+      );
     }
     final response = await _post(
       '/cart/items',
@@ -604,7 +673,9 @@ class _UserAppApi {
         'cookingRequest': null,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _mapCart(data);
   }
 
@@ -626,22 +697,19 @@ class _UserAppApi {
         'size': '100',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapLabourCategory(Map<String, dynamic>.from(raw)))
         .toList(growable: false);
-    final profiles = (((data['profiles'] as Map?)?['items']) as List? ?? const [])
-        .whereType<Map<dynamic, dynamic>>()
-        .map((raw) => _mapLabourProfile(Map<String, dynamic>.from(raw)))
-        .toList(growable: false);
-    return _RemoteLabourLandingData(
-      categories: [
-        const _RemoteLabourCategory(label: 'All labour', backendCategoryId: null),
-        ...categories,
-      ],
-      profiles: profiles,
-    );
+    final profiles =
+        (((data['profiles'] as Map?)?['items']) as List? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()
+            .map((raw) => _mapLabourProfile(Map<String, dynamic>.from(raw)))
+            .toList(growable: false);
+    return _RemoteLabourLandingData(categories: categories, profiles: profiles);
   }
 
   static Future<_DiscoveryItem> fetchLabourProfile(int labourId) async {
@@ -649,8 +717,12 @@ class _UserAppApi {
       '/public/labour/profiles/$labourId',
       authenticated: await _hasUsableSession(),
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
-    final rawProfile = Map<String, dynamic>.from((data['profile'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
+    final rawProfile = Map<String, dynamic>.from(
+      (data['profile'] as Map?) ?? const {},
+    );
     final item = _mapLabourProfile(rawProfile);
     final skills = (data['skills'] as List? ?? const [])
         .map((entry) => entry?.toString().trim() ?? '')
@@ -659,9 +731,7 @@ class _UserAppApi {
     if (skills.isEmpty) {
       return item;
     }
-    return item.copyWith(
-      extra: skills.join(', '),
-    );
+    return item.copyWith(extra: skills.join(', '));
   }
 
   static Future<_RemoteLabourBookingPolicy> fetchLabourBookingPolicy() async {
@@ -669,7 +739,9 @@ class _UserAppApi {
       '/public/labour/booking-policy',
       authenticated: false,
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final bookingCharge = _percent(data['bookingChargePercent']);
     return _RemoteLabourBookingPolicy(
       bookingChargePerLabour: bookingCharge.isEmpty ? '5%' : bookingCharge,
@@ -684,7 +756,9 @@ class _UserAppApi {
     int? addressId,
   }) async {
     if (item.backendLabourId == null) {
-      throw const _UserAppApiException('This labour profile is not connected to the backend yet.');
+      throw const _UserAppApiException(
+        'This labour profile is not connected to the backend yet.',
+      );
     }
     final body = <String, dynamic>{
       'labourId': item.backendLabourId,
@@ -699,7 +773,9 @@ class _UserAppApi {
       authenticated: true,
       body: body,
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteLabourBookingResult(
       requestId: (data['requestId'] as num?)?.toInt() ?? 0,
       requestCode: '${data['requestCode'] ?? ''}',
@@ -709,14 +785,15 @@ class _UserAppApi {
     );
   }
 
-  static Future<_RemoteLabourBookingRequestStatus> fetchLabourBookingRequestStatus(
-    int requestId,
-  ) async {
+  static Future<_RemoteLabourBookingRequestStatus>
+  fetchLabourBookingRequestStatus(int requestId) async {
     final response = await _get(
       '/labour/booking-requests/$requestId',
       authenticated: true,
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteLabourBookingRequestStatus(
       requestId: (data['requestId'] as num?)?.toInt() ?? requestId,
       requestCode: '${data['requestCode'] ?? ''}',
@@ -724,12 +801,20 @@ class _UserAppApi {
       providerName: '${data['providerName'] ?? ''}',
       providerPhone: '${data['providerPhone'] ?? ''}',
       quotedPriceAmount: _money(data['quotedPriceAmount']),
-      totalAcceptedQuotedPriceAmount: _money(data['totalAcceptedQuotedPriceAmount']),
-      totalAcceptedBookingChargeAmount: _money(data['totalAcceptedBookingChargeAmount']),
+      totalAcceptedQuotedPriceAmount: _money(
+        data['totalAcceptedQuotedPriceAmount'],
+      ),
+      totalAcceptedBookingChargeAmount: _money(
+        data['totalAcceptedBookingChargeAmount'],
+      ),
       distanceLabel: _distance(data['distanceKm']),
-      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
-      acceptedProviderCount: (data['acceptedProviderCount'] as num?)?.toInt() ?? 0,
-      pendingProviderCount: (data['pendingProviderCount'] as num?)?.toInt() ?? 0,
+      requestedProviderCount:
+          (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+      acceptedProviderCount:
+          (data['acceptedProviderCount'] as num?)?.toInt() ?? 0,
+      acceptedProviders: _acceptedProviders(data['acceptedProviders']),
+      pendingProviderCount:
+          (data['pendingProviderCount'] as num?)?.toInt() ?? 0,
       bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
       bookingCode: '${data['bookingCode'] ?? ''}',
       bookingStatus: '${data['bookingStatus'] ?? ''}',
@@ -746,7 +831,9 @@ class _UserAppApi {
       authenticated: true,
       body: const <String, dynamic>{},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteLabourBookingPaymentResult(
       bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
       bookingCode: '${data['bookingCode'] ?? ''}',
@@ -785,7 +872,9 @@ class _UserAppApi {
         'labourCount': labourCount,
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteLabourGroupBookingResult(
       requestId: (data['requestId'] as num?)?.toInt() ?? 0,
       requestCode: '${data['requestCode'] ?? ''}',
@@ -816,15 +905,18 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapServiceCategory(Map<String, dynamic>.from(raw)))
         .toList(growable: false);
-    final providers = (((data['providers'] as Map?)?['items']) as List? ?? const [])
-        .whereType<Map<dynamic, dynamic>>()
-        .map((raw) => _mapServiceProvider(Map<String, dynamic>.from(raw)))
-        .toList(growable: false);
+    final providers =
+        (((data['providers'] as Map?)?['items']) as List? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()
+            .map((raw) => _mapServiceProvider(Map<String, dynamic>.from(raw)))
+            .toList(growable: false);
     return _RemoteServiceLandingData(
       categories: categories,
       providers: providers,
@@ -843,8 +935,12 @@ class _UserAppApi {
         if (subcategoryId != null) 'subcategoryId': '$subcategoryId',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
-    final providerRaw = Map<String, dynamic>.from((data['provider'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
+    final providerRaw = Map<String, dynamic>.from(
+      (data['provider'] as Map?) ?? const {},
+    );
     final serviceItems = (data['serviceItems'] as List? ?? const [])
         .map((entry) => '$entry'.trim())
         .where((entry) => entry.isNotEmpty)
@@ -877,7 +973,9 @@ class _UserAppApi {
     int? addressId,
   }) async {
     if (item.backendServiceProviderId == null) {
-      throw const _UserAppApiException('This service provider is not connected to the backend yet.');
+      throw const _UserAppApiException(
+        'This service provider is not connected to the backend yet.',
+      );
     }
     final body = <String, dynamic>{
       'providerId': item.backendServiceProviderId,
@@ -892,7 +990,9 @@ class _UserAppApi {
       authenticated: true,
       body: body,
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteServiceBookingResult(
       requestId: (data['requestId'] as num?)?.toInt() ?? 0,
       requestCode: '${data['requestCode'] ?? ''}',
@@ -901,7 +1001,8 @@ class _UserAppApi {
       providerName: '${data['providerName'] ?? item.title}',
       serviceName: '${data['serviceName'] ?? item.subtitle}',
       isBroadcast: (data['broadcast'] as bool?) ?? false,
-      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+      requestedProviderCount:
+          (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -923,7 +1024,9 @@ class _UserAppApi {
       authenticated: true,
       body: body,
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteServiceBookingResult(
       requestId: (data['requestId'] as num?)?.toInt() ?? 0,
       requestCode: '${data['requestCode'] ?? ''}',
@@ -932,18 +1035,20 @@ class _UserAppApi {
       providerName: '${data['providerName'] ?? 'Matching providers'}',
       serviceName: '${data['serviceName'] ?? serviceName}',
       isBroadcast: (data['broadcast'] as bool?) ?? true,
-      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+      requestedProviderCount:
+          (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
     );
   }
 
-  static Future<_RemoteServiceBookingRequestStatus> fetchServiceBookingRequestStatus(
-    int requestId,
-  ) async {
+  static Future<_RemoteServiceBookingRequestStatus>
+  fetchServiceBookingRequestStatus(int requestId) async {
     final response = await _get(
       '/service/booking-requests/$requestId',
       authenticated: true,
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteServiceBookingRequestStatus(
       requestId: (data['requestId'] as num?)?.toInt() ?? requestId,
       requestCode: '${data['requestCode'] ?? ''}',
@@ -957,21 +1062,37 @@ class _UserAppApi {
       bookingStatus: '${data['bookingStatus'] ?? ''}',
       paymentStatus: '${data['paymentStatus'] ?? ''}',
       canMakePayment: (data['canMakePayment'] as bool?) ?? false,
-      requestedProviderCount: (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
-      acceptedProviderCount: (data['acceptedProviderCount'] as num?)?.toInt() ?? 0,
-      pendingProviderCount: (data['pendingProviderCount'] as num?)?.toInt() ?? 0,
+      requestedProviderCount:
+          (data['requestedProviderCount'] as num?)?.toInt() ?? 1,
+      acceptedProviderCount:
+          (data['acceptedProviderCount'] as num?)?.toInt() ?? 0,
+      acceptedProviders: _acceptedProviders(data['acceptedProviders']),
+      pendingProviderCount:
+          (data['pendingProviderCount'] as num?)?.toInt() ?? 0,
     );
   }
 
-  static Future<_RemoteServiceBookingPaymentResult> initiateServiceBookingPayment(
-    int requestId,
-  ) async {
+  static Future<void> cancelServiceBookingRequest(
+    int requestId, {
+    required String reason,
+  }) async {
+    await _post(
+      '/service/booking-requests/$requestId/cancel',
+      authenticated: true,
+      body: <String, dynamic>{'reason': reason},
+    );
+  }
+
+  static Future<_RemoteServiceBookingPaymentResult>
+  initiateServiceBookingPayment(int requestId) async {
     final response = await _post(
       '/service/booking-requests/$requestId/payment/initiate',
       authenticated: true,
       body: const <String, dynamic>{},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return _RemoteServiceBookingPaymentResult(
       bookingId: (data['bookingId'] as num?)?.toInt() ?? 0,
       bookingCode: '${data['bookingCode'] ?? ''}',
@@ -992,7 +1113,9 @@ class _UserAppApi {
     }
     return raw
         .whereType<Map<dynamic, dynamic>>()
-        .map((entry) => _mapActiveBookingStatus(Map<String, dynamic>.from(entry)))
+        .map(
+          (entry) => _mapActiveBookingStatus(Map<String, dynamic>.from(entry)),
+        )
         .whereType<_ActiveBookingStatus>()
         .toList(growable: false);
   }
@@ -1004,10 +1127,7 @@ class _UserAppApi {
     final response = await _getAbsolute(
       _bookingPaymentBaseUri.replace(
         path: '/booking-requests/history',
-        queryParameters: <String, String>{
-        'page': '$page',
-        'size': '$size',
-        },
+        queryParameters: <String, String>{'page': '$page', 'size': '$size'},
       ),
       authenticated: true,
     );
@@ -1017,12 +1137,16 @@ class _UserAppApi {
     }
     return raw
         .whereType<Map<dynamic, dynamic>>()
-        .map((entry) => _mapActiveBookingStatus(Map<String, dynamic>.from(entry)))
+        .map(
+          (entry) => _mapActiveBookingStatus(Map<String, dynamic>.from(entry)),
+        )
         .whereType<_ActiveBookingStatus>()
         .toList(growable: false);
   }
 
-  static _ActiveBookingStatus? _mapActiveBookingStatus(Map<String, dynamic> data) {
+  static _ActiveBookingStatus? _mapActiveBookingStatus(
+    Map<String, dynamic> data,
+  ) {
     final requestIdValue = (data['requestId'] as num?)?.toInt() ?? 0;
     if (requestIdValue <= 0) {
       return null;
@@ -1042,10 +1166,16 @@ class _UserAppApi {
       providerName: '${data['providerName'] ?? ''}',
       providerPhone: '${data['providerPhone'] ?? ''}',
       quotedPriceAmount: _money(data['quotedPriceAmount']),
-      totalAcceptedQuotedPriceAmount: _money(data['totalAcceptedQuotedPriceAmount']),
-      totalAcceptedBookingChargeAmount: _money(data['totalAcceptedBookingChargeAmount']),
+      totalAcceptedQuotedPriceAmount: _money(
+        data['totalAcceptedQuotedPriceAmount'],
+      ),
+      totalAcceptedBookingChargeAmount: _money(
+        data['totalAcceptedBookingChargeAmount'],
+      ),
       distanceLabel: _distance(data['distanceKm']),
-      providerPhotoUrl: _publicFileUrl('${data['providerPhotoObjectKey'] ?? ''}'),
+      providerPhotoUrl: _publicFileUrl(
+        '${data['providerPhotoObjectKey'] ?? ''}',
+      ),
       providerLatitude: _parseDouble(data['providerLatitude']),
       providerLongitude: _parseDouble(data['providerLongitude']),
       destinationLatitude: _parseDouble(data['destinationLatitude']),
@@ -1063,8 +1193,10 @@ class _UserAppApi {
       reviewRating: (data['reviewRating'] as num?)?.toInt(),
       reviewComment: '${data['reviewComment'] ?? ''}',
       createdAt: _parseDateTime(data['createdAt']),
-      canMakePayment: normalizedBookingStatus == 'PAYMENT_PENDING' &&
-          (normalizedPaymentStatus.isEmpty || normalizedPaymentStatus == 'UNPAID'),
+      canMakePayment:
+          normalizedBookingStatus == 'PAYMENT_PENDING' &&
+          (normalizedPaymentStatus.isEmpty ||
+              normalizedPaymentStatus == 'UNPAID'),
       reviewSubmitted: data['reviewSubmitted'] == true,
     );
   }
@@ -1076,11 +1208,7 @@ class _UserAppApi {
   }) async {
     await _postAbsoluteAuthenticated(
       _bookingPaymentBaseUri.replace(path: '/bookings/otp/verify'),
-      body: {
-        'bookingId': bookingId,
-        'purpose': purpose,
-        'otpCode': otpCode,
-      },
+      body: {'bookingId': bookingId, 'purpose': purpose, 'otpCode': otpCode},
     );
   }
 
@@ -1090,12 +1218,11 @@ class _UserAppApi {
   }) async {
     final response = await _postAbsoluteAuthenticated(
       _bookingPaymentBaseUri.replace(path: '/bookings/otp/generate'),
-      body: {
-        'bookingId': bookingId,
-        'purpose': purpose,
-      },
+      body: {'bookingId': bookingId, 'purpose': purpose},
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     return '${data['otpCode'] ?? ''}';
   }
 
@@ -1105,10 +1232,7 @@ class _UserAppApi {
   }) async {
     await _postAbsoluteAuthenticated(
       _bookingPaymentBaseUri.replace(path: '/bookings/cancel/user'),
-      body: {
-        'bookingId': bookingId,
-        'reason': reason,
-      },
+      body: {'bookingId': bookingId, 'reason': reason},
     );
   }
 
@@ -1140,15 +1264,18 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapRestaurantCuisine(Map<String, dynamic>.from(raw)))
         .toList(growable: false);
-    final products = (((data['products'] as Map?)?['items']) as List? ?? const [])
-        .whereType<Map<dynamic, dynamic>>()
-        .map((raw) => _mapProductCard(Map<String, dynamic>.from(raw)))
-        .toList(growable: false);
+    final products =
+        (((data['products'] as Map?)?['items']) as List? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()
+            .map((raw) => _mapProductCard(Map<String, dynamic>.from(raw)))
+            .toList(growable: false);
     final shops = (((data['shops'] as Map?)?['items']) as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapRestaurantShop(Map<String, dynamic>.from(raw)))
@@ -1169,7 +1296,9 @@ class _UserAppApi {
     );
   }
 
-  static Future<List<_DiscoveryItem>> fetchRestaurantProducts({int? categoryId}) async {
+  static Future<List<_DiscoveryItem>> fetchRestaurantProducts({
+    int? categoryId,
+  }) async {
     final response = await _get(
       '/public/restaurant/products',
       queryParameters: {
@@ -1197,16 +1326,19 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final shop = Map<String, dynamic>.from((data['shop'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapRestaurantCuisine(Map<String, dynamic>.from(raw)))
         .toList(growable: false);
-    final products = (((data['products'] as Map?)?['items']) as List? ?? const [])
-        .whereType<Map<dynamic, dynamic>>()
-        .map((raw) => _mapProductCard(Map<String, dynamic>.from(raw)))
-        .toList(growable: false);
+    final products =
+        (((data['products'] as Map?)?['items']) as List? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()
+            .map((raw) => _mapProductCard(Map<String, dynamic>.from(raw)))
+            .toList(growable: false);
     return _RestaurantShopProfileData(
       shopId: (shop['shopId'] as num?)?.toInt() ?? shopId,
       shopName: '${shop['shopName'] ?? 'Restaurant'}',
@@ -1242,7 +1374,9 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapFashionCategory(Map<String, dynamic>.from(raw)))
@@ -1296,7 +1430,9 @@ class _UserAppApi {
         'size': '$size',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final shop = Map<String, dynamic>.from((data['shop'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
@@ -1334,7 +1470,9 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapFootwearCategory(Map<String, dynamic>.from(raw)))
@@ -1388,7 +1526,9 @@ class _UserAppApi {
         'size': '$size',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final shop = Map<String, dynamic>.from((data['shop'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
@@ -1426,7 +1566,9 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapGiftCategory(Map<String, dynamic>.from(raw)))
@@ -1480,7 +1622,9 @@ class _UserAppApi {
         'size': '$size',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final shop = Map<String, dynamic>.from((data['shop'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
@@ -1518,7 +1662,9 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapGroceryCategory(Map<String, dynamic>.from(raw)))
@@ -1572,7 +1718,9 @@ class _UserAppApi {
         'size': '$size',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final shop = Map<String, dynamic>.from((data['shop'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
@@ -1610,7 +1758,9 @@ class _UserAppApi {
         'size': '20',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((raw) => _mapPharmacyCategory(Map<String, dynamic>.from(raw)))
@@ -1664,7 +1814,9 @@ class _UserAppApi {
         'size': '$size',
       },
     );
-    final data = Map<String, dynamic>.from((response['data'] as Map?) ?? const {});
+    final data = Map<String, dynamic>.from(
+      (response['data'] as Map?) ?? const {},
+    );
     final shop = Map<String, dynamic>.from((data['shop'] as Map?) ?? const {});
     final categories = (data['categories'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
@@ -1699,7 +1851,9 @@ class _UserAppApi {
       path: '${_baseUri.path}$path',
       queryParameters: queryParameters,
     );
-    final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    final response = await http
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 8));
     return await _decodeResponse(response);
   }
 
@@ -1708,7 +1862,9 @@ class _UserAppApi {
     bool authenticated = false,
   }) async {
     final headers = await _headers(authenticated: authenticated);
-    final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+    final response = await http
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 8));
     return await _decodeResponse(response);
   }
 
@@ -1717,7 +1873,10 @@ class _UserAppApi {
     required Map<String, dynamic> body,
     bool authenticated = false,
   }) async {
-    final headers = await _headers(authenticated: authenticated, includeJson: true);
+    final headers = await _headers(
+      authenticated: authenticated,
+      includeJson: true,
+    );
     final uri = _baseUri.replace(path: '${_baseUri.path}$path');
     final response = await http
         .post(uri, headers: headers, body: jsonEncode(body))
@@ -1731,7 +1890,10 @@ class _UserAppApi {
     bool authenticated = false,
     Duration timeout = const Duration(seconds: 8),
   }) async {
-    final headers = await _headers(authenticated: authenticated, includeJson: body != null);
+    final headers = await _headers(
+      authenticated: authenticated,
+      includeJson: body != null,
+    );
     final uri = _baseUri.replace(path: '${_baseUri.path}$path');
     late final http.Response response;
     try {
@@ -1755,7 +1917,10 @@ class _UserAppApi {
     required Map<String, dynamic> body,
     bool authenticated = false,
   }) async {
-    final headers = await _headers(authenticated: authenticated, includeJson: true);
+    final headers = await _headers(
+      authenticated: authenticated,
+      includeJson: true,
+    );
     final uri = _baseUri.replace(path: '${_baseUri.path}$path');
     final response = await http
         .put(uri, headers: headers, body: jsonEncode(body))
@@ -1769,7 +1934,9 @@ class _UserAppApi {
   }) async {
     final headers = await _headers(authenticated: authenticated);
     final uri = _baseUri.replace(path: '${_baseUri.path}$path');
-    final response = await http.delete(uri, headers: headers).timeout(const Duration(seconds: 8));
+    final response = await http
+        .delete(uri, headers: headers)
+        .timeout(const Duration(seconds: 8));
     return await _decodeResponse(response);
   }
 
@@ -1785,14 +1952,20 @@ class _UserAppApi {
       final userId = await _LocalSessionStore.readUserId();
       final accessToken = await _LocalSessionStore.readAccessToken();
       if (userId == null) {
-        throw const _UserAppApiException('User session not found. Please login again.');
+        throw const _UserAppApiException(
+          'User session not found. Please login again.',
+        );
       }
       if (accessToken == null || accessToken.trim().isEmpty) {
-        throw const _UserAppApiException('Access token not found. Please login again.');
+        throw const _UserAppApiException(
+          'Access token not found. Please login again.',
+        );
       }
       if (_isJwtExpired(accessToken)) {
         await _LocalSessionStore.clear();
-        throw const _UserSessionExpiredApiException('Session expired. Please login again.');
+        throw const _UserSessionExpiredApiException(
+          'Session expired. Please login again.',
+        );
       }
       headers['X-User-Id'] = '$userId';
       headers['Authorization'] = 'Bearer $accessToken';
@@ -1803,7 +1976,9 @@ class _UserAppApi {
   static Future<bool> _hasUsableSession() async {
     final userId = await _LocalSessionStore.readUserId();
     final accessToken = await _LocalSessionStore.readAccessToken();
-    return userId != null && accessToken != null && accessToken.trim().isNotEmpty;
+    return userId != null &&
+        accessToken != null &&
+        accessToken.trim().isNotEmpty;
   }
 
   static Future<Map<String, dynamic>> _postAbsolute(
@@ -1826,11 +2001,7 @@ class _UserAppApi {
   }) async {
     final headers = await _headers(authenticated: true, includeJson: true);
     final response = await http
-        .post(
-          uri,
-          headers: headers,
-          body: jsonEncode(body),
-        )
+        .post(uri, headers: headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 8));
     return await _decodeResponse(response);
   }
@@ -1841,25 +2012,27 @@ class _UserAppApi {
   }) async {
     final headers = await _headers(authenticated: true, includeJson: true);
     final response = await http
-        .patch(
-          uri,
-          headers: headers,
-          body: jsonEncode(body),
-        )
+        .patch(uri, headers: headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 8));
     return await _decodeResponse(response);
   }
 
-  static Future<Map<String, dynamic>> _decodeResponse(http.Response response) async {
+  static Future<Map<String, dynamic>> _decodeResponse(
+    http.Response response,
+  ) async {
     final decoded = _decodeResponseBody(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded;
     }
-    final message = _extractResponseMessage(decoded) ??
+    final message =
+        _extractResponseMessage(decoded) ??
         'Request failed with status ${response.statusCode}.';
-    if (response.statusCode == 401 || _looksLikeExpiredSessionMessage(message)) {
+    if (response.statusCode == 401 ||
+        _looksLikeExpiredSessionMessage(message)) {
       await _LocalSessionStore.clear();
-      throw const _UserSessionExpiredApiException('Session expired. Please login again.');
+      throw const _UserSessionExpiredApiException(
+        'Session expired. Please login again.',
+      );
     }
     throw _UserAppApiException(message);
   }
@@ -2103,10 +2276,13 @@ class _UserAppApi {
             fullDayPrice: _money(map['fullDayRate']),
           );
         })
-        .where((entry) => entry.categoryId != null || entry.label.trim().isNotEmpty)
+        .where(
+          (entry) => entry.categoryId != null || entry.label.trim().isNotEmpty,
+        )
         .toList(growable: false);
     final availableNow = (raw['availableNow'] as bool?) ?? false;
-    final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
+    final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'
+        .toUpperCase();
     final disabledLabel = switch (availabilityStatus) {
       'BOOKED' => 'Booked',
       'OFFLINE' => 'Offline',
@@ -2118,14 +2294,18 @@ class _UserAppApi {
       accent: const Color(0xFFF2A13D),
       icon: Icons.engineering_rounded,
       price: hourly.isEmpty ? '₹0/hr' : '$hourly/hr',
-      rating: ((raw['completedJobs'] as num?)?.toInt() ?? 0) > 0 ? _rating(raw['rating']) : '',
+      rating: ((raw['completedJobs'] as num?)?.toInt() ?? 0) > 0
+          ? _rating(raw['rating'])
+          : '',
       distance: _distance(raw['distanceKm']),
       extra: '${(raw['completedJobs'] as num?)?.toInt() ?? 0} jobs done',
       maskedPhone: '${raw['maskedPhone'] ?? ''}',
       backendLabourId: (raw['labourId'] as num?)?.toInt(),
       backendCategoryId: (raw['categoryId'] as num?)?.toInt(),
       profileImageUrl: _publicFileUrl('${raw['photoObjectKey'] ?? ''}'),
-      promoted: (raw['promoted'] as bool?) ?? (((raw['promotionScore'] as num?)?.toInt() ?? 0) > 0),
+      promoted:
+          (raw['promoted'] as bool?) ??
+          (((raw['promotionScore'] as num?)?.toInt() ?? 0) > 0),
       isDisabled: !availableNow,
       disabledLabel: disabledLabel,
       labourHalfDayPrice: halfDay,
@@ -2162,7 +2342,10 @@ class _UserAppApi {
       label: '${raw['name'] ?? 'Service'}',
       backendCategoryId: (raw['id'] as num?)?.toInt(),
       subcategories: [
-        const _RemoteServiceSubcategory(label: 'All', backendSubcategoryId: null),
+        const _RemoteServiceSubcategory(
+          label: 'All',
+          backendSubcategoryId: null,
+        ),
         ...subcategories,
       ],
     );
@@ -2170,10 +2353,12 @@ class _UserAppApi {
 
   static _DiscoveryItem _mapServiceProvider(Map<String, dynamic> raw) {
     final category = '${raw['categoryName'] ?? 'Service'}';
-    final serviceLabel = '${raw['serviceName'] ?? raw['subcategoryName'] ?? category}';
+    final serviceLabel =
+        '${raw['serviceName'] ?? raw['subcategoryName'] ?? category}';
     final providerName = '${raw['providerName'] ?? 'Service provider'}';
     final availableNow = (raw['availableNow'] as bool?) ?? false;
-    final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'.toUpperCase();
+    final availabilityStatus = '${raw['availabilityStatus'] ?? ''}'
+        .toUpperCase();
     final disabledLabel = switch (availabilityStatus) {
       'BOOKED' => 'Booked',
       'OFFLINE' => 'Offline',
@@ -2199,6 +2384,8 @@ class _UserAppApi {
       profileImageUrl: _publicFileUrl('${raw['photoObjectKey'] ?? ''}'),
       isDisabled: !availableNow,
       disabledLabel: disabledLabel,
+      serviceLatitude: double.tryParse('${raw['latitude'] ?? ''}'),
+      serviceLongitude: double.tryParse('${raw['longitude'] ?? ''}'),
       serviceItems: serviceItems,
       serviceTileLabel: serviceLabel,
       serviceOptions: const [],
@@ -2206,7 +2393,9 @@ class _UserAppApi {
     );
   }
 
-  static _RestaurantCuisineItem _mapRestaurantCuisine(Map<String, dynamic> raw) {
+  static _RestaurantCuisineItem _mapRestaurantCuisine(
+    Map<String, dynamic> raw,
+  ) {
     final label = '${raw['name'] ?? 'Category'}';
     final category = _normalizeCategory(label);
     return _RestaurantCuisineItem(
@@ -2218,7 +2407,9 @@ class _UserAppApi {
     );
   }
 
-  static _RestaurantRemoteShopSummary _mapRestaurantShop(Map<String, dynamic> raw) {
+  static _RestaurantRemoteShopSummary _mapRestaurantShop(
+    Map<String, dynamic> raw,
+  ) {
     final shopName = '${raw['shopName'] ?? 'Restaurant'}';
     final city = '${raw['city'] ?? ''}'.trim();
     final minOrderAmount = _money(raw['minOrderAmount']);
@@ -2226,16 +2417,15 @@ class _UserAppApi {
     final offer = deliveryFee.isEmpty || deliveryFee == '₹0'
         ? 'Free delivery'
         : minOrderAmount.isNotEmpty
-            ? 'Above $minOrderAmount'
-            : 'Delivery $deliveryFee';
+        ? 'Above $minOrderAmount'
+        : 'Delivery $deliveryFee';
     final eta = (raw['openNow'] as bool? ?? false)
-        ? ((raw['closingSoon'] as bool? ?? false)
-            ? 'Closing soon'
-            : 'Open now')
+        ? ((raw['closingSoon'] as bool? ?? false) ? 'Closing soon' : 'Open now')
         : 'Closed';
     final cuisineLine = [
       if (city.isNotEmpty) city,
-      if ('${raw['deliveryType'] ?? ''}'.trim().isNotEmpty) '${raw['deliveryType']}',
+      if ('${raw['deliveryType'] ?? ''}'.trim().isNotEmpty)
+        '${raw['deliveryType']}',
     ].join(' · ');
     return _RestaurantRemoteShopSummary(
       shopId: (raw['shopId'] as num?)?.toInt() ?? 0,
@@ -2263,13 +2453,11 @@ class _UserAppApi {
         .toList(growable: false);
     final page = (raw['page'] as num?)?.toInt() ?? 0;
     final size = (raw['size'] as num?)?.toInt() ?? items.length;
-    final totalElements = (raw['totalElements'] as num?)?.toInt() ?? items.length;
-    final hasMore = ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
-    return _FashionProductPage(
-      items: items,
-      page: page,
-      hasMore: hasMore,
-    );
+    final totalElements =
+        (raw['totalElements'] as num?)?.toInt() ?? items.length;
+    final hasMore =
+        ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
+    return _FashionProductPage(items: items, page: page, hasMore: hasMore);
   }
 
   static _FashionRemoteProduct _mapFashionProduct(Map<String, dynamic> raw) {
@@ -2311,27 +2499,29 @@ class _UserAppApi {
     );
   }
 
-  static _FootwearRemoteCategory _mapFootwearCategory(Map<String, dynamic> raw) {
+  static _FootwearRemoteCategory _mapFootwearCategory(
+    Map<String, dynamic> raw,
+  ) {
     return _FootwearRemoteCategory(
       label: '${raw['name'] ?? 'Category'}',
       backendCategoryId: (raw['id'] as num?)?.toInt(),
     );
   }
 
-  static _FootwearProductPage _mapFootwearProductPage(Map<String, dynamic> raw) {
+  static _FootwearProductPage _mapFootwearProductPage(
+    Map<String, dynamic> raw,
+  ) {
     final items = (raw['items'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((entry) => _mapFootwearProduct(Map<String, dynamic>.from(entry)))
         .toList(growable: false);
     final page = (raw['page'] as num?)?.toInt() ?? 0;
     final size = (raw['size'] as num?)?.toInt() ?? items.length;
-    final totalElements = (raw['totalElements'] as num?)?.toInt() ?? items.length;
-    final hasMore = ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
-    return _FootwearProductPage(
-      items: items,
-      page: page,
-      hasMore: hasMore,
-    );
+    final totalElements =
+        (raw['totalElements'] as num?)?.toInt() ?? items.length;
+    final hasMore =
+        ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
+    return _FootwearProductPage(items: items, page: page, hasMore: hasMore);
   }
 
   static _FootwearRemoteProduct _mapFootwearProduct(Map<String, dynamic> raw) {
@@ -2387,8 +2577,10 @@ class _UserAppApi {
         .toList(growable: false);
     final page = (raw['page'] as num?)?.toInt() ?? 0;
     final size = (raw['size'] as num?)?.toInt() ?? items.length;
-    final totalElements = (raw['totalElements'] as num?)?.toInt() ?? items.length;
-    final hasMore = ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
+    final totalElements =
+        (raw['totalElements'] as num?)?.toInt() ?? items.length;
+    final hasMore =
+        ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
     return _GiftProductPage(items: items, page: page, hasMore: hasMore);
   }
 
@@ -2438,8 +2630,10 @@ class _UserAppApi {
         .toList(growable: false);
     final page = (raw['page'] as num?)?.toInt() ?? 0;
     final size = (raw['size'] as num?)?.toInt() ?? items.length;
-    final totalElements = (raw['totalElements'] as num?)?.toInt() ?? items.length;
-    final hasMore = ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
+    final totalElements =
+        (raw['totalElements'] as num?)?.toInt() ?? items.length;
+    final hasMore =
+        ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
     return _GroceryProductPage(items: items, page: page, hasMore: hasMore);
   }
 
@@ -2475,22 +2669,28 @@ class _UserAppApi {
     );
   }
 
-  static _PharmacyRemoteCategory _mapPharmacyCategory(Map<String, dynamic> raw) {
+  static _PharmacyRemoteCategory _mapPharmacyCategory(
+    Map<String, dynamic> raw,
+  ) {
     return _PharmacyRemoteCategory(
       label: '${raw['name'] ?? 'Category'}',
       backendCategoryId: (raw['id'] as num?)?.toInt(),
     );
   }
 
-  static _PharmacyProductPage _mapPharmacyProductPage(Map<String, dynamic> raw) {
+  static _PharmacyProductPage _mapPharmacyProductPage(
+    Map<String, dynamic> raw,
+  ) {
     final items = (raw['items'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
         .map((entry) => _mapPharmacyProduct(Map<String, dynamic>.from(entry)))
         .toList(growable: false);
     final page = (raw['page'] as num?)?.toInt() ?? 0;
     final size = (raw['size'] as num?)?.toInt() ?? items.length;
-    final totalElements = (raw['totalElements'] as num?)?.toInt() ?? items.length;
-    final hasMore = ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
+    final totalElements =
+        (raw['totalElements'] as num?)?.toInt() ?? items.length;
+    final hasMore =
+        ((page + 1) * (size <= 0 ? items.length : size)) < totalElements;
     return _PharmacyProductPage(items: items, page: page, hasMore: hasMore);
   }
 
@@ -2528,7 +2728,10 @@ class _UserAppApi {
 
   static String _normalizeCategory(String raw) {
     final text = raw.toLowerCase();
-    if (text.contains('shoe') || text.contains('footwear') || text.contains('sandal') || text.contains('slipper')) {
+    if (text.contains('shoe') ||
+        text.contains('footwear') ||
+        text.contains('sandal') ||
+        text.contains('slipper')) {
       return 'Footwear';
     }
     if (text.contains('fashion') ||
@@ -2539,13 +2742,22 @@ class _UserAppApi {
         text.contains('saree')) {
       return 'Fashion';
     }
-    if (text.contains('gift') || text.contains('flower') || text.contains('cake') || text.contains('plant')) {
+    if (text.contains('gift') ||
+        text.contains('flower') ||
+        text.contains('cake') ||
+        text.contains('plant')) {
       return 'Gift';
     }
-    if (text.contains('pharmacy') || text.contains('tablet') || text.contains('wellness') || text.contains('care')) {
+    if (text.contains('pharmacy') ||
+        text.contains('tablet') ||
+        text.contains('wellness') ||
+        text.contains('care')) {
       return 'Pharmacy';
     }
-    if (text.contains('grocery') || text.contains('rice') || text.contains('atta') || text.contains('biscuit')) {
+    if (text.contains('grocery') ||
+        text.contains('rice') ||
+        text.contains('atta') ||
+        text.contains('biscuit')) {
       return 'Groceries';
     }
     if (text.contains('pizza') ||
@@ -2628,11 +2840,29 @@ class _UserAppApi {
   }
 
   static String _distance(Object? value) {
-    final number = value is num ? value.toDouble() : double.tryParse('${value ?? ''}');
+    final number = value is num
+        ? value.toDouble()
+        : double.tryParse('${value ?? ''}');
     if (number == null || number <= 0) {
       return 'Nearby';
     }
     return '${number.toStringAsFixed(number < 10 ? 1 : 0)} km';
+  }
+
+  static List<_RemoteAcceptedProvider> _acceptedProviders(Object? value) {
+    final items = value is List ? value : const [];
+    return items
+        .whereType<Map>()
+        .map(
+          (raw) => _RemoteAcceptedProvider(
+            candidateId: (raw['candidateId'] as num?)?.toInt() ?? 0,
+            providerEntityId: (raw['providerEntityId'] as num?)?.toInt(),
+            providerName: '${raw['providerName'] ?? ''}',
+            quotedPriceAmount: _money(raw['quotedPriceAmount']),
+          ),
+        )
+        .where((provider) => provider.providerName.trim().isNotEmpty)
+        .toList();
   }
 
   static Color _serviceAccent(String category) {
@@ -2701,7 +2931,23 @@ class _UserAppApi {
     if (raw.isEmpty) {
       return null;
     }
-    return DateTime.tryParse(raw)?.toLocal();
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) {
+      return null;
+    }
+    if (_explicitTimezonePattern.hasMatch(raw)) {
+      return parsed.toUtc();
+    }
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    );
   }
 
   static double? _parseDouble(Object? value) {
@@ -2840,7 +3086,8 @@ class _UserProfileData {
   final DateTime? dob;
   final String languageCode;
 
-  String get profilePhotoUrl => _UserAppApi.profilePhotoViewUrl(profilePhotoObjectKey);
+  String get profilePhotoUrl =>
+      _UserAppApi.profilePhotoViewUrl(profilePhotoObjectKey);
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -2968,10 +3215,7 @@ class _UserAddressInput {
 }
 
 class _ServiceCountryOption {
-  const _ServiceCountryOption({
-    required this.id,
-    required this.name,
-  });
+  const _ServiceCountryOption({required this.id, required this.name});
 
   final int id;
   final String name;
@@ -3171,7 +3415,8 @@ class _UserOrderRefund {
   final DateTime? initiatedAt;
   final DateTime? completedAt;
 
-  bool get hasApprovedAmount => approvedAmount.trim().isNotEmpty && approvedAmount.trim() != '₹0';
+  bool get hasApprovedAmount =>
+      approvedAmount.trim().isNotEmpty && approvedAmount.trim() != '₹0';
 }
 
 class _CheckoutPreviewData {
@@ -3353,10 +3598,7 @@ class _FashionLandingData {
 }
 
 class _FashionRemoteCategory {
-  const _FashionRemoteCategory({
-    required this.label,
-    this.backendCategoryId,
-  });
+  const _FashionRemoteCategory({required this.label, this.backendCategoryId});
 
   final String label;
   final int? backendCategoryId;
@@ -3451,10 +3693,7 @@ class _FootwearLandingData {
 }
 
 class _FootwearRemoteCategory {
-  const _FootwearRemoteCategory({
-    required this.label,
-    this.backendCategoryId,
-  });
+  const _FootwearRemoteCategory({required this.label, this.backendCategoryId});
 
   final String label;
   final int? backendCategoryId;
@@ -3549,20 +3788,14 @@ class _GiftLandingData {
 }
 
 class _GiftRemoteCategory {
-  const _GiftRemoteCategory({
-    required this.label,
-    this.backendCategoryId,
-  });
+  const _GiftRemoteCategory({required this.label, this.backendCategoryId});
 
   final String label;
   final int? backendCategoryId;
 }
 
 class _GiftRemoteProduct {
-  const _GiftRemoteProduct({
-    required this.item,
-    required this.categoryLabel,
-  });
+  const _GiftRemoteProduct({required this.item, required this.categoryLabel});
 
   final _DiscoveryItem item;
   final String categoryLabel;
@@ -3639,10 +3872,7 @@ class _GroceryLandingData {
 }
 
 class _GroceryRemoteCategory {
-  const _GroceryRemoteCategory({
-    required this.label,
-    this.backendCategoryId,
-  });
+  const _GroceryRemoteCategory({required this.label, this.backendCategoryId});
 
   final String label;
   final int? backendCategoryId;
@@ -3729,10 +3959,7 @@ class _PharmacyLandingData {
 }
 
 class _PharmacyRemoteCategory {
-  const _PharmacyRemoteCategory({
-    required this.label,
-    this.backendCategoryId,
-  });
+  const _PharmacyRemoteCategory({required this.label, this.backendCategoryId});
 
   final String label;
   final int? backendCategoryId;

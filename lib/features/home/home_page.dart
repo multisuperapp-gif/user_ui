@@ -1,7 +1,9 @@
 part of '../../main.dart';
 
 class _ActiveBookingPopupVisibilityController {
-  static final ValueNotifier<DateTime?> hiddenUntil = ValueNotifier<DateTime?>(null);
+  static final ValueNotifier<DateTime?> hiddenUntil = ValueNotifier<DateTime?>(
+    null,
+  );
   static Timer? _restoreTimer;
 
   static bool get isHidden {
@@ -27,6 +29,23 @@ class _ActiveBookingPopupVisibilityController {
       hiddenUntil.value = null;
     }
   }
+}
+
+class _PaymentInvoiceLine {
+  const _PaymentInvoiceLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _InvoicePaymentResult<T> {
+  const _InvoicePaymentResult({
+    required this.payment,
+    required this.paymentFlowResult,
+  });
+
+  final T payment;
+  final _PaymentFlowResult paymentFlowResult;
 }
 
 class _HomeLocationChoice {
@@ -70,10 +89,7 @@ class _HomeLocationSearchSuggestion {
 }
 
 class UserHomePage extends StatefulWidget {
-  const UserHomePage({
-    super.key,
-    this.phoneNumber,
-  });
+  const UserHomePage({super.key, this.phoneNumber});
 
   final String? phoneNumber;
 
@@ -85,8 +101,11 @@ class _UserHomePageState extends State<UserHomePage> {
   static const Set<String> _shopComingSoonCategories = <String>{};
   static const double _savedAddressSnapDistanceMeters = 100;
   static const double _activeBookingPopupDragSpeedMultiplier = 1.85;
-  static const String _androidPlacesApiKey = 'AIzaSyA51i0ow9o6wBQzJ1km94Hv_9g2rzesgRA';
-  static const String _iosPlacesApiKey = 'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
+  static const String _singleLabourQuickBookOpenBudget = '99999999';
+  static const String _androidPlacesApiKey =
+      'AIzaSyA51i0ow9o6wBQzJ1km94Hv_9g2rzesgRA';
+  static const String _iosPlacesApiKey =
+      'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Set<String> _favouriteProfiles = <String>{};
@@ -96,17 +115,27 @@ class _UserHomePageState extends State<UserHomePage> {
   final List<_DiscoveryItem> _labourRemoteProfiles = <_DiscoveryItem>[];
   final List<_DiscoveryItem> _serviceRemoteProviders = <_DiscoveryItem>[];
   final List<_DiscoveryItem> _restaurantRemoteProducts = <_DiscoveryItem>[];
-  final List<_FashionRemoteProduct> _fashionRemoteProducts = <_FashionRemoteProduct>[];
-  final List<_FootwearRemoteProduct> _footwearRemoteProducts = <_FootwearRemoteProduct>[];
-  final List<_RestaurantRemoteShopSummary> _restaurantRemoteShops = <_RestaurantRemoteShopSummary>[];
-  final List<_FashionRemoteShopSummary> _fashionRemoteShops = <_FashionRemoteShopSummary>[];
-  final List<_FootwearRemoteShopSummary> _footwearRemoteShops = <_FootwearRemoteShopSummary>[];
+  final List<_FashionRemoteProduct> _fashionRemoteProducts =
+      <_FashionRemoteProduct>[];
+  final List<_FootwearRemoteProduct> _footwearRemoteProducts =
+      <_FootwearRemoteProduct>[];
+  final List<_RestaurantRemoteShopSummary> _restaurantRemoteShops =
+      <_RestaurantRemoteShopSummary>[];
+  final List<_FashionRemoteShopSummary> _fashionRemoteShops =
+      <_FashionRemoteShopSummary>[];
+  final List<_FootwearRemoteShopSummary> _footwearRemoteShops =
+      <_FootwearRemoteShopSummary>[];
   final List<_GiftRemoteProduct> _giftRemoteProducts = <_GiftRemoteProduct>[];
-  final List<_GiftRemoteShopSummary> _giftRemoteShops = <_GiftRemoteShopSummary>[];
-  final List<_GroceryRemoteProduct> _groceryRemoteProducts = <_GroceryRemoteProduct>[];
-  final List<_GroceryRemoteShopSummary> _groceryRemoteShops = <_GroceryRemoteShopSummary>[];
-  final List<_PharmacyRemoteProduct> _pharmacyRemoteProducts = <_PharmacyRemoteProduct>[];
-  final List<_PharmacyRemoteShopSummary> _pharmacyRemoteShops = <_PharmacyRemoteShopSummary>[];
+  final List<_GiftRemoteShopSummary> _giftRemoteShops =
+      <_GiftRemoteShopSummary>[];
+  final List<_GroceryRemoteProduct> _groceryRemoteProducts =
+      <_GroceryRemoteProduct>[];
+  final List<_GroceryRemoteShopSummary> _groceryRemoteShops =
+      <_GroceryRemoteShopSummary>[];
+  final List<_PharmacyRemoteProduct> _pharmacyRemoteProducts =
+      <_PharmacyRemoteProduct>[];
+  final List<_PharmacyRemoteShopSummary> _pharmacyRemoteShops =
+      <_PharmacyRemoteShopSummary>[];
 
   _HomeMode _mode = _HomeMode.all;
   _LabourViewMode _labourViewMode = _LabourViewMode.individual;
@@ -117,12 +146,11 @@ class _UserHomePageState extends State<UserHomePage> {
   String _selectedShopCategory = 'All Deals';
   String _selectedShopSubCategory = 'All';
   String _selectedRestaurantCuisine = 'All';
-  String _selectedLabourCategory = 'All labour';
+  String _selectedLabourCategory = '';
   String _selectedSingleLabourPeriod = 'All';
   String _selectedSingleLabourMaxPrice = '';
   String _selectedLabourPrice = '';
   String _selectedLabourPricePeriod = 'Full Day';
-  String? _selectedGroupLabourCategory;
   int _selectedLabourCount = 1;
   int _maxGroupLabourCount = 7;
   String _labourBookingChargePerLabour = '5%';
@@ -131,7 +159,8 @@ class _UserHomePageState extends State<UserHomePage> {
   String? _labourCountErrorText;
   String? _cartShopName;
   int _notificationUnreadCount = 0;
-  List<_ActiveBookingStatus> _activeBookingStatuses = const <_ActiveBookingStatus>[];
+  List<_ActiveBookingStatus> _activeBookingStatuses =
+      const <_ActiveBookingStatus>[];
   int _activeBookingIndex = 0;
   Offset _activeBookingPopupOffset = Offset.zero;
   bool _activeBookingPopupPositionInitialized = false;
@@ -173,14 +202,22 @@ class _UserHomePageState extends State<UserHomePage> {
   String? _groceryRemoteError;
   String? _pharmacyRemoteError;
   String _shopSortOption = 'Popular';
-  List<_RemoteLabourCategory> _labourRemoteCategories = const <_RemoteLabourCategory>[];
-  List<_RemoteServiceCategory> _serviceRemoteCategories = const <_RemoteServiceCategory>[];
-  List<_RestaurantCuisineItem> _restaurantRemoteCuisines = const <_RestaurantCuisineItem>[];
-  List<_FashionRemoteCategory> _fashionRemoteCategories = const <_FashionRemoteCategory>[];
-  List<_FootwearRemoteCategory> _footwearRemoteCategories = const <_FootwearRemoteCategory>[];
-  List<_GiftRemoteCategory> _giftRemoteCategories = const <_GiftRemoteCategory>[];
-  List<_GroceryRemoteCategory> _groceryRemoteCategories = const <_GroceryRemoteCategory>[];
-  List<_PharmacyRemoteCategory> _pharmacyRemoteCategories = const <_PharmacyRemoteCategory>[];
+  List<_RemoteLabourCategory> _labourRemoteCategories =
+      const <_RemoteLabourCategory>[];
+  List<_RemoteServiceCategory> _serviceRemoteCategories =
+      const <_RemoteServiceCategory>[];
+  List<_RestaurantCuisineItem> _restaurantRemoteCuisines =
+      const <_RestaurantCuisineItem>[];
+  List<_FashionRemoteCategory> _fashionRemoteCategories =
+      const <_FashionRemoteCategory>[];
+  List<_FootwearRemoteCategory> _footwearRemoteCategories =
+      const <_FootwearRemoteCategory>[];
+  List<_GiftRemoteCategory> _giftRemoteCategories =
+      const <_GiftRemoteCategory>[];
+  List<_GroceryRemoteCategory> _groceryRemoteCategories =
+      const <_GroceryRemoteCategory>[];
+  List<_PharmacyRemoteCategory> _pharmacyRemoteCategories =
+      const <_PharmacyRemoteCategory>[];
   int _fashionVisibleProductCount = _fashionProductBatchSize;
   int _fashionRemotePage = 0;
   int _footwearVisibleProductCount = _footwearProductBatchSize;
@@ -216,8 +253,12 @@ class _UserHomePageState extends State<UserHomePage> {
     _sessionPhoneNumber = widget.phoneNumber?.trim();
     _scrollController.addListener(_handleScroll);
     _searchController.addListener(_handleSearchChanged);
-    _notificationEventSubscription = _NotificationBootstrap.events.listen(_handleNotificationEvent);
-    _ActiveBookingPopupVisibilityController.hiddenUntil.addListener(_handleActiveBookingPopupVisibilityChanged);
+    _notificationEventSubscription = _NotificationBootstrap.events.listen(
+      _handleNotificationEvent,
+    );
+    _ActiveBookingPopupVisibilityController.hiddenUntil.addListener(
+      _handleActiveBookingPopupVisibilityChanged,
+    );
     unawaited(_warmProfilePreviewOnAppOpen());
     unawaited(_hydrateRemoteState());
     unawaited(_loadLabourBookingPolicy());
@@ -233,7 +274,9 @@ class _UserHomePageState extends State<UserHomePage> {
 
   @override
   void dispose() {
-    _ActiveBookingPopupVisibilityController.hiddenUntil.removeListener(_handleActiveBookingPopupVisibilityChanged);
+    _ActiveBookingPopupVisibilityController.hiddenUntil.removeListener(
+      _handleActiveBookingPopupVisibilityChanged,
+    );
     _notificationEventSubscription?.cancel();
     _activeBookingRefreshTimer?.cancel();
     _scrollController
@@ -248,7 +291,10 @@ class _UserHomePageState extends State<UserHomePage> {
     if (_activeBookingStatuses.isEmpty) {
       return null;
     }
-    final safeIndex = _activeBookingIndex.clamp(0, _activeBookingStatuses.length - 1);
+    final safeIndex = _activeBookingIndex.clamp(
+      0,
+      _activeBookingStatuses.length - 1,
+    );
     return _activeBookingStatuses[safeIndex];
   }
 
@@ -284,7 +330,9 @@ class _UserHomePageState extends State<UserHomePage> {
       item.serviceTileLabel,
       ...item.serviceItems,
     ];
-    return haystacks.any((value) => value.toLowerCase().contains(normalizedQuery));
+    return haystacks.any(
+      (value) => value.toLowerCase().contains(normalizedQuery),
+    );
   }
 
   String _deriveSelectedServiceTileLabel(_DiscoveryItem item) {
@@ -315,7 +363,10 @@ class _UserHomePageState extends State<UserHomePage> {
       _syncActiveBookingRefreshPolling();
       return;
     }
-    _activeBookingIndex = _activeBookingIndex.clamp(0, _activeBookingStatuses.length - 1);
+    _activeBookingIndex = _activeBookingIndex.clamp(
+      0,
+      _activeBookingStatuses.length - 1,
+    );
     _syncActiveBookingRefreshPolling();
   }
 
@@ -327,7 +378,9 @@ class _UserHomePageState extends State<UserHomePage> {
       _activeBookingRefreshTimer = null;
       return;
     }
-    _activeBookingRefreshTimer ??= Timer.periodic(const Duration(seconds: 6), (_) {
+    _activeBookingRefreshTimer ??= Timer.periodic(const Duration(seconds: 6), (
+      _,
+    ) {
       if (!mounted || !_isAuthenticated) {
         return;
       }
@@ -375,16 +428,44 @@ class _UserHomePageState extends State<UserHomePage> {
         );
       });
     }
-    _announcedArrivedBookingIds.removeWhere((bookingId) => !visibleBookingIds.contains(bookingId));
+    _announcedArrivedBookingIds.removeWhere(
+      (bookingId) => !visibleBookingIds.contains(bookingId),
+    );
   }
 
   int? _bookingIdFromNotificationEvent(_NotificationEvent event) {
     return int.tryParse((event.data['bookingId'] ?? '').trim());
   }
 
-  void _showLabourArrivedNotification({
-    required String providerName,
-    String? body,
+  bool _isProviderNoShowNotification(_NotificationEvent event) {
+    if (event.type == 'BOOKING_PROVIDER_NO_SHOW') {
+      return true;
+    }
+    if (event.type != 'BOOKING_CANCELLED') {
+      return false;
+    }
+    final message = '${event.title} ${event.body} ${event.data['reason'] ?? ''}'
+        .toUpperCase();
+    return message.contains('NO_SHOW') ||
+        message.contains('NO SHOW') ||
+        message.contains('DID NOT REACH') ||
+        message.contains('REACH IN TIME');
+  }
+
+  bool _shouldPlayUserNotificationSound(_NotificationEvent event) {
+    final type = event.type;
+    return type == 'BOOKING_ACCEPTED' ||
+        type == 'BOOKING_PROVIDER_ARRIVED' ||
+        _isProviderNoShowNotification(event);
+  }
+
+  void _showBookingForegroundNotification({
+    required String title,
+    required String body,
+    required Color backgroundColor,
+    required Color iconTint,
+    required Color iconSurfaceColor,
+    required IconData icon,
   }) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
@@ -393,7 +474,7 @@ class _UserHomePageState extends State<UserHomePage> {
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(18, 0, 18, 110),
-        backgroundColor: const Color(0xFF22314D),
+        backgroundColor: backgroundColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: Row(
           children: [
@@ -401,10 +482,10 @@ class _UserHomePageState extends State<UserHomePage> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: const Color(0xFF1FA855).withValues(alpha: 0.18),
+                color: iconSurfaceColor,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF79E0A1), size: 20),
+              child: Icon(icon, color: iconTint, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -412,8 +493,8 @@ class _UserHomePageState extends State<UserHomePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Labour has arrived',
+                  Text(
+                    title,
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
@@ -422,11 +503,7 @@ class _UserHomePageState extends State<UserHomePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    body?.trim().isNotEmpty == true
-                        ? body!.trim()
-                        : (providerName.isEmpty
-                            ? 'Your labour is now at your location.'
-                            : '$providerName has arrived at your location.'),
+                    body,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.86),
                       fontWeight: FontWeight.w700,
@@ -440,6 +517,56 @@ class _UserHomePageState extends State<UserHomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showLabourArrivedNotification({
+    required String providerName,
+    String? body,
+  }) {
+    _showBookingForegroundNotification(
+      title: 'Labour has arrived',
+      body: body?.trim().isNotEmpty == true
+          ? body!.trim()
+          : (providerName.isEmpty
+                ? 'Your labour is now at your location.'
+                : '$providerName has arrived at your location.'),
+      backgroundColor: const Color(0xFF22314D),
+      iconTint: const Color(0xFF79E0A1),
+      iconSurfaceColor: const Color(0xFF1FA855).withValues(alpha: 0.18),
+      icon: Icons.notifications_active_rounded,
+    );
+  }
+
+  void _showBookingAcceptedNotification(_NotificationEvent event) {
+    final body = event.body.trim().isNotEmpty
+        ? event.body.trim()
+        : 'Your booking has been accepted.';
+    _showBookingForegroundNotification(
+      title: event.title.trim().isNotEmpty
+          ? event.title.trim()
+          : 'Booking accepted',
+      body: body,
+      backgroundColor: const Color(0xFF22314D),
+      iconTint: const Color(0xFF7BD5FF),
+      iconSurfaceColor: const Color(0xFF4AA4D8).withValues(alpha: 0.20),
+      icon: Icons.verified_rounded,
+    );
+  }
+
+  void _showProviderNoShowNotification(_NotificationEvent event) {
+    final body = event.body.trim().isNotEmpty
+        ? event.body.trim()
+        : 'Your booking was auto-cancelled because the provider did not reach in time.';
+    _showBookingForegroundNotification(
+      title: event.title.trim().isNotEmpty
+          ? event.title.trim()
+          : 'Booking cancelled',
+      body: body,
+      backgroundColor: const Color(0xFF5B2430),
+      iconTint: const Color(0xFFFFC857),
+      iconSurfaceColor: const Color(0xFFFFC857).withValues(alpha: 0.16),
+      icon: Icons.error_outline_rounded,
     );
   }
 
@@ -457,7 +584,9 @@ class _UserHomePageState extends State<UserHomePage> {
       return;
     }
     final updated = List<_ActiveBookingStatus>.from(_activeBookingStatuses);
-    final matchIndex = updated.indexWhere((entry) => entry.requestId == status.requestId);
+    final matchIndex = updated.indexWhere(
+      (entry) => entry.requestId == status.requestId,
+    );
     if (matchIndex >= 0) {
       updated[matchIndex] = status;
       _activeBookingIndex = matchIndex;
@@ -469,7 +598,9 @@ class _UserHomePageState extends State<UserHomePage> {
   }
 
   void _dismissActiveBookingPopupTemporarily() {
-    _ActiveBookingPopupVisibilityController.dismissForDuration(const Duration(seconds: 30));
+    _ActiveBookingPopupVisibilityController.dismissForDuration(
+      const Duration(seconds: 30),
+    );
   }
 
   void _markLabourBookedLocally(int labourId) {
@@ -499,7 +630,9 @@ class _UserHomePageState extends State<UserHomePage> {
       historyStatus: '',
       providerEntityType: 'LABOUR',
       providerEntityId: null,
-      providerName: status.providerName.trim().isNotEmpty ? status.providerName : request.labourName,
+      providerName: status.providerName.trim().isNotEmpty
+          ? status.providerName
+          : request.labourName,
       providerPhone: status.providerPhone,
       quotedPriceAmount: status.quotedPriceAmount,
       totalAcceptedQuotedPriceAmount: status.totalAcceptedQuotedPriceAmount,
@@ -541,7 +674,9 @@ class _UserHomePageState extends State<UserHomePage> {
       historyStatus: '',
       providerEntityType: 'SERVICE_PROVIDER',
       providerEntityId: null,
-      providerName: status.providerName.trim().isNotEmpty ? status.providerName : request.providerName,
+      providerName: status.providerName.trim().isNotEmpty
+          ? status.providerName
+          : request.providerName,
       providerPhone: status.providerPhone,
       quotedPriceAmount: status.quotedPriceAmount,
       totalAcceptedQuotedPriceAmount: status.quotedPriceAmount,
@@ -570,84 +705,96 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
-
   Future<void> _hydrateRemoteState({bool silent = true}) async {
-  if (_remoteSyncInFlight) {
-    return;
-  }
-  if (mounted) {
-    setState(() {
-      _remoteSyncInFlight = true;
-    });
-  } else {
-    _remoteSyncInFlight = true;
-  }
-  try {
-    List<_DiscoveryItem> remoteProducts = const <_DiscoveryItem>[];
-    try {
-      remoteProducts = await _UserAppApi.fetchHomeTopProducts();
-    } on _UserAppApiException catch (_) {
-    } catch (_) {
-    }
-    _RemoteCartState? remoteCart;
-    List<_ActiveBookingStatus> activeBookings = const <_ActiveBookingStatus>[];
-    _UserProfileData? profile;
-    if (_isAuthenticated) {
-      final results = await Future.wait<dynamic>([
-        _UserAppApi.fetchCart(),
-        _loadActiveBookingStatusesSafe(),
-        _ensureProfilePreviewWarmed(),
-      ]);
-      remoteCart = results[0] as _RemoteCartState;
-      activeBookings = results[1] as List<_ActiveBookingStatus>;
-      profile = results[2] as _UserProfileData?;
-    }
-    if (!mounted) {
+    if (_remoteSyncInFlight) {
       return;
     }
-    setState(() {
-      _backendTopProducts
-        ..clear()
-        ..addAll(remoteProducts);
-      if (remoteCart != null) {
-        _cartShopName = remoteCart.shopName.isEmpty ? null : remoteCart.shopName;
-        _cartItems
-          ..clear()
-          ..addAll(remoteCart.items);
-        _localCartNeedsSync = false;
-      }
-      _cachedUserProfile = _isAuthenticated ? profile : null;
-      _headerProfilePhotoDataUri = _isAuthenticated ? (profile?.profilePhotoDataUri.trim() ?? '') : '';
-      _headerProfilePhotoObjectKey = _isAuthenticated ? (profile?.profilePhotoObjectKey.trim() ?? '') : '';
-      _setActiveBookingStatuses(_isAuthenticated ? activeBookings : const <_ActiveBookingStatus>[]);
-    });
-    if (_isAuthenticated) {
-      unawaited(_refreshNotificationPreview(silent: true));
-    }
-  } on _UserAppApiException catch (_) {
-  } catch (_) {
-  } finally {
     if (mounted) {
       setState(() {
-        _remoteSyncInFlight = false;
+        _remoteSyncInFlight = true;
       });
     } else {
-      _remoteSyncInFlight = false;
+      _remoteSyncInFlight = true;
+    }
+    try {
+      List<_DiscoveryItem> remoteProducts = const <_DiscoveryItem>[];
+      try {
+        remoteProducts = await _UserAppApi.fetchHomeTopProducts();
+      } on _UserAppApiException catch (_) {
+      } catch (_) {}
+      _RemoteCartState? remoteCart;
+      List<_ActiveBookingStatus> activeBookings =
+          const <_ActiveBookingStatus>[];
+      _UserProfileData? profile;
+      if (_isAuthenticated) {
+        final results = await Future.wait<dynamic>([
+          _UserAppApi.fetchCart(),
+          _loadActiveBookingStatusesSafe(),
+          _ensureProfilePreviewWarmed(),
+        ]);
+        remoteCart = results[0] as _RemoteCartState;
+        activeBookings = results[1] as List<_ActiveBookingStatus>;
+        profile = results[2] as _UserProfileData?;
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _backendTopProducts
+          ..clear()
+          ..addAll(remoteProducts);
+        if (remoteCart != null) {
+          _cartShopName = remoteCart.shopName.isEmpty
+              ? null
+              : remoteCart.shopName;
+          _cartItems
+            ..clear()
+            ..addAll(remoteCart.items);
+          _localCartNeedsSync = false;
+        }
+        _cachedUserProfile = _isAuthenticated ? profile : null;
+        _headerProfilePhotoDataUri = _isAuthenticated
+            ? (profile?.profilePhotoDataUri.trim() ?? '')
+            : '';
+        _headerProfilePhotoObjectKey = _isAuthenticated
+            ? (profile?.profilePhotoObjectKey.trim() ?? '')
+            : '';
+        _setActiveBookingStatuses(
+          _isAuthenticated ? activeBookings : const <_ActiveBookingStatus>[],
+        );
+      });
+      if (_isAuthenticated) {
+        unawaited(_refreshNotificationPreview(silent: true));
+      }
+    } on _UserAppApiException catch (_) {
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _remoteSyncInFlight = false;
+        });
+      } else {
+        _remoteSyncInFlight = false;
+      }
     }
   }
-}
 
-Future<void> _handleNotificationEvent(_NotificationEvent event) async {
+  Future<void> _handleNotificationEvent(_NotificationEvent event) async {
     if (!event.isVisibleInUserApp) {
       return;
     }
-    final arrivalBookingId = event.type == 'BOOKING_PROVIDER_ARRIVED' ? _bookingIdFromNotificationEvent(event) : null;
-    final alreadyAnnouncedArrival = arrivalBookingId != null && _announcedArrivedBookingIds.contains(arrivalBookingId);
+    final arrivalBookingId = event.type == 'BOOKING_PROVIDER_ARRIVED'
+        ? _bookingIdFromNotificationEvent(event)
+        : null;
+    final alreadyAnnouncedArrival =
+        arrivalBookingId != null &&
+        _announcedArrivedBookingIds.contains(arrivalBookingId);
     if (arrivalBookingId != null) {
       _announcedArrivedBookingIds.add(arrivalBookingId);
     }
-    if (!event.openedApp && _BookingUpdateSoundPlayer.shouldPlayForUserEvent(event.type)) {
-      if (event.type != 'BOOKING_PROVIDER_ARRIVED' || !alreadyAnnouncedArrival) {
+    if (!event.openedApp && _shouldPlayUserNotificationSound(event)) {
+      if (event.type != 'BOOKING_PROVIDER_ARRIVED' ||
+          !alreadyAnnouncedArrival) {
         unawaited(_BookingUpdateSoundPlayer.play());
       }
     }
@@ -659,17 +806,13 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
 
     if (event.openedApp) {
       if (event.isOrderRelated) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const _OrdersPage(),
-          ),
-        );
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const _OrdersPage()));
         await _refreshNotificationPreview(silent: true);
       } else if (event.isBookingRelated) {
         await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const _MyBookingsPage(),
-          ),
+          MaterialPageRoute<void>(builder: (_) => const _MyBookingsPage()),
         );
         await _hydrateRemoteState(silent: true);
       } else {
@@ -690,6 +833,20 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
       return;
     }
 
+    if (event.type == 'BOOKING_ACCEPTED') {
+      _showBookingAcceptedNotification(event);
+      return;
+    }
+
+    if (_isProviderNoShowNotification(event)) {
+      _showProviderNoShowNotification(event);
+      return;
+    }
+
+    if (event.isBookingRelated) {
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Column(
@@ -702,11 +859,7 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             if (event.body.isNotEmpty)
-              Text(
-                event.body,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text(event.body, maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),
         action: SnackBarAction(
@@ -714,9 +867,7 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
           onPressed: () {
             if (event.isOrderRelated) {
               Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const _OrdersPage(),
-                ),
+                MaterialPageRoute<void>(builder: (_) => const _OrdersPage()),
               );
             } else {
               Navigator.of(context).push(
@@ -733,7 +884,10 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
 
   Future<void> _refreshNotificationPreview({bool silent = true}) async {
     try {
-      final notifications = await _UserAppApi.fetchNotifications(page: 0, size: 1);
+      final notifications = await _UserAppApi.fetchNotifications(
+        page: 0,
+        size: 1,
+      );
       if (!mounted) {
         return;
       }
@@ -747,204 +901,210 @@ Future<void> _handleNotificationEvent(_NotificationEvent event) async {
     }
   }
 
+  String get _selectedLocationCity => _selectedLocationChoice?.city ?? '';
+  double? get _selectedLatitude => _selectedLocationChoice?.latitude;
+  double? get _selectedLongitude => _selectedLocationChoice?.longitude;
+  String get _currentPhoneNumber => (_sessionPhoneNumber ?? '').trim();
+  bool get _isAuthenticated => _currentPhoneNumber.isNotEmpty;
+  bool get _anyHomeRemoteLoading =>
+      _discoveryBatchInFlightCount > 0 ||
+      _remoteSyncInFlight ||
+      _labourRemoteLoading ||
+      _serviceRemoteLoading ||
+      _restaurantRemoteLoading ||
+      _fashionRemoteLoading ||
+      _footwearRemoteLoading ||
+      _giftRemoteLoading ||
+      _groceryRemoteLoading ||
+      _pharmacyRemoteLoading ||
+      _homeLocationLoading;
 
-String get _selectedLocationCity => _selectedLocationChoice?.city ?? '';
-double? get _selectedLatitude => _selectedLocationChoice?.latitude;
-double? get _selectedLongitude => _selectedLocationChoice?.longitude;
-String get _currentPhoneNumber => (_sessionPhoneNumber ?? '').trim();
-bool get _isAuthenticated => _currentPhoneNumber.isNotEmpty;
-bool get _anyHomeRemoteLoading =>
-    _discoveryBatchInFlightCount > 0 ||
-    _remoteSyncInFlight ||
-    _labourRemoteLoading ||
-    _serviceRemoteLoading ||
-    _restaurantRemoteLoading ||
-    _fashionRemoteLoading ||
-    _footwearRemoteLoading ||
-    _giftRemoteLoading ||
-    _groceryRemoteLoading ||
-    _pharmacyRemoteLoading ||
-    _homeLocationLoading;
+  Future<void> _refreshSessionPhoneFromStore() async {
+    final savedPhoneNumber =
+        (await _LocalSessionStore.readPhoneNumber())?.trim() ?? '';
+    if (!mounted || savedPhoneNumber == _currentPhoneNumber) {
+      return;
+    }
+    setState(() {
+      _sessionPhoneNumber = savedPhoneNumber.isEmpty ? null : savedPhoneNumber;
+    });
+  }
 
-Future<void> _refreshSessionPhoneFromStore() async {
-  final savedPhoneNumber = (await _LocalSessionStore.readPhoneNumber())?.trim() ?? '';
-  if (!mounted || savedPhoneNumber == _currentPhoneNumber) {
-    return;
+  Future<_UserProfileData?> _loadProfilePreviewSafe() async {
+    try {
+      final profile = await _UserAppApi.fetchProfile();
+      await _LocalSessionStore.saveProfileCache(jsonEncode(profile.toJson()));
+      return profile;
+    } catch (_) {
+      return await _readCachedProfilePreview();
+    }
   }
-  setState(() {
-    _sessionPhoneNumber = savedPhoneNumber.isEmpty ? null : savedPhoneNumber;
-  });
-}
 
-Future<_UserProfileData?> _loadProfilePreviewSafe() async {
-  try {
-    final profile = await _UserAppApi.fetchProfile();
-    await _LocalSessionStore.saveProfileCache(jsonEncode(profile.toJson()));
-    return profile;
-  } catch (_) {
-    return await _readCachedProfilePreview();
-  }
-}
-
-Future<_UserProfileData?> _ensureProfilePreviewWarmed() async {
-  if (!_isAuthenticated) {
-    return null;
-  }
-  final cachedProfile = _cachedUserProfile;
-  if (cachedProfile != null) {
-    return cachedProfile;
-  }
-  final existingFuture = _profilePreviewWarmupFuture;
-  if (existingFuture != null) {
-    return await existingFuture;
-  }
-  final future = _loadProfilePreviewSafe();
-  _profilePreviewWarmupFuture = future;
-  try {
-    final profile = await future;
-    if (profile != null) {
-      if (mounted) {
-        setState(() {
+  Future<_UserProfileData?> _ensureProfilePreviewWarmed() async {
+    if (!_isAuthenticated) {
+      return null;
+    }
+    final cachedProfile = _cachedUserProfile;
+    if (cachedProfile != null) {
+      return cachedProfile;
+    }
+    final existingFuture = _profilePreviewWarmupFuture;
+    if (existingFuture != null) {
+      return await existingFuture;
+    }
+    final future = _loadProfilePreviewSafe();
+    _profilePreviewWarmupFuture = future;
+    try {
+      final profile = await future;
+      if (profile != null) {
+        if (mounted) {
+          setState(() {
+            _cachedUserProfile = profile;
+            _headerProfilePhotoDataUri = profile.profilePhotoDataUri.trim();
+            _headerProfilePhotoObjectKey = profile.profilePhotoObjectKey.trim();
+          });
+        } else {
           _cachedUserProfile = profile;
           _headerProfilePhotoDataUri = profile.profilePhotoDataUri.trim();
           _headerProfilePhotoObjectKey = profile.profilePhotoObjectKey.trim();
-        });
-      } else {
-        _cachedUserProfile = profile;
-        _headerProfilePhotoDataUri = profile.profilePhotoDataUri.trim();
-        _headerProfilePhotoObjectKey = profile.profilePhotoObjectKey.trim();
+        }
+      }
+      return profile;
+    } finally {
+      if (identical(_profilePreviewWarmupFuture, future)) {
+        _profilePreviewWarmupFuture = null;
       }
     }
-    return profile;
-  } finally {
-    if (identical(_profilePreviewWarmupFuture, future)) {
-      _profilePreviewWarmupFuture = null;
-    }
   }
-}
 
-Future<_UserProfileData?> _readCachedProfilePreview() async {
-  final raw = await _LocalSessionStore.readProfileCache();
-  if (raw == null || raw.trim().isEmpty) {
-    return null;
-  }
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map<String, dynamic>) {
+  Future<_UserProfileData?> _readCachedProfilePreview() async {
+    final raw = await _LocalSessionStore.readProfileCache();
+    if (raw == null || raw.trim().isEmpty) {
       return null;
     }
-    return _UserProfileData.fromJson(decoded);
-  } catch (_) {
-    return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+      return _UserProfileData.fromJson(decoded);
+    } catch (_) {
+      return null;
+    }
   }
-}
 
   Future<void> _restoreCachedProfilePreview() async {
-  if (!_isAuthenticated) {
-    return;
-  }
-  final cached = await _readCachedProfilePreview();
-  if (!mounted || cached == null) {
-    return;
-  }
-  setState(() {
-    _cachedUserProfile = cached;
-    _headerProfilePhotoDataUri = cached.profilePhotoDataUri.trim();
-    _headerProfilePhotoObjectKey = cached.profilePhotoObjectKey.trim();
-  });
-}
-
-Future<void> _warmProfilePreviewOnAppOpen() async {
-  await _restoreCachedProfilePreview();
-  if (_cachedUserProfile != null || !_isAuthenticated) {
-    return;
-  }
-  await _ensureProfilePreviewWarmed();
-}
-
-void _markDiscoveryPending() {
-  if (mounted) {
-    setState(() {
-      _initialDiscoveryBatchResolved = false;
-    });
-  } else {
-    _initialDiscoveryBatchResolved = false;
-  }
-}
-
-Future<bool> _ensureAuthenticated() async {
-  if (_isAuthenticated) {
-    return true;
-  }
-  final loggedIn = await Navigator.of(context).push<bool>(
-    MaterialPageRoute<bool>(
-      builder: (_) => const LoginPage(embeddedFlow: true),
-    ),
-  );
-  if (loggedIn != true) {
-    return false;
-  }
-  final savedPhoneNumber = await _LocalSessionStore.readPhoneNumber();
-  if (savedPhoneNumber == null || savedPhoneNumber.trim().isEmpty) {
-    if (mounted) {
-      _showCartSnack('Login completed, but the session could not be restored.');
+    if (!_isAuthenticated) {
+      return;
     }
-    return false;
+    final cached = await _readCachedProfilePreview();
+    if (!mounted || cached == null) {
+      return;
+    }
+    setState(() {
+      _cachedUserProfile = cached;
+      _headerProfilePhotoDataUri = cached.profilePhotoDataUri.trim();
+      _headerProfilePhotoObjectKey = cached.profilePhotoObjectKey.trim();
+    });
   }
-  if (!mounted) {
-    return true;
-  }
-  setState(() {
-    _sessionPhoneNumber = savedPhoneNumber.trim();
-  });
-  _markDiscoveryPending();
-  await _loadHomeLocationOptions();
-  await _reloadAddressAwareDiscovery(silent: true);
-  await _NotificationBootstrap.ensureRegistered();
-  await _hydrateRemoteState(silent: true);
-  await _refreshNotificationPreview(silent: true);
-  return true;
-}
 
-Future<void> _syncLocalCartToBackend() async {
-  if (!_isAuthenticated || !_localCartNeedsSync) {
-    return;
+  Future<void> _warmProfilePreviewOnAppOpen() async {
+    await _restoreCachedProfilePreview();
+    if (_cachedUserProfile != null || !_isAuthenticated) {
+      return;
+    }
+    await _ensureProfilePreviewWarmed();
   }
-  final syncableItems = _cartItems.where((item) => item.backendProductId != null).toList(growable: false);
-  if (syncableItems.isEmpty) {
+
+  void _markDiscoveryPending() {
     if (mounted) {
       setState(() {
+        _initialDiscoveryBatchResolved = false;
+      });
+    } else {
+      _initialDiscoveryBatchResolved = false;
+    }
+  }
+
+  Future<bool> _ensureAuthenticated() async {
+    if (_isAuthenticated) {
+      return true;
+    }
+    final loggedIn = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => const LoginPage(embeddedFlow: true),
+      ),
+    );
+    if (loggedIn != true) {
+      return false;
+    }
+    final savedPhoneNumber = await _LocalSessionStore.readPhoneNumber();
+    if (savedPhoneNumber == null || savedPhoneNumber.trim().isEmpty) {
+      if (mounted) {
+        _showCartSnack(
+          'Login completed, but the session could not be restored.',
+        );
+      }
+      return false;
+    }
+    if (!mounted) {
+      return true;
+    }
+    setState(() {
+      _sessionPhoneNumber = savedPhoneNumber.trim();
+    });
+    _markDiscoveryPending();
+    await _loadHomeLocationOptions();
+    await _reloadAddressAwareDiscovery(silent: true);
+    await _NotificationBootstrap.ensureRegistered();
+    await _hydrateRemoteState(silent: true);
+    await _refreshNotificationPreview(silent: true);
+    return true;
+  }
+
+  Future<void> _syncLocalCartToBackend() async {
+    if (!_isAuthenticated || !_localCartNeedsSync) {
+      return;
+    }
+    final syncableItems = _cartItems
+        .where((item) => item.backendProductId != null)
+        .toList(growable: false);
+    if (syncableItems.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _localCartNeedsSync = false;
+        });
+      } else {
+        _localCartNeedsSync = false;
+      }
+      return;
+    }
+    _RemoteCartState? remoteCart;
+    for (final item in syncableItems) {
+      remoteCart = await _UserAppApi.addItemToCart(item);
+    }
+    if (!mounted) {
+      _localCartNeedsSync = false;
+      return;
+    }
+    if (remoteCart != null) {
+      setState(() {
+        _cartShopName = remoteCart!.shopName.isEmpty
+            ? null
+            : remoteCart.shopName;
+        _cartItems
+          ..clear()
+          ..addAll(remoteCart.items);
         _localCartNeedsSync = false;
       });
     } else {
-      _localCartNeedsSync = false;
+      setState(() {
+        _localCartNeedsSync = false;
+      });
     }
-    return;
   }
-  _RemoteCartState? remoteCart;
-  for (final item in syncableItems) {
-    remoteCart = await _UserAppApi.addItemToCart(item);
-  }
-  if (!mounted) {
-    _localCartNeedsSync = false;
-    return;
-  }
-  if (remoteCart != null) {
-    setState(() {
-      _cartShopName = remoteCart!.shopName.isEmpty ? null : remoteCart.shopName;
-      _cartItems
-        ..clear()
-        ..addAll(remoteCart.items);
-      _localCartNeedsSync = false;
-    });
-  } else {
-    setState(() {
-      _localCartNeedsSync = false;
-    });
-  }
-}
 
-Future<void> _initializeHomeRequirements() async {
+  Future<void> _initializeHomeRequirements() async {
     if (_initialHomeSetupRunning) {
       return;
     }
@@ -973,87 +1133,92 @@ Future<void> _initializeHomeRequirements() async {
     }
   }
 
-
-Future<void> _loadHomeLocationOptions({bool forceCurrentSelection = false}) async {
-  if (mounted) {
-    setState(() {
+  Future<void> _loadHomeLocationOptions({
+    bool forceCurrentSelection = false,
+  }) async {
+    if (mounted) {
+      setState(() {
+        _homeLocationLoading = true;
+        _homeLocationError = null;
+      });
+    } else {
       _homeLocationLoading = true;
       _homeLocationError = null;
-    });
-  } else {
-    _homeLocationLoading = true;
-    _homeLocationError = null;
-  }
-  try {
-    final addresses = _isAuthenticated
-        ? await _UserAppApi.fetchAddresses()
-        : <_UserAddressData>[];
-    _HomeLocationChoice? currentLocation;
+    }
     try {
-      currentLocation = await _resolveCurrentLocationChoice();
-    } catch (_) {
-      currentLocation = null;
-    }
-    if (!mounted) {
-      return;
-    }
-    final nearbySavedLocation = currentLocation == null
-        ? null
-        : _nearestSavedAddressChoice(
-            currentLocation,
-            addresses,
-          );
-    final previousSelection = _selectedLocationChoice;
-    _HomeLocationChoice? selectedLocation;
-    if (forceCurrentSelection && currentLocation != null) {
-      selectedLocation = nearbySavedLocation ?? currentLocation;
-    } else {
-      selectedLocation = previousSelection;
-      if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
-        if (selectedLocation.addressId != null) {
-          final selectedAddress = addresses.where((item) => item.id == selectedLocation!.addressId).firstOrNull;
-          if (selectedAddress != null) {
-            selectedLocation = _locationChoiceFromAddress(selectedAddress);
-          } else {
-            selectedLocation = null;
-          }
-        }
-      } else if (selectedLocation?.isCurrentLocation == true) {
-        selectedLocation = nearbySavedLocation ?? currentLocation;
+      final addresses = _isAuthenticated
+          ? await _UserAppApi.fetchAddresses()
+          : <_UserAddressData>[];
+      _HomeLocationChoice? currentLocation;
+      try {
+        currentLocation = await _resolveCurrentLocationChoice();
+      } catch (_) {
+        currentLocation = null;
       }
-      selectedLocation ??= nearbySavedLocation;
-      selectedLocation ??= currentLocation;
-      selectedLocation ??= addresses.where((item) => item.isDefault).map(_locationChoiceFromAddress).firstOrNull;
-      selectedLocation ??= addresses.map(_locationChoiceFromAddress).firstOrNull;
+      if (!mounted) {
+        return;
+      }
+      final nearbySavedLocation = currentLocation == null
+          ? null
+          : _nearestSavedAddressChoice(currentLocation, addresses);
+      final previousSelection = _selectedLocationChoice;
+      _HomeLocationChoice? selectedLocation;
+      if (forceCurrentSelection && currentLocation != null) {
+        selectedLocation = nearbySavedLocation ?? currentLocation;
+      } else {
+        selectedLocation = previousSelection;
+        if (selectedLocation != null && !selectedLocation.isCurrentLocation) {
+          if (selectedLocation.addressId != null) {
+            final selectedAddress = addresses
+                .where((item) => item.id == selectedLocation!.addressId)
+                .firstOrNull;
+            if (selectedAddress != null) {
+              selectedLocation = _locationChoiceFromAddress(selectedAddress);
+            } else {
+              selectedLocation = null;
+            }
+          }
+        } else if (selectedLocation?.isCurrentLocation == true) {
+          selectedLocation = nearbySavedLocation ?? currentLocation;
+        }
+        selectedLocation ??= nearbySavedLocation;
+        selectedLocation ??= currentLocation;
+        selectedLocation ??= addresses
+            .where((item) => item.isDefault)
+            .map(_locationChoiceFromAddress)
+            .firstOrNull;
+        selectedLocation ??= addresses
+            .map(_locationChoiceFromAddress)
+            .firstOrNull;
+      }
+      setState(() {
+        _savedAddresses = addresses;
+        _currentLocationChoice = currentLocation;
+        _selectedLocationChoice = selectedLocation;
+        _homeLocationError = null;
+        _homeLocationLoading = false;
+      });
+    } catch (error) {
+      _HomeLocationChoice? currentLocation;
+      try {
+        currentLocation = await _resolveCurrentLocationChoice();
+      } catch (_) {
+        currentLocation = null;
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _savedAddresses = const <_UserAddressData>[];
+        _currentLocationChoice = currentLocation;
+        _selectedLocationChoice = currentLocation;
+        _homeLocationError = currentLocation == null ? '$error' : null;
+        _homeLocationLoading = false;
+      });
     }
-    setState(() {
-      _savedAddresses = addresses;
-      _currentLocationChoice = currentLocation;
-      _selectedLocationChoice = selectedLocation;
-      _homeLocationError = null;
-      _homeLocationLoading = false;
-    });
-  } catch (error) {
-    _HomeLocationChoice? currentLocation;
-    try {
-      currentLocation = await _resolveCurrentLocationChoice();
-    } catch (_) {
-      currentLocation = null;
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _savedAddresses = const <_UserAddressData>[];
-      _currentLocationChoice = currentLocation;
-      _selectedLocationChoice = currentLocation;
-      _homeLocationError = currentLocation == null ? '$error' : null;
-      _homeLocationLoading = false;
-    });
   }
-}
 
-Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
+  Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     final locationServiceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!locationServiceEnabled) {
       return null;
@@ -1063,14 +1228,22 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       return null;
     }
     final position = await Geolocator.getCurrentPosition();
-    final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+    final placemarks = await placemarkFromCoordinates(
+      position.latitude,
+      position.longitude,
+    );
     final placemark = placemarks.isEmpty ? null : placemarks.first;
-    final city = (placemark?.locality ?? placemark?.subAdministrativeArea ?? '').trim();
+    final city = (placemark?.locality ?? placemark?.subAdministrativeArea ?? '')
+        .trim();
     final subtitleParts = <String>[
-      if ((placemark?.subLocality ?? '').trim().isNotEmpty) placemark!.subLocality!.trim(),
-      if ((placemark?.locality ?? '').trim().isNotEmpty) placemark!.locality!.trim(),
-      if ((placemark?.administrativeArea ?? '').trim().isNotEmpty) placemark!.administrativeArea!.trim(),
-      if ((placemark?.postalCode ?? '').trim().isNotEmpty) placemark!.postalCode!.trim(),
+      if ((placemark?.subLocality ?? '').trim().isNotEmpty)
+        placemark!.subLocality!.trim(),
+      if ((placemark?.locality ?? '').trim().isNotEmpty)
+        placemark!.locality!.trim(),
+      if ((placemark?.administrativeArea ?? '').trim().isNotEmpty)
+        placemark!.administrativeArea!.trim(),
+      if ((placemark?.postalCode ?? '').trim().isNotEmpty)
+        placemark!.postalCode!.trim(),
     ];
     return _HomeLocationChoice(
       title: 'Current location',
@@ -1111,7 +1284,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
         left.subtitle == right.subtitle;
   }
 
-  String get _placesApiKey => Platform.isIOS ? _iosPlacesApiKey : _androidPlacesApiKey;
+  String get _placesApiKey =>
+      Platform.isIOS ? _iosPlacesApiKey : _androidPlacesApiKey;
 
   List<String> _homeLocationSearchQueryVariants(String query) {
     final trimmed = query.trim();
@@ -1121,17 +1295,22 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     final variants = <String>[trimmed];
     final normalizedQuery = trimmed.toLowerCase();
     final selectedCity = _selectedLocationCity.trim();
-    if (selectedCity.isNotEmpty && !normalizedQuery.contains(selectedCity.toLowerCase())) {
+    if (selectedCity.isNotEmpty &&
+        !normalizedQuery.contains(selectedCity.toLowerCase())) {
       variants.add('$trimmed, $selectedCity');
     }
     if (!normalizedQuery.contains('india')) {
       variants.add('$trimmed, India');
     }
     final seen = <String>{};
-    return variants.where((variant) => seen.add(variant.trim().toLowerCase())).toList(growable: false);
+    return variants
+        .where((variant) => seen.add(variant.trim().toLowerCase()))
+        .toList(growable: false);
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestions(String query) async {
+  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestions(
+    String query,
+  ) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
       return const <_HomeLocationSearchSuggestion>[];
@@ -1139,17 +1318,23 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     final merged = <_HomeLocationSearchSuggestion>[];
     for (final variant in _homeLocationSearchQueryVariants(trimmed)) {
       try {
-        merged.addAll(await _searchHomeLocationSuggestionsWithQueryAutocomplete(variant));
+        merged.addAll(
+          await _searchHomeLocationSuggestionsWithQueryAutocomplete(variant),
+        );
       } catch (_) {
         // Keep going and enrich results from the next sources.
       }
       try {
-        merged.addAll(await _searchHomeLocationSuggestionsWithAutocomplete(variant));
+        merged.addAll(
+          await _searchHomeLocationSuggestionsWithAutocomplete(variant),
+        );
       } catch (_) {
         // Keep going and enrich results from the next sources.
       }
       try {
-        merged.addAll(await _searchHomeLocationSuggestionsWithTextSearch(variant));
+        merged.addAll(
+          await _searchHomeLocationSuggestionsWithTextSearch(variant),
+        );
       } catch (_) {
         // Keep going and enrich results from the next sources.
       }
@@ -1165,14 +1350,18 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     }
     if (merged.length < 8) {
       try {
-        merged.addAll(await _searchHomeLocationSuggestionsWithOpenStreetMap(trimmed));
+        merged.addAll(
+          await _searchHomeLocationSuggestionsWithOpenStreetMap(trimmed),
+        );
       } catch (_) {
         // Keep whatever remote suggestions we already have.
       }
     }
     if (merged.length < 8) {
       try {
-        merged.addAll(await _searchHomeLocationSuggestionsWithDeviceGeocoder(trimmed));
+        merged.addAll(
+          await _searchHomeLocationSuggestionsWithDeviceGeocoder(trimmed),
+        );
       } catch (_) {
         // Keep whatever richer remote suggestions we already have.
       }
@@ -1184,9 +1373,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     return const <_HomeLocationSearchSuggestion>[];
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithOpenStreetMap(
-    String query,
-  ) async {
+  Future<List<_HomeLocationSearchSuggestion>>
+  _searchHomeLocationSuggestionsWithOpenStreetMap(String query) async {
     final response = await http.get(
       Uri.https('nominatim.openstreetmap.org', '/search', {
         'q': query,
@@ -1201,7 +1389,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('OpenStreetMap search failed with ${response.statusCode}');
+      throw Exception(
+        'OpenStreetMap search failed with ${response.statusCode}',
+      );
     }
     final decoded = jsonDecode(response.body);
     if (decoded is! List) {
@@ -1217,22 +1407,32 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       if (latitude == null || longitude == null || description.isEmpty) {
         continue;
       }
-      final key = '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}';
+      final key =
+          '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}';
       if (!seen.add(key)) {
         continue;
       }
-      final address = Map<String, dynamic>.from((entry['address'] as Map?) ?? const {});
-      final title = <String>[
-        '${address['name'] ?? ''}'.trim(),
-        '${address['suburb'] ?? ''}'.trim(),
-        '${address['neighbourhood'] ?? ''}'.trim(),
-        '${address['city'] ?? ''}'.trim(),
-        '${address['town'] ?? ''}'.trim(),
-        '${address['village'] ?? ''}'.trim(),
-      ].firstWhere((value) => value.isNotEmpty, orElse: () => description.split(',').first.trim());
+      final address = Map<String, dynamic>.from(
+        (entry['address'] as Map?) ?? const {},
+      );
+      final title =
+          <String>[
+            '${address['name'] ?? ''}'.trim(),
+            '${address['suburb'] ?? ''}'.trim(),
+            '${address['neighbourhood'] ?? ''}'.trim(),
+            '${address['city'] ?? ''}'.trim(),
+            '${address['town'] ?? ''}'.trim(),
+            '${address['village'] ?? ''}'.trim(),
+          ].firstWhere(
+            (value) => value.isNotEmpty,
+            orElse: () => description.split(',').first.trim(),
+          );
       final subtitle = description == title
           ? ''
-          : description.substring(title.length).replaceFirst(RegExp(r'^,\s*'), '').trim();
+          : description
+                .substring(title.length)
+                .replaceFirst(RegExp(r'^,\s*'), '')
+                .trim();
       final city = <String>[
         '${address['city'] ?? ''}'.trim(),
         '${address['town'] ?? ''}'.trim(),
@@ -1254,18 +1454,19 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     return results;
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithQueryAutocomplete(
-    String query,
-  ) async {
+  Future<List<_HomeLocationSearchSuggestion>>
+  _searchHomeLocationSuggestionsWithQueryAutocomplete(String query) async {
     final response = await http.get(
-      Uri.https('maps.googleapis.com', '/maps/api/place/queryautocomplete/json', {
-        'input': query,
-        'key': _placesApiKey,
-        'language': 'en',
-      }),
+      Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/queryautocomplete/json',
+        {'input': query, 'key': _placesApiKey, 'language': 'en'},
+      ),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Query autocomplete request failed with ${response.statusCode}');
+      throw Exception(
+        'Query autocomplete request failed with ${response.statusCode}',
+      );
     }
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
@@ -1276,7 +1477,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       return const <_HomeLocationSearchSuggestion>[];
     }
     if (status != 'OK') {
-      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Query autocomplete failed'}');
+      throw Exception(
+        '${decoded['error_message'] ?? decoded['status'] ?? 'Query autocomplete failed'}',
+      );
     }
     final predictions = (decoded['predictions'] as List? ?? const []);
     final seen = <String>{};
@@ -1288,7 +1491,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       if (description.isEmpty) {
         continue;
       }
-      final key = placeId.isNotEmpty ? 'place:$placeId' : description.toLowerCase();
+      final key = placeId.isNotEmpty
+          ? 'place:$placeId'
+          : description.toLowerCase();
       if (!seen.add(key)) {
         continue;
       }
@@ -1309,7 +1514,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     return results;
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithAutocomplete(String query) async {
+  Future<List<_HomeLocationSearchSuggestion>>
+  _searchHomeLocationSuggestionsWithAutocomplete(String query) async {
     final response = await http.get(
       Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
         'input': query,
@@ -1318,7 +1524,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Autocomplete request failed with ${response.statusCode}');
+      throw Exception(
+        'Autocomplete request failed with ${response.statusCode}',
+      );
     }
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
@@ -1329,7 +1537,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       return const <_HomeLocationSearchSuggestion>[];
     }
     if (status != 'OK') {
-      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Autocomplete failed'}');
+      throw Exception(
+        '${decoded['error_message'] ?? decoded['status'] ?? 'Autocomplete failed'}',
+      );
     }
     final predictions = (decoded['predictions'] as List? ?? const []);
     final seen = <String>{};
@@ -1358,7 +1568,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     return results;
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithTextSearch(String query) async {
+  Future<List<_HomeLocationSearchSuggestion>>
+  _searchHomeLocationSuggestionsWithTextSearch(String query) async {
     final response = await http.get(
       Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', {
         'query': query,
@@ -1378,20 +1589,30 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       return const <_HomeLocationSearchSuggestion>[];
     }
     if (status != 'OK') {
-      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Text search failed'}');
+      throw Exception(
+        '${decoded['error_message'] ?? decoded['status'] ?? 'Text search failed'}',
+      );
     }
     final seen = <String>{};
     final results = <_HomeLocationSearchSuggestion>[];
-    for (final raw in (decoded['results'] as List? ?? const []).whereType<Map<dynamic, dynamic>>()) {
+    for (final raw
+        in (decoded['results'] as List? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()) {
       final result = Map<String, dynamic>.from(raw);
       final placeId = '${result['place_id'] ?? ''}'.trim();
       final name = '${result['name'] ?? ''}'.trim();
       final formattedAddress = '${result['formatted_address'] ?? ''}'.trim();
-      final geometry = Map<String, dynamic>.from((result['geometry'] as Map?) ?? const {});
-      final location = Map<String, dynamic>.from((geometry['location'] as Map?) ?? const {});
+      final geometry = Map<String, dynamic>.from(
+        (result['geometry'] as Map?) ?? const {},
+      );
+      final location = Map<String, dynamic>.from(
+        (geometry['location'] as Map?) ?? const {},
+      );
       final latitude = (location['lat'] as num?)?.toDouble();
       final longitude = (location['lng'] as num?)?.toDouble();
-      if ((placeId.isEmpty && formattedAddress.isEmpty) || latitude == null || longitude == null) {
+      if ((placeId.isEmpty && formattedAddress.isEmpty) ||
+          latitude == null ||
+          longitude == null) {
         continue;
       }
       final key = placeId.isNotEmpty
@@ -1400,7 +1621,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       if (!seen.add(key)) {
         continue;
       }
-      final title = name.isEmpty ? (formattedAddress.isEmpty ? query : formattedAddress) : name;
+      final title = name.isEmpty
+          ? (formattedAddress.isEmpty ? query : formattedAddress)
+          : name;
       final subtitle = formattedAddress == title ? '' : formattedAddress;
       results.add(
         _HomeLocationSearchSuggestion(
@@ -1432,8 +1655,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       final key = placeId.isNotEmpty
           ? 'place:$placeId'
           : latitude != null && longitude != null
-              ? '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}'
-              : description;
+          ? '${latitude.toStringAsFixed(5)}:${longitude.toStringAsFixed(5)}'
+          : description;
       if (!seen.add(key)) {
         continue;
       }
@@ -1442,7 +1665,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     return results;
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithGeocode(String query) async {
+  Future<List<_HomeLocationSearchSuggestion>>
+  _searchHomeLocationSuggestionsWithGeocode(String query) async {
     final response = await http.get(
       Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
         'address': query,
@@ -1462,16 +1686,24 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       return const <_HomeLocationSearchSuggestion>[];
     }
     if (status != 'OK') {
-      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Geocode failed'}');
+      throw Exception(
+        '${decoded['error_message'] ?? decoded['status'] ?? 'Geocode failed'}',
+      );
     }
     final seen = <String>{};
     final results = <_HomeLocationSearchSuggestion>[];
-    for (final raw in (decoded['results'] as List? ?? const []).whereType<Map<dynamic, dynamic>>()) {
+    for (final raw
+        in (decoded['results'] as List? ?? const [])
+            .whereType<Map<dynamic, dynamic>>()) {
       final result = Map<String, dynamic>.from(raw);
       final formattedAddress = '${result['formatted_address'] ?? ''}'.trim();
       final placeId = '${result['place_id'] ?? ''}'.trim();
-      final geometry = Map<String, dynamic>.from((result['geometry'] as Map?) ?? const {});
-      final location = Map<String, dynamic>.from((geometry['location'] as Map?) ?? const {});
+      final geometry = Map<String, dynamic>.from(
+        (result['geometry'] as Map?) ?? const {},
+      );
+      final location = Map<String, dynamic>.from(
+        (geometry['location'] as Map?) ?? const {},
+      );
       final latitude = (location['lat'] as num?)?.toDouble();
       final longitude = (location['lng'] as num?)?.toDouble();
       if (formattedAddress.isEmpty || latitude == null || longitude == null) {
@@ -1485,7 +1717,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       }
       final parts = formattedAddress.split(',');
       final title = parts.firstOrNull?.trim() ?? formattedAddress;
-      final subtitle = parts.length > 1 ? parts.skip(1).join(',').trim() : formattedAddress;
+      final subtitle = parts.length > 1
+          ? parts.skip(1).join(',').trim()
+          : formattedAddress;
       String city = '';
       final components = (result['address_components'] as List? ?? const [])
           .whereType<Map<dynamic, dynamic>>()
@@ -1495,7 +1729,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
         final types = (component['types'] as List? ?? const [])
             .map((item) => '$item')
             .toList(growable: false);
-        if (types.contains('locality') || types.contains('administrative_area_level_2')) {
+        if (types.contains('locality') ||
+            types.contains('administrative_area_level_2')) {
           city = '${component['long_name'] ?? ''}'.trim();
           if (city.isNotEmpty) {
             break;
@@ -1517,7 +1752,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     return results;
   }
 
-  Future<List<_HomeLocationSearchSuggestion>> _searchHomeLocationSuggestionsWithDeviceGeocoder(String query) async {
+  Future<List<_HomeLocationSearchSuggestion>>
+  _searchHomeLocationSuggestionsWithDeviceGeocoder(String query) async {
     final resolvedLocations = await locationFromAddress(query);
     if (resolvedLocations.isEmpty) {
       return const <_HomeLocationSearchSuggestion>[];
@@ -1525,7 +1761,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     final seen = <String>{};
     final results = <_HomeLocationSearchSuggestion>[];
     for (final location in resolvedLocations) {
-      final key = '${location.latitude.toStringAsFixed(5)}:${location.longitude.toStringAsFixed(5)}';
+      final key =
+          '${location.latitude.toStringAsFixed(5)}:${location.longitude.toStringAsFixed(5)}';
       if (!seen.add(key)) {
         continue;
       }
@@ -1541,16 +1778,20 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       }
       final titleParts = <String>[
         if ((placemark?.name ?? '').trim().isNotEmpty) placemark!.name!.trim(),
-        if ((placemark?.subLocality ?? '').trim().isNotEmpty) placemark!.subLocality!.trim(),
-        if ((placemark?.locality ?? '').trim().isNotEmpty) placemark!.locality!.trim(),
+        if ((placemark?.subLocality ?? '').trim().isNotEmpty)
+          placemark!.subLocality!.trim(),
+        if ((placemark?.locality ?? '').trim().isNotEmpty)
+          placemark!.locality!.trim(),
       ];
       final subtitleParts = <String>[
-        if ((placemark?.thoroughfare ?? '').trim().isNotEmpty) placemark!.thoroughfare!.trim(),
+        if ((placemark?.thoroughfare ?? '').trim().isNotEmpty)
+          placemark!.thoroughfare!.trim(),
         if ((placemark?.subAdministrativeArea ?? '').trim().isNotEmpty)
           placemark!.subAdministrativeArea!.trim(),
         if ((placemark?.administrativeArea ?? '').trim().isNotEmpty)
           placemark!.administrativeArea!.trim(),
-        if ((placemark?.postalCode ?? '').trim().isNotEmpty) placemark!.postalCode!.trim(),
+        if ((placemark?.postalCode ?? '').trim().isNotEmpty)
+          placemark!.postalCode!.trim(),
       ];
       final title = titleParts.isEmpty ? query : titleParts.join(', ');
       final subtitle = subtitleParts.isEmpty
@@ -1564,7 +1805,8 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
           description: '$title, $subtitle',
           latitude: location.latitude,
           longitude: location.longitude,
-          city: (placemark?.locality ?? placemark?.subAdministrativeArea ?? '').trim(),
+          city: (placemark?.locality ?? placemark?.subAdministrativeArea ?? '')
+              .trim(),
         ),
       );
     }
@@ -1577,7 +1819,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     if (suggestion.latitude != null && suggestion.longitude != null) {
       return _HomeLocationChoice(
         title: suggestion.title,
-        subtitle: suggestion.subtitle.isEmpty ? suggestion.description : suggestion.subtitle,
+        subtitle: suggestion.subtitle.isEmpty
+            ? suggestion.description
+            : suggestion.subtitle,
         city: suggestion.city,
         latitude: suggestion.latitude!,
         longitude: suggestion.longitude!,
@@ -1602,7 +1846,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       return null;
     }
     if (status != 'OK') {
-      throw Exception('${decoded['error_message'] ?? decoded['status'] ?? 'Place lookup failed'}');
+      throw Exception(
+        '${decoded['error_message'] ?? decoded['status'] ?? 'Place lookup failed'}',
+      );
     }
     final raw = (decoded['results'] as List? ?? const [])
         .whereType<Map<dynamic, dynamic>>()
@@ -1611,8 +1857,12 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     if (raw == null) {
       return null;
     }
-    final geometry = Map<String, dynamic>.from((raw['geometry'] as Map?) ?? const {});
-    final location = Map<String, dynamic>.from((geometry['location'] as Map?) ?? const {});
+    final geometry = Map<String, dynamic>.from(
+      (raw['geometry'] as Map?) ?? const {},
+    );
+    final location = Map<String, dynamic>.from(
+      (geometry['location'] as Map?) ?? const {},
+    );
     final latitude = (location['lat'] as num?)?.toDouble();
     final longitude = (location['lng'] as num?)?.toDouble();
     if (latitude == null || longitude == null) {
@@ -1627,17 +1877,21 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       final types = (component['types'] as List? ?? const [])
           .map((item) => '$item')
           .toList(growable: false);
-      if (types.contains('locality') || types.contains('administrative_area_level_2')) {
+      if (types.contains('locality') ||
+          types.contains('administrative_area_level_2')) {
         city = '${component['long_name'] ?? ''}'.trim();
         if (city.isNotEmpty) {
           break;
         }
       }
     }
-    final formattedAddress = '${raw['formatted_address'] ?? suggestion.description}'.trim();
+    final formattedAddress =
+        '${raw['formatted_address'] ?? suggestion.description}'.trim();
     return _HomeLocationChoice(
       title: suggestion.title,
-      subtitle: suggestion.subtitle.isEmpty ? formattedAddress : suggestion.subtitle,
+      subtitle: suggestion.subtitle.isEmpty
+          ? formattedAddress
+          : suggestion.subtitle,
       city: city,
       latitude: latitude,
       longitude: longitude,
@@ -1660,12 +1914,15 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       if (distanceMeters > _savedAddressSnapDistanceMeters) {
         continue;
       }
-      if (nearestDistanceMeters == null || distanceMeters < nearestDistanceMeters) {
+      if (nearestDistanceMeters == null ||
+          distanceMeters < nearestDistanceMeters) {
         nearestDistanceMeters = distanceMeters;
         nearestAddress = address;
       }
     }
-    return nearestAddress == null ? null : _locationChoiceFromAddress(nearestAddress);
+    return nearestAddress == null
+        ? null
+        : _locationChoiceFromAddress(nearestAddress);
   }
 
   Future<void> _openHomeLocationSelector({bool? showManageAddresses}) async {
@@ -1677,7 +1934,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
           backgroundColor: Colors.white,
           body: _HomeLocationSelectorSheet(
             options: <_HomeLocationChoice>[
-              ...?_currentLocationChoice == null ? null : <_HomeLocationChoice>[_currentLocationChoice!],
+              ...?_currentLocationChoice == null
+                  ? null
+                  : <_HomeLocationChoice>[_currentLocationChoice!],
               ..._savedAddresses.map(_locationChoiceFromAddress),
             ],
             selectedLocation: _selectedLocationChoice,
@@ -1715,11 +1974,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
         return;
       }
       _markDiscoveryPending();
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const _AddressesPage(),
-        ),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const _AddressesPage()));
       await _loadHomeLocationOptions();
       await _reloadAddressAwareDiscovery(silent: false);
       return;
@@ -1757,11 +2014,17 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     } finally {
       if (mounted) {
         setState(() {
-          _discoveryBatchInFlightCount = math.max(0, _discoveryBatchInFlightCount - 1);
+          _discoveryBatchInFlightCount = math.max(
+            0,
+            _discoveryBatchInFlightCount - 1,
+          );
           _initialDiscoveryBatchResolved = true;
         });
       } else {
-        _discoveryBatchInFlightCount = math.max(0, _discoveryBatchInFlightCount - 1);
+        _discoveryBatchInFlightCount = math.max(
+          0,
+          _discoveryBatchInFlightCount - 1,
+        );
         _initialDiscoveryBatchResolved = true;
       }
     }
@@ -1784,7 +2047,9 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
       }
       setState(() {
         _labourBookingChargePerLabour = policy.bookingChargePerLabour;
-        _maxGroupLabourCount = policy.maxGroupLabourCount <= 0 ? 7 : policy.maxGroupLabourCount;
+        _maxGroupLabourCount = policy.maxGroupLabourCount <= 0
+            ? 7
+            : policy.maxGroupLabourCount;
         if (_selectedLabourCount <= 0) {
           _selectedLabourCount = 1;
         } else if (_selectedLabourCount > _maxGroupLabourCount) {
@@ -1796,82 +2061,87 @@ Future<_HomeLocationChoice?> _resolveCurrentLocationChoice() async {
     }
   }
 
-
-Future<void> _loadLabourLanding({bool silent = true}) async {
-  if (_labourRemoteLoading) {
-    return;
-  }
-  final hadExistingProfiles = _labourRemoteProfiles.isNotEmpty;
-  setState(() {
-    _labourRemoteLoading = true;
-    _labourRemoteError = null;
-  });
-  try {
-    final landing = await _UserAppApi.fetchLabourLanding(
-      categoryId: _labourCategoryIdForLabel(_selectedLabourCategory),
-      city: _selectedLocationCity,
-      latitude: _selectedLatitude,
-      longitude: _selectedLongitude,
-    );
-    if (!mounted) {
+  Future<void> _loadLabourLanding({bool silent = true}) async {
+    if (_labourRemoteLoading) {
       return;
     }
-    final labels = landing.categories.map((item) => item.label).toList(growable: false);
+    final hadExistingProfiles = _labourRemoteProfiles.isNotEmpty;
     setState(() {
-      _labourRemoteCategories = landing.categories;
-      _labourRemoteProfiles
-        ..clear()
-        ..addAll(landing.profiles);
-      _labourRemoteReady = true;
+      _labourRemoteLoading = true;
       _labourRemoteError = null;
-      if (!labels.contains(_selectedLabourCategory)) {
-        _selectedLabourCategory = labels.isEmpty ? 'All labour' : labels.first;
-      }
     });
-  } on _UserAppApiException catch (error) {
-    if (_shouldTreatAsEmptyResults(error.message)) {
-      if (mounted) {
-        setState(() {
+    try {
+      final landing = await _UserAppApi.fetchLabourLanding(
+        categoryId: _labourCategoryIdForLabel(_selectedLabourCategory),
+        city: _selectedLocationCity,
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
+      );
+      if (!mounted) {
+        return;
+      }
+      final labels = landing.categories
+          .map((item) => item.label)
+          .toList(growable: false);
+      setState(() {
+        _labourRemoteCategories = landing.categories;
+        _labourRemoteProfiles
+          ..clear()
+          ..addAll(landing.profiles);
+        _labourRemoteReady = true;
+        _labourRemoteError = null;
+        if (!labels.contains(_selectedLabourCategory)) {
+          _selectedLabourCategory = labels.isEmpty ? '' : labels.first;
+        }
+      });
+    } on _UserAppApiException catch (error) {
+      if (_shouldTreatAsEmptyResults(error.message)) {
+        if (mounted) {
+          setState(() {
+            _labourRemoteReady = true;
+            _labourRemoteCategories = const <_RemoteLabourCategory>[];
+            _labourRemoteProfiles.clear();
+            _labourRemoteError = null;
+            _selectedLabourCategory = '';
+          });
+        } else {
           _labourRemoteReady = true;
           _labourRemoteCategories = const <_RemoteLabourCategory>[];
           _labourRemoteProfiles.clear();
           _labourRemoteError = null;
-          _selectedLabourCategory = 'All labour';
+          _selectedLabourCategory = '';
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _labourRemoteError = hadExistingProfiles ? null : error.message;
         });
       } else {
-        _labourRemoteReady = true;
-        _labourRemoteCategories = const <_RemoteLabourCategory>[];
-        _labourRemoteProfiles.clear();
-        _labourRemoteError = null;
-        _selectedLabourCategory = 'All labour';
-      }
-      return;
-    }
-    if (mounted) {
-      setState(() {
         _labourRemoteError = hadExistingProfiles ? null : error.message;
-      });
-    } else {
-      _labourRemoteError = hadExistingProfiles ? null : error.message;
-    }
-  } catch (_) {
-    if (mounted) {
-      setState(() {
-        _labourRemoteError = hadExistingProfiles ? null : 'Could not load labour profiles right now.';
-      });
-    } else {
-      _labourRemoteError = hadExistingProfiles ? null : 'Could not load labour profiles right now.';
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _labourRemoteLoading = false);
-    } else {
-      _labourRemoteLoading = false;
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _labourRemoteError = hadExistingProfiles
+              ? null
+              : 'Could not load labour profiles right now.';
+        });
+      } else {
+        _labourRemoteError = hadExistingProfiles
+            ? null
+            : 'Could not load labour profiles right now.';
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _labourRemoteLoading = false);
+      } else {
+        _labourRemoteLoading = false;
+      }
     }
   }
-}
 
-Future<void> _loadServiceLanding({bool silent = true}) async {
+  Future<void> _loadServiceLanding({bool silent = true}) async {
     if (_serviceRemoteLoading) {
       return;
     }
@@ -1893,7 +2163,9 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
       if (!mounted) {
         return;
       }
-      final categoryLabels = landing.categories.map((item) => item.label).toList(growable: false);
+      final categoryLabels = landing.categories
+          .map((item) => item.label)
+          .toList(growable: false);
       setState(() {
         _serviceRemoteCategories = landing.categories;
         _serviceRemoteProviders
@@ -1902,17 +2174,21 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         _serviceRemoteReady = true;
         _serviceRemoteError = null;
         if (!categoryLabels.contains(_selectedServiceCategory)) {
-          _selectedServiceCategory = categoryLabels.isEmpty ? '' : categoryLabels.first;
+          _selectedServiceCategory = categoryLabels.isEmpty
+              ? ''
+              : categoryLabels.first;
         }
         final subcategoryOptions = _selectedServiceSubcategories;
-        final defaultSubcategory = _defaultServiceSubcategoryLabelFor(_selectedServiceCategory);
+        final defaultSubcategory = _defaultServiceSubcategoryLabelFor(
+          _selectedServiceCategory,
+        );
         if (!subcategoryOptions.contains(_selectedServiceSubCategory) ||
             _selectedServiceSubCategory.trim().isEmpty ||
             _selectedServiceSubCategory == 'All') {
           _selectedServiceSubCategory = defaultSubcategory;
         }
       });
-  } on _UserAppApiException catch (error) {
+    } on _UserAppApiException catch (error) {
       if (_shouldTreatAsSilentDiscoveryFallback(error.message)) {
         if (mounted) {
           setState(() {
@@ -2049,7 +2325,9 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         categories: landing.categories,
       );
       if (_selectedShopSubCategory != 'All' && selectedCategoryId != null) {
-        productPage = await _UserAppApi.fetchFashionProducts(categoryId: selectedCategoryId);
+        productPage = await _UserAppApi.fetchFashionProducts(
+          categoryId: selectedCategoryId,
+        );
       }
       if (!mounted) {
         return;
@@ -2138,7 +2416,9 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         categories: landing.categories,
       );
       if (_selectedShopSubCategory != 'All' && selectedCategoryId != null) {
-        productPage = await _UserAppApi.fetchFootwearProducts(categoryId: selectedCategoryId);
+        productPage = await _UserAppApi.fetchFootwearProducts(
+          categoryId: selectedCategoryId,
+        );
       }
       if (!mounted) {
         return;
@@ -2220,9 +2500,14 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         longitude: _selectedLongitude,
       );
       var productPage = landing.products;
-      final selectedCategoryId = _giftCategoryIdForLabel(_selectedShopSubCategory, categories: landing.categories);
+      final selectedCategoryId = _giftCategoryIdForLabel(
+        _selectedShopSubCategory,
+        categories: landing.categories,
+      );
       if (_selectedShopSubCategory != 'All' && selectedCategoryId != null) {
-        productPage = await _UserAppApi.fetchGiftProducts(categoryId: selectedCategoryId);
+        productPage = await _UserAppApi.fetchGiftProducts(
+          categoryId: selectedCategoryId,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -2302,10 +2587,14 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         longitude: _selectedLongitude,
       );
       var productPage = landing.products;
-      final selectedCategoryId =
-          _groceryCategoryIdForLabel(_selectedShopSubCategory, categories: landing.categories);
+      final selectedCategoryId = _groceryCategoryIdForLabel(
+        _selectedShopSubCategory,
+        categories: landing.categories,
+      );
       if (_selectedShopSubCategory != 'All' && selectedCategoryId != null) {
-        productPage = await _UserAppApi.fetchGroceryProducts(categoryId: selectedCategoryId);
+        productPage = await _UserAppApi.fetchGroceryProducts(
+          categoryId: selectedCategoryId,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -2385,10 +2674,14 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
         longitude: _selectedLongitude,
       );
       var productPage = landing.products;
-      final selectedCategoryId =
-          _pharmacyCategoryIdForLabel(_selectedShopSubCategory, categories: landing.categories);
+      final selectedCategoryId = _pharmacyCategoryIdForLabel(
+        _selectedShopSubCategory,
+        categories: landing.categories,
+      );
       if (_selectedShopSubCategory != 'All' && selectedCategoryId != null) {
-        productPage = await _UserAppApi.fetchPharmacyProducts(categoryId: selectedCategoryId);
+        productPage = await _UserAppApi.fetchPharmacyProducts(
+          categoryId: selectedCategoryId,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -2475,126 +2768,17 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
     return null;
   }
 
-  bool get _isGroupBookingUsingAllLabourFilter {
-    final selected = _selectedLabourCategory.trim();
-    return selected.isEmpty || selected == 'All labour';
-  }
-
-  String? _effectiveGroupLabourCategoryLabel() {
-    if (!_isGroupBookingUsingAllLabourFilter) {
-      final selected = _selectedLabourCategory.trim();
-      return selected.isEmpty ? null : selected;
-    }
-    final selected = _selectedGroupLabourCategory?.trim() ?? '';
-    if (selected.isEmpty || selected == 'All labour') {
-      return null;
-    }
-    return selected;
-  }
-
-  Future<int?> _resolveGroupLabourCategoryId({bool allowExistingSelection = true}) async {
-    final forcedLabel = _effectiveGroupLabourCategoryLabel();
-    final selectedId = _labourCategoryIdForLabel(forcedLabel ?? '');
-    if (allowExistingSelection && selectedId != null) {
-      return selectedId;
-    }
-    final options = _labourRemoteCategories
-        .where((category) => category.backendCategoryId != null)
-        .toList(growable: false);
-    if (options.isEmpty) {
-      return null;
-    }
-    final selected = await showModalBottomSheet<_RemoteLabourCategory>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
-        decoration: const BoxDecoration(
-          color: Color(0xFFF7F2EC),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 48,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD8C7BC),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Select labour type',
-              style: TextStyle(
-                color: Color(0xFF22314D),
-                fontWeight: FontWeight.w900,
-                fontSize: 20,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Group request will go to all matching labour in this type and in your selected range.',
-              style: TextStyle(
-                color: Color(0xFF66748C),
-                fontWeight: FontWeight.w700,
-                height: 1.35,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: options.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final category = options[index];
-                  return ListTile(
-                    onTap: () => Navigator.of(context).pop(category),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    tileColor: Colors.white,
-                    leading: const Icon(Icons.engineering_rounded, color: Color(0xFFCB6E5B)),
-                    title: Text(
-                      category.label,
-                      style: const TextStyle(
-                        color: Color(0xFF22314D),
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (selected == null) {
-      return null;
-    }
-    if (mounted) {
-      setState(() {
-        _selectedGroupLabourCategory = selected.label;
-        _showLabourCountError = false;
-        _labourCountErrorText = null;
-      });
-    }
-    return selected.backendCategoryId;
-  }
-
   int _availableLabourCountForGroupCategory(int? categoryId) {
-    final profiles = categoryId == null
-        ? _labourRemoteProfiles
-        : _labourRemoteProfiles.where(
-            (item) =>
-                item.backendCategoryId == categoryId ||
-                item.labourCategoryPricing.any((pricing) => pricing.categoryId == categoryId),
-          );
+    if (categoryId == null) {
+      return 0;
+    }
+    final profiles = _labourRemoteProfiles.where(
+      (item) =>
+          item.backendCategoryId == categoryId ||
+          item.labourCategoryPricing.any(
+            (pricing) => pricing.categoryId == categoryId,
+          ),
+    );
     return profiles.where((item) => !item.isDisabled).length;
   }
 
@@ -2607,7 +2791,10 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
     return null;
   }
 
-  int? _serviceSubcategoryIdForSelection(String categoryLabel, String subcategoryLabel) {
+  int? _serviceSubcategoryIdForSelection(
+    String categoryLabel,
+    String subcategoryLabel,
+  ) {
     for (final category in _serviceRemoteCategories) {
       if (category.label != categoryLabel) {
         continue;
@@ -2621,52 +2808,54 @@ Future<void> _loadServiceLanding({bool silent = true}) async {
     return null;
   }
 
-
-Future<void> _selectRestaurantCuisine(String value) async {
-  setState(() {
-    _selectedRestaurantCuisine = value;
-    _restaurantRemoteLoading = true;
-    _restaurantRemoteProducts.clear();
-  });
-  _RestaurantCuisineItem? selectedCategory;
-  for (final item in _restaurantRemoteCuisines) {
-    if (item.label == value) {
-      selectedCategory = item;
-      break;
-    }
-  }
-  try {
-    final products = await _UserAppApi.fetchRestaurantProducts(
-      categoryId: selectedCategory?.backendCategoryId,
-    );
-    if (!mounted) {
-      return;
-    }
+  Future<void> _selectRestaurantCuisine(String value) async {
     setState(() {
-      _restaurantRemoteProducts
-        ..clear()
-        ..addAll(products);
+      _selectedRestaurantCuisine = value;
+      _restaurantRemoteLoading = true;
+      _restaurantRemoteProducts.clear();
     });
-  } on _UserAppApiException catch (error) {
-    if (mounted && !_shouldTreatAsEmptyResults(error.message)) {
-      _showCartSnack('Could not refresh restaurant items right now.');
+    _RestaurantCuisineItem? selectedCategory;
+    for (final item in _restaurantRemoteCuisines) {
+      if (item.label == value) {
+        selectedCategory = item;
+        break;
+      }
     }
-  } catch (_) {
-    if (mounted) {
-      _showCartSnack('Could not refresh restaurant items right now.');
-    }
-  } finally {
-    if (mounted) {
+    try {
+      final products = await _UserAppApi.fetchRestaurantProducts(
+        categoryId: selectedCategory?.backendCategoryId,
+      );
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        _restaurantRemoteLoading = false;
+        _restaurantRemoteProducts
+          ..clear()
+          ..addAll(products);
       });
-    } else {
-      _restaurantRemoteLoading = false;
+    } on _UserAppApiException catch (error) {
+      if (mounted && !_shouldTreatAsEmptyResults(error.message)) {
+        _showCartSnack('Could not refresh restaurant items right now.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showCartSnack('Could not refresh restaurant items right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _restaurantRemoteLoading = false;
+        });
+      } else {
+        _restaurantRemoteLoading = false;
+      }
     }
   }
-}
 
-Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async {
+  Future<void> _selectFashionSubcategory(
+    String value, {
+    bool silent = true,
+  }) async {
     setState(() {
       _selectedShopSubCategory = value;
     });
@@ -2705,7 +2894,9 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   }
 
   Future<void> _loadMoreFashionProducts() async {
-    if (_fashionRemoteLoading || !_fashionRemoteReady || !_fashionRemoteHasMore) {
+    if (_fashionRemoteLoading ||
+        !_fashionRemoteReady ||
+        !_fashionRemoteHasMore) {
       return;
     }
     _fashionRemoteLoading = true;
@@ -2732,7 +2923,10 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     }
   }
 
-  Future<void> _selectFootwearSubcategory(String value, {bool silent = true}) async {
+  Future<void> _selectFootwearSubcategory(
+    String value, {
+    bool silent = true,
+  }) async {
     setState(() {
       _selectedShopSubCategory = value;
       _footwearRemoteLoading = true;
@@ -2781,7 +2975,10 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     }
   }
 
-  Future<void> _selectGiftSubcategory(String value, {bool silent = true}) async {
+  Future<void> _selectGiftSubcategory(
+    String value, {
+    bool silent = true,
+  }) async {
     setState(() {
       _selectedShopSubCategory = value;
       _giftRemoteLoading = true;
@@ -2819,7 +3016,10 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     }
   }
 
-  Future<void> _selectGrocerySubcategory(String value, {bool silent = true}) async {
+  Future<void> _selectGrocerySubcategory(
+    String value, {
+    bool silent = true,
+  }) async {
     setState(() {
       _selectedShopSubCategory = value;
       _groceryRemoteLoading = true;
@@ -2828,7 +3028,9 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     });
     final categoryId = _groceryCategoryIdForLabel(value);
     try {
-      final page = await _UserAppApi.fetchGroceryProducts(categoryId: categoryId);
+      final page = await _UserAppApi.fetchGroceryProducts(
+        categoryId: categoryId,
+      );
       if (!mounted) return;
       setState(() {
         _groceryRemoteReady = true;
@@ -2857,7 +3059,10 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     }
   }
 
-  Future<void> _selectPharmacySubcategory(String value, {bool silent = true}) async {
+  Future<void> _selectPharmacySubcategory(
+    String value, {
+    bool silent = true,
+  }) async {
     setState(() {
       _selectedShopSubCategory = value;
       _pharmacyRemoteLoading = true;
@@ -2866,7 +3071,9 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     });
     final categoryId = _pharmacyCategoryIdForLabel(value);
     try {
-      final page = await _UserAppApi.fetchPharmacyProducts(categoryId: categoryId);
+      final page = await _UserAppApi.fetchPharmacyProducts(
+        categoryId: categoryId,
+      );
       if (!mounted) return;
       setState(() {
         _pharmacyRemoteReady = true;
@@ -2896,7 +3103,9 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   }
 
   Future<void> _loadMoreFootwearProducts() async {
-    if (_footwearRemoteLoading || !_footwearRemoteReady || !_footwearRemoteHasMore) {
+    if (_footwearRemoteLoading ||
+        !_footwearRemoteReady ||
+        !_footwearRemoteHasMore) {
       return;
     }
     _footwearRemoteLoading = true;
@@ -2943,7 +3152,8 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   }
 
   Future<void> _loadMoreGroceryProducts() async {
-    if (_groceryRemoteLoading || !_groceryRemoteReady || !_groceryRemoteHasMore) return;
+    if (_groceryRemoteLoading || !_groceryRemoteReady || !_groceryRemoteHasMore)
+      return;
     _groceryRemoteLoading = true;
     try {
       final page = await _UserAppApi.fetchGroceryProducts(
@@ -2962,7 +3172,10 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   }
 
   Future<void> _loadMorePharmacyProducts() async {
-    if (_pharmacyRemoteLoading || !_pharmacyRemoteReady || !_pharmacyRemoteHasMore) return;
+    if (_pharmacyRemoteLoading ||
+        !_pharmacyRemoteReady ||
+        !_pharmacyRemoteHasMore)
+      return;
     _pharmacyRemoteLoading = true;
     try {
       final page = await _UserAppApi.fetchPharmacyProducts(
@@ -3004,21 +3217,30 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     return null;
   }
 
-  int? _giftCategoryIdForLabel(String label, {List<_GiftRemoteCategory>? categories}) {
+  int? _giftCategoryIdForLabel(
+    String label, {
+    List<_GiftRemoteCategory>? categories,
+  }) {
     for (final item in categories ?? _giftRemoteCategories) {
       if (item.label == label) return item.backendCategoryId;
     }
     return null;
   }
 
-  int? _groceryCategoryIdForLabel(String label, {List<_GroceryRemoteCategory>? categories}) {
+  int? _groceryCategoryIdForLabel(
+    String label, {
+    List<_GroceryRemoteCategory>? categories,
+  }) {
     for (final item in categories ?? _groceryRemoteCategories) {
       if (item.label == label) return item.backendCategoryId;
     }
     return null;
   }
 
-  int? _pharmacyCategoryIdForLabel(String label, {List<_PharmacyRemoteCategory>? categories}) {
+  int? _pharmacyCategoryIdForLabel(
+    String label, {
+    List<_PharmacyRemoteCategory>? categories,
+  }) {
     for (final item in categories ?? _pharmacyRemoteCategories) {
       if (item.label == label) return item.backendCategoryId;
     }
@@ -3027,35 +3249,42 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
 
   void _handleScroll() {
     final next = _scrollController.offset > 320;
-    final shouldLoadMoreFashion = _mode == _HomeMode.shop &&
+    final shouldLoadMoreFashion =
+        _mode == _HomeMode.shop &&
         _shopBrowseMode == _ShopBrowseMode.itemWise &&
         _selectedShopCategory == 'Fashion' &&
         (_fashionRemoteReady
             ? (_fashionRemoteHasMore && !_fashionRemoteLoading)
-            : (_fashionVisibleProductCount < _fashionProductTotalCount && !_fashionLoadMoreQueued)) &&
+            : (_fashionVisibleProductCount < _fashionProductTotalCount &&
+                  !_fashionLoadMoreQueued)) &&
         _scrollController.position.extentAfter < 700;
-    final shouldLoadMoreFootwear = _mode == _HomeMode.shop &&
+    final shouldLoadMoreFootwear =
+        _mode == _HomeMode.shop &&
         _shopBrowseMode == _ShopBrowseMode.itemWise &&
         _selectedShopCategory == 'Footwear' &&
         (_footwearRemoteReady
             ? (_footwearRemoteHasMore && !_footwearRemoteLoading)
-            : (_footwearVisibleProductCount < _footwearProductTotalCount && !_footwearLoadMoreQueued)) &&
+            : (_footwearVisibleProductCount < _footwearProductTotalCount &&
+                  !_footwearLoadMoreQueued)) &&
         _scrollController.position.extentAfter < 700;
-    final shouldLoadMoreGift = _mode == _HomeMode.shop &&
+    final shouldLoadMoreGift =
+        _mode == _HomeMode.shop &&
         _shopBrowseMode == _ShopBrowseMode.itemWise &&
         _selectedShopCategory == 'Gift' &&
         _giftRemoteReady &&
         _giftRemoteHasMore &&
         !_giftRemoteLoading &&
         _scrollController.position.extentAfter < 700;
-    final shouldLoadMoreGrocery = _mode == _HomeMode.shop &&
+    final shouldLoadMoreGrocery =
+        _mode == _HomeMode.shop &&
         _shopBrowseMode == _ShopBrowseMode.itemWise &&
         _selectedShopCategory == 'Groceries' &&
         _groceryRemoteReady &&
         _groceryRemoteHasMore &&
         !_groceryRemoteLoading &&
         _scrollController.position.extentAfter < 700;
-    final shouldLoadMorePharmacy = _mode == _HomeMode.shop &&
+    final shouldLoadMorePharmacy =
+        _mode == _HomeMode.shop &&
         _shopBrowseMode == _ShopBrowseMode.itemWise &&
         _selectedShopCategory == 'Pharmacy' &&
         _pharmacyRemoteReady &&
@@ -3100,7 +3329,9 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
       }
       setState(() {
         _fashionVisibleProductCount =
-            (_fashionVisibleProductCount + _fashionProductBatchSize).clamp(0, _fashionProductTotalCount).toInt();
+            (_fashionVisibleProductCount + _fashionProductBatchSize)
+                .clamp(0, _fashionProductTotalCount)
+                .toInt();
         _fashionLoadMoreQueued = false;
       });
     });
@@ -3114,7 +3345,9 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
       }
       setState(() {
         _footwearVisibleProductCount =
-            (_footwearVisibleProductCount + _footwearProductBatchSize).clamp(0, _footwearProductTotalCount).toInt();
+            (_footwearVisibleProductCount + _footwearProductBatchSize)
+                .clamp(0, _footwearProductTotalCount)
+                .toInt();
         _footwearLoadMoreQueued = false;
       });
     });
@@ -3125,7 +3358,12 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        const options = ['Popular', 'Low to High', 'High to Low', 'Newly Added'];
+        const options = [
+          'Popular',
+          'Low to High',
+          'High to Low',
+          'Newly Added',
+        ];
         return Container(
           margin: const EdgeInsets.fromLTRB(14, 0, 14, 16),
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -3194,28 +3432,42 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
       MaterialPageRoute<bool>(
         builder: (_) => _selectedShopCategory == 'Footwear'
             ? _ShopFootwearFilterPage(
-                initialGender: _selectedShopSubCategory == 'All' ? 'Men' : _selectedShopSubCategory,
+                initialGender: _selectedShopSubCategory == 'All'
+                    ? 'Men'
+                    : _selectedShopSubCategory,
               )
             : _selectedShopCategory == 'Gift'
-                ? _ShopGiftFilterPage(
-                    initialCategory: _selectedShopSubCategory == 'All' ? 'Flowers' : _selectedShopSubCategory,
-                  )
+            ? _ShopGiftFilterPage(
+                initialCategory: _selectedShopSubCategory == 'All'
+                    ? 'Flowers'
+                    : _selectedShopSubCategory,
+              )
             : _selectedShopCategory == 'Groceries'
-                ? _ShopGroceryFilterPage(
-                    initialCategory: _selectedShopSubCategory == 'All' ? 'Biscuits' : _selectedShopSubCategory,
-                  )
-                : _selectedShopCategory == 'Pharmacy'
-                    ? _ShopPharmacyFilterPage(
-                        initialCategory: _selectedShopSubCategory == 'All' ? 'Wellness' : _selectedShopSubCategory,
-                      )
-                : _ShopFilterPage(
-                    initialGender: _selectedShopSubCategory == 'All' ? 'Men' : _selectedShopSubCategory,
-                  ),
+            ? _ShopGroceryFilterPage(
+                initialCategory: _selectedShopSubCategory == 'All'
+                    ? 'Biscuits'
+                    : _selectedShopSubCategory,
+              )
+            : _selectedShopCategory == 'Pharmacy'
+            ? _ShopPharmacyFilterPage(
+                initialCategory: _selectedShopSubCategory == 'All'
+                    ? 'Wellness'
+                    : _selectedShopSubCategory,
+              )
+            : _ShopFilterPage(
+                initialGender: _selectedShopSubCategory == 'All'
+                    ? 'Men'
+                    : _selectedShopSubCategory,
+              ),
       ),
     );
     if (applied == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Filters applied. API filtering will connect with backend pagination next.')),
+        const SnackBar(
+          content: Text(
+            'Filters applied. API filtering will connect with backend pagination next.',
+          ),
+        ),
       );
     }
   }
@@ -3246,7 +3498,8 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
   SliverToBoxAdapter _buildAreaComingSoonSliver({
     required IconData icon,
     String title = 'Coming soon in your area....!',
-    String message = 'We are opening this around your selected location. Please check again soon.',
+    String message =
+        'We are opening this around your selected location. Please check again soon.',
   }) {
     return SliverToBoxAdapter(
       child: Padding(
@@ -3257,16 +3510,10 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF5E8),
-                Color(0xFFFDF1F8),
-                Color(0xFFEFF7FF),
-              ],
+              colors: [Color(0xFFFFF5E8), Color(0xFFFDF1F8), Color(0xFFEFF7FF)],
             ),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: const Color(0xFFF0D7B0),
-            ),
+            border: Border.all(color: const Color(0xFFF0D7B0)),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF1A2030).withValues(alpha: 0.06),
@@ -3284,11 +3531,7 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
                   color: Colors.white.withValues(alpha: 0.88),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  color: const Color(0xFFCB6E5B),
-                  size: 28,
-                ),
+                child: Icon(icon, color: const Color(0xFFCB6E5B), size: 28),
               ),
               const SizedBox(height: 14),
               Text(
@@ -3319,93 +3562,108 @@ Future<void> _selectFashionSubcategory(String value, {bool silent = true}) async
     );
   }
 
-
-Widget? _buildLabourStateSliver() {
-  if (_labourRemoteLoading) {
+  Widget? _buildLabourStateSliver() {
+    if (_labourRemoteLoading) {
+      return null;
+    }
+    if (_labourRemoteError != null && _labourRemoteProfiles.isEmpty) {
+      return _buildRemoteStateSliver(
+        icon: Icons.engineering_rounded,
+        title: 'Labour is temporarily unavailable',
+        message: _friendlyShopErrorMessage(
+          rawMessage: _labourRemoteError!,
+          fallback:
+              'We could not load labour right now. Please try again in a moment.',
+        ),
+        actionLabel: 'Try Again',
+        onAction: () => unawaited(_loadLabourLanding(silent: false)),
+      );
+    }
+    if (_labourRemoteReady && _labourRemoteProfiles.isEmpty) {
+      final selectedCategoryName = _selectedLabourCategory.trim().isEmpty
+          ? 'labour category'
+          : _selectedLabourCategory;
+      return _buildAreaComingSoonSliver(
+        icon: Icons.engineering_rounded,
+        title: 'No labour available yet',
+        message:
+            'No labour is available yet for $selectedCategoryName. Every day we are onboarding more labour partners to help them get jobs and help you get work done faster.',
+      );
+    }
     return null;
   }
-  if (_labourRemoteError != null && _labourRemoteProfiles.isEmpty) {
-    return _buildRemoteStateSliver(
-      icon: Icons.engineering_rounded,
-      title: 'Labour is temporarily unavailable',
-      message: _friendlyShopErrorMessage(
-        rawMessage: _labourRemoteError!,
-        fallback: 'We could not load labour right now. Please try again in a moment.',
-      ),
-      actionLabel: 'Try Again',
-      onAction: () => unawaited(_loadLabourLanding(silent: false)),
+
+  List<_DiscoveryItem> get _filteredSingleLabourProfiles {
+    final period = _selectedSingleLabourPeriod.trim().toUpperCase();
+    final maxPrice = _parseMoneyAmount(_selectedSingleLabourMaxPrice);
+    final selectedCategoryId = _labourCategoryIdForLabel(
+      _selectedLabourCategory,
     );
+    return _labourRemoteProfiles
+        .where((item) {
+          if (selectedCategoryId != null &&
+              item.backendCategoryId != selectedCategoryId &&
+              !item.labourCategoryPricing.any(
+                (pricing) => pricing.categoryId == selectedCategoryId,
+              )) {
+            return false;
+          }
+          final halfDay = _parseMoneyAmount(item.labourHalfDayPrice);
+          final fullDay = _parseMoneyAmount(item.labourFullDayPrice);
+          if (item.backendLabourId != null && halfDay <= 0 && fullDay <= 0) {
+            return false;
+          }
+          if (period == 'HALF DAY') {
+            if (halfDay <= 0) {
+              return false;
+            }
+            return maxPrice <= 0 || halfDay <= maxPrice;
+          }
+          if (period == 'FULL DAY') {
+            if (fullDay <= 0) {
+              return false;
+            }
+            return maxPrice <= 0 || fullDay <= maxPrice;
+          }
+          if (maxPrice <= 0) {
+            return true;
+          }
+          final prices = <double>[
+            if (halfDay > 0) halfDay,
+            if (fullDay > 0) fullDay,
+          ];
+          return prices.any((price) => price <= maxPrice);
+        })
+        .toList(growable: false);
   }
-  if (_labourRemoteReady && _labourRemoteProfiles.isEmpty) {
-    final selectedCategoryName = _selectedLabourCategory.trim().isEmpty ? 'labour category' : _selectedLabourCategory;
-    final isAllCategory = selectedCategoryName == 'All labour';
-    return _buildAreaComingSoonSliver(
-      icon: Icons.engineering_rounded,
-      title: isAllCategory ? 'Coming soon in your area....!' : 'No labour available yet',
-      message: isAllCategory
-          ? 'We are onboarding more labour partners near your selected location every day. Please check again soon.'
-          : 'No labour is available yet for $selectedCategoryName. Every day we are onboarding more labour partners to help them get jobs and help you get work done faster.',
-    );
+
+  double _parseMoneyAmount(String value) {
+    final normalized = value.replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(normalized) ?? 0;
   }
-  return null;
-}
 
-List<_DiscoveryItem> get _filteredSingleLabourProfiles {
-  final period = _selectedSingleLabourPeriod.trim().toUpperCase();
-  final maxPrice = _parseMoneyAmount(_selectedSingleLabourMaxPrice);
-  return _labourRemoteProfiles.where((item) {
-    final halfDay = _parseMoneyAmount(item.labourHalfDayPrice);
-    final fullDay = _parseMoneyAmount(item.labourFullDayPrice);
-    if (item.backendLabourId != null && halfDay <= 0 && fullDay <= 0) {
-      return false;
-    }
-    if (period == 'HALF DAY') {
-      if (halfDay <= 0) {
-        return false;
-      }
-      return maxPrice <= 0 || halfDay <= maxPrice;
-    }
-    if (period == 'FULL DAY') {
-      if (fullDay <= 0) {
-        return false;
-      }
-      return maxPrice <= 0 || fullDay <= maxPrice;
-    }
-    if (maxPrice <= 0) {
-      return true;
-    }
-    final prices = <double>[
-      if (halfDay > 0) halfDay,
-      if (fullDay > 0) fullDay,
-    ];
-    return prices.any((price) => price <= maxPrice);
-  }).toList(growable: false);
-}
-
-double _parseMoneyAmount(String value) {
-  final normalized = value.replaceAll(RegExp(r'[^0-9.]'), '');
-  return double.tryParse(normalized) ?? 0;
-}
-
-Widget? _buildServiceStateSliver() {
-    if (_serviceRemoteLoading && _serviceRemoteProviders.isEmpty) {
+  Widget? _buildServiceStateSliver({required bool hasVisibleProviders}) {
+    if (_serviceRemoteLoading && !hasVisibleProviders) {
       return _buildRemoteStateSliver(
         icon: Icons.handyman_rounded,
         title: 'Loading service providers',
-        message: 'We are fetching live providers for the category you selected.',
+        message:
+            'We are fetching live providers for the category you selected.',
         loading: true,
       );
     }
-    if (_serviceRemoteError != null && _serviceRemoteProviders.isEmpty) {
+    if (_serviceRemoteError != null && !hasVisibleProviders) {
       return _buildAreaComingSoonSliver(
         icon: Icons.handyman_rounded,
-        message: 'Service providers are not available in your selected area right now.',
+        message:
+            'Service providers are not available in your selected area right now.',
       );
     }
-    if (_serviceRemoteReady && _serviceRemoteProviders.isEmpty) {
+    if (_serviceRemoteReady && !hasVisibleProviders) {
       return _buildAreaComingSoonSliver(
         icon: Icons.handyman_rounded,
-        message: 'No service provider is registered within your selected range yet.',
+        message:
+            'No service provider is registered within your selected range yet.',
       );
     }
     return null;
@@ -3413,17 +3671,24 @@ Widget? _buildServiceStateSliver() {
 
   Widget? _buildShopRemoteStateSliver() {
     if (_showShopAllLanding) {
-      final hasAnyShopData = _restaurantRemoteProducts.isNotEmpty ||
+      final hasAnyShopData =
+          _restaurantRemoteProducts.isNotEmpty ||
           _restaurantRemoteShops.isNotEmpty ||
           (_fashionRemoteReady &&
-              (_fashionRemoteProducts.isNotEmpty || _fashionRemoteShops.isNotEmpty)) ||
+              (_fashionRemoteProducts.isNotEmpty ||
+                  _fashionRemoteShops.isNotEmpty)) ||
           (_footwearRemoteReady &&
-              (_footwearRemoteProducts.isNotEmpty || _footwearRemoteShops.isNotEmpty)) ||
-          (_giftRemoteReady && (_giftRemoteProducts.isNotEmpty || _giftRemoteShops.isNotEmpty)) ||
+              (_footwearRemoteProducts.isNotEmpty ||
+                  _footwearRemoteShops.isNotEmpty)) ||
+          (_giftRemoteReady &&
+              (_giftRemoteProducts.isNotEmpty ||
+                  _giftRemoteShops.isNotEmpty)) ||
           (_groceryRemoteReady &&
-              (_groceryRemoteProducts.isNotEmpty || _groceryRemoteShops.isNotEmpty)) ||
+              (_groceryRemoteProducts.isNotEmpty ||
+                  _groceryRemoteShops.isNotEmpty)) ||
           (_pharmacyRemoteReady &&
-              (_pharmacyRemoteProducts.isNotEmpty || _pharmacyRemoteShops.isNotEmpty));
+              (_pharmacyRemoteProducts.isNotEmpty ||
+                  _pharmacyRemoteShops.isNotEmpty));
       if (!hasAnyShopData) {
         return _buildAreaComingSoonSliver(
           icon: Icons.storefront_rounded,
@@ -3433,27 +3698,31 @@ Widget? _buildServiceStateSliver() {
       return null;
     }
     if (_showShopRestaurantLanding) {
-      final hasData = _restaurantRemoteProducts.isNotEmpty ||
+      final hasData =
+          _restaurantRemoteProducts.isNotEmpty ||
           _restaurantRemoteShops.isNotEmpty ||
           _restaurantRemoteCuisines.isNotEmpty;
       if (_restaurantRemoteLoading && !hasData) {
         return _buildRemoteStateSliver(
           icon: Icons.restaurant_menu_rounded,
           title: 'Loading restaurants',
-          message: 'We are bringing in live restaurants, cuisines, and shop listings.',
+          message:
+              'We are bringing in live restaurants, cuisines, and shop listings.',
           loading: true,
         );
       }
       if (_restaurantRemoteError != null && !hasData) {
         return _buildAreaComingSoonSliver(
           icon: Icons.restaurant_menu_rounded,
-          message: 'Restaurants are not available in your selected area right now.',
+          message:
+              'Restaurants are not available in your selected area right now.',
         );
       }
       if (!hasData) {
         return _buildAreaComingSoonSliver(
           icon: Icons.restaurant_menu_rounded,
-          message: 'No restaurant is registered within your selected range yet.',
+          message:
+              'No restaurant is registered within your selected range yet.',
         );
       }
       return null;
@@ -3461,76 +3730,90 @@ Widget? _buildServiceStateSliver() {
 
     switch (_selectedShopCategory) {
       case 'Fashion':
-        final hasData = _fashionRemoteProducts.isNotEmpty || _fashionRemoteShops.isNotEmpty;
+        final hasData =
+            _fashionRemoteProducts.isNotEmpty || _fashionRemoteShops.isNotEmpty;
         if (_fashionRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.checkroom_rounded,
             title: 'Loading fashion items',
-            message: 'We are fetching the latest items and nearby fashion shops.',
+            message:
+                'We are fetching the latest items and nearby fashion shops.',
             loading: true,
           );
         }
         if (_fashionRemoteError != null && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.checkroom_rounded,
-            message: 'Fashion shops are not available in your selected area right now.',
+            message:
+                'Fashion shops are not available in your selected area right now.',
           );
         }
         if (_fashionRemoteReady && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.checkroom_rounded,
-            message: 'No fashion shop is registered within your selected range yet.',
+            message:
+                'No fashion shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Footwear':
-        final hasData = _footwearRemoteProducts.isNotEmpty || _footwearRemoteShops.isNotEmpty;
+        final hasData =
+            _footwearRemoteProducts.isNotEmpty ||
+            _footwearRemoteShops.isNotEmpty;
         if (_footwearRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.shopping_bag_outlined,
             title: 'Loading footwear',
-            message: 'We are fetching the latest footwear items and shop listings.',
+            message:
+                'We are fetching the latest footwear items and shop listings.',
             loading: true,
           );
         }
         if (_footwearRemoteError != null && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.shopping_bag_outlined,
-            message: 'Footwear shops are not available in your selected area right now.',
+            message:
+                'Footwear shops are not available in your selected area right now.',
           );
         }
         if (_footwearRemoteReady && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.shopping_bag_outlined,
-            message: 'No footwear shop is registered within your selected range yet.',
+            message:
+                'No footwear shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Gift':
-        final hasData = _giftRemoteProducts.isNotEmpty || _giftRemoteShops.isNotEmpty;
+        final hasData =
+            _giftRemoteProducts.isNotEmpty || _giftRemoteShops.isNotEmpty;
         if (_giftRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.redeem_rounded,
             title: 'Loading gifts',
-            message: 'We are fetching gift items and shop picks for this selection.',
+            message:
+                'We are fetching gift items and shop picks for this selection.',
             loading: true,
           );
         }
         if (_giftRemoteError != null && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.redeem_rounded,
-            message: 'Gift shops are not available in your selected area right now.',
+            message:
+                'Gift shops are not available in your selected area right now.',
           );
         }
         if (_giftRemoteReady && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.redeem_rounded,
-            message: 'No gift shop is registered within your selected range yet.',
+            message:
+                'No gift shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Groceries':
-        final hasData = _groceryRemoteProducts.isNotEmpty || _groceryRemoteShops.isNotEmpty;
+        final hasData =
+            _groceryRemoteProducts.isNotEmpty || _groceryRemoteShops.isNotEmpty;
         if (_groceryRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.local_grocery_store_rounded,
@@ -3542,36 +3825,43 @@ Widget? _buildServiceStateSliver() {
         if (_groceryRemoteError != null && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.local_grocery_store_rounded,
-            message: 'Grocery shops are not available in your selected area right now.',
+            message:
+                'Grocery shops are not available in your selected area right now.',
           );
         }
         if (_groceryRemoteReady && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.local_grocery_store_rounded,
-            message: 'No grocery shop is registered within your selected range yet.',
+            message:
+                'No grocery shop is registered within your selected range yet.',
           );
         }
         return null;
       case 'Pharmacy':
-        final hasData = _pharmacyRemoteProducts.isNotEmpty || _pharmacyRemoteShops.isNotEmpty;
+        final hasData =
+            _pharmacyRemoteProducts.isNotEmpty ||
+            _pharmacyRemoteShops.isNotEmpty;
         if (_pharmacyRemoteLoading && !hasData) {
           return _buildRemoteStateSliver(
             icon: Icons.local_pharmacy_rounded,
             title: 'Loading pharmacy items',
-            message: 'We are fetching live pharmacy inventory and nearby shops.',
+            message:
+                'We are fetching live pharmacy inventory and nearby shops.',
             loading: true,
           );
         }
         if (_pharmacyRemoteError != null && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.local_pharmacy_rounded,
-            message: 'Pharmacy shops are not available in your selected area right now.',
+            message:
+                'Pharmacy shops are not available in your selected area right now.',
           );
         }
         if (_pharmacyRemoteReady && !hasData) {
           return _buildAreaComingSoonSliver(
             icon: Icons.local_pharmacy_rounded,
-            message: 'No pharmacy shop is registered within your selected range yet.',
+            message:
+                'No pharmacy shop is registered within your selected range yet.',
           );
         }
         return null;
@@ -3579,7 +3869,6 @@ Widget? _buildServiceStateSliver() {
         return null;
     }
   }
-
 
   bool _hasRestaurantShopData() =>
       _restaurantRemoteProducts.isNotEmpty ||
@@ -3644,7 +3933,8 @@ Widget? _buildServiceStateSliver() {
   }
 
   bool _shouldTreatAsSilentDiscoveryFallback(String message) {
-    return _shouldTreatAsEmptyResults(message) || _shouldUseFriendlyShopErrorMessage(message);
+    return _shouldTreatAsEmptyResults(message) ||
+        _shouldUseFriendlyShopErrorMessage(message);
   }
 
   bool _shouldUseFriendlyShopErrorMessage(String message) {
@@ -3673,8 +3963,9 @@ Widget? _buildServiceStateSliver() {
       return;
     }
     final availableCategories = _availableShopCategories;
-    final fallbackCategory =
-        availableCategories.isEmpty ? 'All Deals' : availableCategories.first;
+    final fallbackCategory = availableCategories.isEmpty
+        ? 'All Deals'
+        : availableCategories.first;
     if (availableCategories.contains(_selectedShopCategory)) {
       return;
     }
@@ -3708,20 +3999,24 @@ Widget? _buildServiceStateSliver() {
         return const <String>[];
       case _HomeMode.labour:
         return _labourRemoteCategories.isNotEmpty
-            ? _labourRemoteCategories.map((item) => item.label).toList(growable: false)
+            ? _labourRemoteCategories
+                  .map((item) => item.label)
+                  .toList(growable: false)
             : const <String>[];
       case _HomeMode.service:
         return _serviceRemoteCategories.isNotEmpty
-            ? _serviceRemoteCategories.map((item) => item.label).toList(growable: false)
+            ? _serviceRemoteCategories
+                  .map((item) => item.label)
+                  .toList(growable: false)
             : const <String>[];
       case _HomeMode.shop:
         return _availableShopCategories;
     }
   }
 
-
-  String get _defaultServiceCategoryLabel =>
-      _serviceRemoteCategories.isEmpty ? '' : _serviceRemoteCategories.first.label;
+  String get _defaultServiceCategoryLabel => _serviceRemoteCategories.isEmpty
+      ? ''
+      : _serviceRemoteCategories.first.label;
 
   String _defaultServiceSubcategoryLabelFor(String categoryLabel) {
     for (final category in _serviceRemoteCategories) {
@@ -3744,10 +4039,10 @@ Widget? _buildServiceStateSliver() {
         : _selectedServiceCategory;
     return _serviceRemoteCategories.isNotEmpty
         ? _serviceRemoteCategories
-            .where((category) => category.label == activeCategory)
-            .expand((category) => category.subcategories)
-            .map((subcategory) => subcategory.label)
-            .toList(growable: false)
+              .where((category) => category.label == activeCategory)
+              .expand((category) => category.subcategories)
+              .map((subcategory) => subcategory.label)
+              .toList(growable: false)
         : const <String>['All'];
   }
 
@@ -3758,7 +4053,9 @@ Widget? _buildServiceStateSliver() {
   }
 
   List<String> get _serviceSubcategoryStripOptions {
-    return _selectedServiceSubcategories.where((label) => label != 'All').toList(growable: false);
+    return _selectedServiceSubcategories
+        .where((label) => label != 'All')
+        .toList(growable: false);
   }
 
   String get _selectedServiceBookingLabel {
@@ -3773,17 +4070,21 @@ Widget? _buildServiceStateSliver() {
 
   List<_DiscoveryItem> get _filteredServiceProviders {
     final normalizedQuery = _searchController.text.trim().toLowerCase();
-    final selectedCategoryId = _serviceCategoryIdForLabel(_selectedServiceCategory);
+    final selectedCategoryId = _serviceCategoryIdForLabel(
+      _selectedServiceCategory,
+    );
     final selectedSubcategoryId = _serviceSubcategoryIdForSelection(
       _selectedServiceCategory,
       _selectedServiceSubCategory,
     );
     final providers = _serviceRemoteProviders
         .where((item) {
-          if (selectedCategoryId != null && item.backendCategoryId != selectedCategoryId) {
+          if (selectedCategoryId != null &&
+              item.backendCategoryId != selectedCategoryId) {
             return false;
           }
-          if (selectedSubcategoryId != null && item.backendSubcategoryId != selectedSubcategoryId) {
+          if (selectedSubcategoryId != null &&
+              item.backendSubcategoryId != selectedSubcategoryId) {
             return false;
           }
           return true;
@@ -3791,52 +4092,52 @@ Widget? _buildServiceStateSliver() {
         .where((item) => _matchesServiceSearch(item, normalizedQuery))
         .toList(growable: true);
     providers.sort((left, right) {
-      final availabilityCompare = _serviceAvailabilityRank(left).compareTo(
-        _serviceAvailabilityRank(right),
-      );
+      final availabilityCompare = _serviceAvailabilityRank(
+        left,
+      ).compareTo(_serviceAvailabilityRank(right));
       if (availabilityCompare != 0) {
         return availabilityCompare;
       }
       switch (_selectedServiceSort.trim().toUpperCase()) {
         case 'PRICE HIGH-LOW':
-          final priceCompare = _servicePriceSortValue(right).compareTo(
-            _servicePriceSortValue(left),
-          );
+          final priceCompare = _servicePriceSortValue(
+            right,
+          ).compareTo(_servicePriceSortValue(left));
           if (priceCompare != 0) {
             return priceCompare;
           }
-          final ratingCompare = _serviceRatingRank(right).compareTo(
-            _serviceRatingRank(left),
-          );
+          final ratingCompare = _serviceRatingRank(
+            right,
+          ).compareTo(_serviceRatingRank(left));
           if (ratingCompare != 0) {
             return ratingCompare;
           }
           break;
         case 'PRICE LOW-HIGH':
-          final priceCompare = _servicePriceSortValue(left).compareTo(
-            _servicePriceSortValue(right),
-          );
+          final priceCompare = _servicePriceSortValue(
+            left,
+          ).compareTo(_servicePriceSortValue(right));
           if (priceCompare != 0) {
             return priceCompare;
           }
-          final ratingCompare = _serviceRatingRank(right).compareTo(
-            _serviceRatingRank(left),
-          );
+          final ratingCompare = _serviceRatingRank(
+            right,
+          ).compareTo(_serviceRatingRank(left));
           if (ratingCompare != 0) {
             return ratingCompare;
           }
           break;
         case 'BEST SERVICE':
         default:
-          final promotedCompare = _servicePromotedRank(left).compareTo(
-            _servicePromotedRank(right),
-          );
+          final promotedCompare = _servicePromotedRank(
+            left,
+          ).compareTo(_servicePromotedRank(right));
           if (promotedCompare != 0) {
             return promotedCompare;
           }
-          final ratingCompare = _serviceRatingRank(right).compareTo(
-            _serviceRatingRank(left),
-          );
+          final ratingCompare = _serviceRatingRank(
+            right,
+          ).compareTo(_serviceRatingRank(left));
           if (ratingCompare != 0) {
             return ratingCompare;
           }
@@ -3848,10 +4149,18 @@ Widget? _buildServiceStateSliver() {
       if (bookingsCompare != 0) {
         return bookingsCompare;
       }
-      return left.subtitle.toLowerCase().compareTo(right.subtitle.toLowerCase());
+      return left.subtitle.toLowerCase().compareTo(
+        right.subtitle.toLowerCase(),
+      );
     });
     return providers;
   }
+
+  bool get _showServiceActionControls =>
+      _serviceRemoteReady &&
+      !_serviceRemoteLoading &&
+      _serviceRemoteError == null &&
+      _filteredServiceProviders.isNotEmpty;
 
   int _serviceAvailabilityRank(_DiscoveryItem item) {
     if (!item.isDisabled) {
@@ -3869,7 +4178,6 @@ Widget? _buildServiceStateSliver() {
   double _serviceRatingRank(_DiscoveryItem item) {
     return double.tryParse(item.rating.trim()) ?? 0;
   }
-
 
   bool get _showShopAllLanding =>
       _shopBrowseMode == _ShopBrowseMode.itemWise &&
@@ -3897,7 +4205,9 @@ Widget? _buildServiceStateSliver() {
               shopCategory: 'Restaurant',
               backendShopId: shop.shopId,
               isDisabled: !shop.acceptsOrders || shop.eta == 'Closed',
-              disabledLabel: (!shop.acceptsOrders || shop.eta == 'Closed') ? 'Closed' : '',
+              disabledLabel: (!shop.acceptsOrders || shop.eta == 'Closed')
+                  ? 'Closed'
+                  : '',
             ),
             offer: shop.offer,
             eta: shop.eta,
@@ -3922,14 +4232,18 @@ Widget? _buildServiceStateSliver() {
             rating: shop.rating,
             distance: shop.openNow
                 ? (shop.closingSoon
-                    ? 'Closing soon'
-                    : (shop.closesAt.isEmpty ? 'Open now' : 'Closes ${shop.closesAt}'))
+                      ? 'Closing soon'
+                      : (shop.closesAt.isEmpty
+                            ? 'Open now'
+                            : 'Closes ${shop.closesAt}'))
                 : 'Closed',
             extra: 'Fashion shop',
             shopCategory: 'Fashion',
             backendShopId: shop.shopId,
             isDisabled: !shop.openNow || !shop.acceptsOrders,
-            disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
+            disabledLabel: (!shop.openNow || !shop.acceptsOrders)
+                ? 'Closed'
+                : '',
           ),
         )
         .toList(growable: false);
@@ -3949,14 +4263,18 @@ Widget? _buildServiceStateSliver() {
             rating: shop.rating,
             distance: shop.openNow
                 ? (shop.closingSoon
-                    ? 'Closing soon'
-                    : (shop.closesAt.isEmpty ? 'Open now' : 'Closes ${shop.closesAt}'))
+                      ? 'Closing soon'
+                      : (shop.closesAt.isEmpty
+                            ? 'Open now'
+                            : 'Closes ${shop.closesAt}'))
                 : 'Closed',
             extra: 'Footwear shop',
             shopCategory: 'Footwear',
             backendShopId: shop.shopId,
             isDisabled: !shop.openNow || !shop.acceptsOrders,
-            disabledLabel: (!shop.openNow || !shop.acceptsOrders) ? 'Closed' : '',
+            disabledLabel: (!shop.openNow || !shop.acceptsOrders)
+                ? 'Closed'
+                : '',
           ),
         )
         .toList(growable: false);
@@ -4015,16 +4333,48 @@ Widget? _buildServiceStateSliver() {
 
   List<String> get _selectedShopSubcategories =>
       _selectedShopCategory == 'Fashion' && _fashionRemoteCategories.isNotEmpty
-          ? _fashionRemoteCategories.map((item) => item.label).toList(growable: false)
-          : _selectedShopCategory == 'Footwear' && _footwearRemoteCategories.isNotEmpty
-              ? _footwearRemoteCategories.map((item) => item.label).toList(growable: false)
-              : _selectedShopCategory == 'Gift' && _giftRemoteCategories.isNotEmpty
-                  ? _giftRemoteCategories.map((item) => item.label).toList(growable: false)
-                  : _selectedShopCategory == 'Groceries' && _groceryRemoteCategories.isNotEmpty
-                      ? _groceryRemoteCategories.map((item) => item.label).toList(growable: false)
-                      : _selectedShopCategory == 'Pharmacy' && _pharmacyRemoteCategories.isNotEmpty
-                          ? _pharmacyRemoteCategories.map((item) => item.label).toList(growable: false)
-                          : const <String>['All'];
+      ? _fashionRemoteCategories
+            .map((item) => item.label)
+            .toList(growable: false)
+      : _selectedShopCategory == 'Footwear' &&
+            _footwearRemoteCategories.isNotEmpty
+      ? _footwearRemoteCategories
+            .map((item) => item.label)
+            .toList(growable: false)
+      : _selectedShopCategory == 'Gift' && _giftRemoteCategories.isNotEmpty
+      ? _giftRemoteCategories.map((item) => item.label).toList(growable: false)
+      : _selectedShopCategory == 'Groceries' &&
+            _groceryRemoteCategories.isNotEmpty
+      ? _groceryRemoteCategories
+            .map((item) => item.label)
+            .toList(growable: false)
+      : _selectedShopCategory == 'Pharmacy' &&
+            _pharmacyRemoteCategories.isNotEmpty
+      ? _pharmacyRemoteCategories
+            .map((item) => item.label)
+            .toList(growable: false)
+      : const <String>['All'];
+
+  double get _curveForegroundBaseHeight =>
+      _mode == _HomeMode.shop &&
+          _shopBrowseMode == _ShopBrowseMode.itemWise &&
+          _selectedShopSubcategories.length > 1
+      ? 116
+      : _mode == _HomeMode.labour
+      ? 102
+      : _mode == _HomeMode.service && _serviceSubcategoryStripOptions.isNotEmpty
+      ? 102
+      : _mode == _HomeMode.service
+      ? 50
+      : 76;
+
+  double get _curveForegroundLift =>
+      _mode == _HomeMode.labour || _mode == _HomeMode.service
+      ? _curveForegroundBaseHeight * 0.2
+      : 0;
+
+  double get _curveForegroundHeight =>
+      _curveForegroundBaseHeight - _curveForegroundLift;
 
   @override
   Widget build(BuildContext context) {
@@ -4037,11 +4387,14 @@ Widget? _buildServiceStateSliver() {
         locationHeaderHeight +
         pinnedSearchHeaderHeight +
         pinnedModeHeaderHeight +
-        (_mode != _HomeMode.all && _modeFilters.isNotEmpty ? pinnedFilterHeaderHeight : 0.0);
+        (_mode != _HomeMode.all && _modeFilters.isNotEmpty
+            ? pinnedFilterHeaderHeight
+            : 0.0);
 
     _ensureShopSelectionIsVisible();
     final showActiveBookingPopup =
-        _activeBookingStatus != null && !_ActiveBookingPopupVisibilityController.isHidden;
+        _activeBookingStatus != null &&
+        !_ActiveBookingPopupVisibilityController.isHidden;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -4075,150 +4428,181 @@ Widget? _buildServiceStateSliver() {
                             parent: BouncingScrollPhysics(),
                           ),
                           slivers: [
-                    SliverToBoxAdapter(
-                      child: Container(
-                        color: _headerGradient(_mode).first,
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(18, 2, 18, 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _HomeHeader(
-                                title: _selectedLocationChoice?.title ?? 'Choose location',
-                                subtitle: _selectedLocationChoice?.subtitle ??
-                                    _homeLocationError ??
-                                    (_isAuthenticated
-                                        ? 'Allow location to see nearby shops'
-                                        : 'Choose your current area to see nearby shops'),
-                                onTap: _openHomeLocationSelector,
-                                loading: _homeLocationLoading,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _PinnedHeaderDelegate(
-                        minHeight: pinnedSearchHeaderHeight,
-                        maxHeight: pinnedSearchHeaderHeight,
-                        child: Container(
-                          color: _headerGradient(_mode).first,
-                          padding: const EdgeInsets.fromLTRB(18, 4, 18, 6),
-                          child: _PinnedSearchHeader(
-                            controller: _searchController,
-                            hint: _searchHint,
-                            tint: _modeTint(_mode),
-                          onNotificationTap: _openNotificationsPage,
-                          onProfileTap: _openProfilePage,
-                          onCartTap: _openCartPage,
-                          unreadNotificationCount: _notificationUnreadCount,
-                          profilePhotoDataUri: _headerProfilePhotoDataUri,
-                          profilePhotoUrl: _UserAppApi.profilePhotoViewUrl(_headerProfilePhotoObjectKey),
-                        ),
-                        ),
-                      ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _PinnedHeaderDelegate(
-                        minHeight: pinnedModeHeaderHeight,
-                        maxHeight: pinnedModeHeaderHeight,
-                        child: Container(
-                          color: _headerGradient(_mode).first,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 2),
-                              _ModeSwitcher(
-                                mode: _mode,
-                                onModeSelected: (mode) {
-                                  setState(() {
-                                    if (mode == _HomeMode.labour && _mode != mode) {
-                                      _selectedLabourCategory = 'All labour';
-                                    }
-                                    _mode = mode;
-                                  });
-                                  if (mode == _HomeMode.labour) {
-                                    unawaited(_loadLabourLanding(silent: false));
-                                  } else if (mode == _HomeMode.service) {
-                                    unawaited(_loadServiceLanding(silent: false));
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_mode != _HomeMode.all && _modeFilters.isNotEmpty)
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: _PinnedHeaderDelegate(
-                          minHeight: pinnedFilterHeaderHeight,
-                          maxHeight: pinnedFilterHeaderHeight,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  _headerGradient(_mode).first,
-                                  _headerGradient(_mode)[1],
-                                  _headerGradient(_mode)[2],
-                                  _headerGradient(_mode)[2],
-                                ],
-                                stops: const [0, 0.44, 0.86, 1],
-                              ),
-                            ),
-                            child: Transform.translate(
-                              offset: const Offset(0, 5),
-                              child: Align(
-                                alignment: Alignment.topLeft,
+                            SliverToBoxAdapter(
+                              child: Container(
+                                color: _headerGradient(_mode).first,
                                 child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                                  child: _ModeFilterRow(
-                                      filters: _modeFilters,
-                                      selected: _selectedFilter,
-                                      selectedTextColor: Colors.white,
-                                      disabledFilters: const <String>{},
-                                      onSelected: _handleFilterSelect,
-                                    ),
+                                  padding: EdgeInsets.fromLTRB(18, 2, 18, 6),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _HomeHeader(
+                                        title:
+                                            _selectedLocationChoice?.title ??
+                                            'Choose location',
+                                        subtitle:
+                                            _selectedLocationChoice?.subtitle ??
+                                            _homeLocationError ??
+                                            (_isAuthenticated
+                                                ? 'Allow location to see nearby shops'
+                                                : 'Choose your current area to see nearby shops'),
+                                        onTap: _openHomeLocationSelector,
+                                        loading: _homeLocationLoading,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
-                    SliverToBoxAdapter(
-                      child: _CurvedBodyTransition(
-                        colors: _headerGradient(_mode),
-                        compact: _mode == _HomeMode.all,
-                        foreground: _buildCurveForeground(),
-                        foregroundHeight: _mode == _HomeMode.shop &&
-                                _shopBrowseMode == _ShopBrowseMode.itemWise &&
-                                _selectedShopSubcategories.length > 1
-                            ? 116
-                            : _mode == _HomeMode.service && _serviceSubcategoryStripOptions.isNotEmpty
-                                ? 82
-                                : 76,
-                      ),
-                    ),
-                    ..._buildModeSlivers(includeTopControls: false),
-                    const SliverToBoxAdapter(
-                      child: ColoredBox(
-                        color: Colors.white,
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(18, 28, 18, 96),
-                          child: _MadeWithLoveFooter(),
-                        ),
-                      ),
-                    ),
-                      ],
+                            SliverPersistentHeader(
+                              pinned: true,
+                              delegate: _PinnedHeaderDelegate(
+                                minHeight: pinnedSearchHeaderHeight,
+                                maxHeight: pinnedSearchHeaderHeight,
+                                child: Container(
+                                  color: _headerGradient(_mode).first,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    18,
+                                    4,
+                                    18,
+                                    6,
+                                  ),
+                                  child: _PinnedSearchHeader(
+                                    controller: _searchController,
+                                    hint: _searchHint,
+                                    tint: _modeTint(_mode),
+                                    onNotificationTap: _openNotificationsPage,
+                                    onProfileTap: _openProfilePage,
+                                    onCartTap: _openCartPage,
+                                    unreadNotificationCount:
+                                        _notificationUnreadCount,
+                                    profilePhotoDataUri:
+                                        _headerProfilePhotoDataUri,
+                                    profilePhotoUrl:
+                                        _UserAppApi.profilePhotoViewUrl(
+                                          _headerProfilePhotoObjectKey,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SliverPersistentHeader(
+                              pinned: true,
+                              delegate: _PinnedHeaderDelegate(
+                                minHeight: pinnedModeHeaderHeight,
+                                maxHeight: pinnedModeHeaderHeight,
+                                child: Container(
+                                  color: _headerGradient(_mode).first,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 2),
+                                      _ModeSwitcher(
+                                        mode: _mode,
+                                        onModeSelected: (mode) {
+                                          setState(() {
+                                            if (mode == _HomeMode.labour &&
+                                                _mode != mode &&
+                                                _labourRemoteCategories
+                                                    .isNotEmpty) {
+                                              _selectedLabourCategory =
+                                                  _labourRemoteCategories
+                                                      .first
+                                                      .label;
+                                            }
+                                            _mode = mode;
+                                          });
+                                          if (mode == _HomeMode.labour) {
+                                            unawaited(
+                                              _loadLabourLanding(silent: false),
+                                            );
+                                          } else if (mode ==
+                                              _HomeMode.service) {
+                                            unawaited(
+                                              _loadServiceLanding(
+                                                silent: false,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_mode != _HomeMode.all &&
+                                _modeFilters.isNotEmpty)
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: _PinnedHeaderDelegate(
+                                  minHeight: pinnedFilterHeaderHeight,
+                                  maxHeight: pinnedFilterHeaderHeight,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          _headerGradient(_mode).first,
+                                          _headerGradient(_mode)[1],
+                                          _headerGradient(_mode)[2],
+                                          _headerGradient(_mode)[2],
+                                        ],
+                                        stops: const [0, 0.44, 0.86, 1],
+                                      ),
+                                    ),
+                                    child: Transform.translate(
+                                      offset: const Offset(0, 5),
+                                      child: Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            18,
+                                            0,
+                                            18,
+                                            10,
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 5,
+                                              vertical: 3,
+                                            ),
+                                            child: _ModeFilterRow(
+                                              filters: _modeFilters,
+                                              selected: _selectedFilter,
+                                              selectedTextColor: Colors.white,
+                                              disabledFilters: const <String>{},
+                                              onSelected: _handleFilterSelect,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            SliverToBoxAdapter(
+                              child: _CurvedBodyTransition(
+                                colors: _headerGradient(_mode),
+                                compact: _mode == _HomeMode.all,
+                                foreground: _buildCurveForeground(),
+                                foregroundHeight: _curveForegroundHeight,
+                              ),
+                            ),
+                            ..._buildModeSlivers(includeTopControls: false),
+                            const SliverToBoxAdapter(
+                              child: ColoredBox(
+                                color: Colors.white,
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(18, 28, 18, 96),
+                                  child: _MadeWithLoveFooter(),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -4300,10 +4684,10 @@ Widget? _buildServiceStateSliver() {
     final title = liveBookingCount > 1
         ? '$liveBookingCount live bookings'
         : (status.providerName.trim().isNotEmpty
-            ? status.providerName
-            : status.bookingType.toUpperCase() == 'SERVICE'
-                ? 'Service booking'
-                : 'Labour booking');
+              ? status.providerName
+              : status.bookingType.toUpperCase() == 'SERVICE'
+              ? 'Service booking'
+              : 'Labour booking');
     final subtitle = liveBookingCount > 1
         ? '${status.providerName.trim().isNotEmpty ? status.providerName : _activeBookingProviderTitle(status)} • ${_liveBookingStatusLabel(status)}'
         : _liveBookingStatusLabel(status);
@@ -4319,17 +4703,22 @@ Widget? _buildServiceStateSliver() {
       minTop,
       screenSize.height - bottomInset - cardHeight - 112,
     );
-    final maxTop = math.max(minTop, screenSize.height - bottomInset - cardHeight - 12);
-    final boundedLeft = (_activeBookingPopupPositionInitialized
-            ? _activeBookingPopupOffset.dx
-            : maxLeft)
-        .clamp(minLeft, maxLeft)
-        .toDouble();
-    final boundedTop = (_activeBookingPopupPositionInitialized
-            ? _activeBookingPopupOffset.dy
-            : defaultTop)
-        .clamp(minTop, maxTop)
-        .toDouble();
+    final maxTop = math.max(
+      minTop,
+      screenSize.height - bottomInset - cardHeight - 12,
+    );
+    final boundedLeft =
+        (_activeBookingPopupPositionInitialized
+                ? _activeBookingPopupOffset.dx
+                : maxLeft)
+            .clamp(minLeft, maxLeft)
+            .toDouble();
+    final boundedTop =
+        (_activeBookingPopupPositionInitialized
+                ? _activeBookingPopupOffset.dy
+                : defaultTop)
+            .clamp(minTop, maxTop)
+            .toDouble();
 
     return Positioned(
       left: boundedLeft,
@@ -4348,15 +4737,21 @@ Widget? _buildServiceStateSliver() {
         onPanUpdate: (details) {
           _activeBookingPopupDragMoved = true;
           setState(() {
-            final currentLeft =
-                _activeBookingPopupPositionInitialized ? _activeBookingPopupOffset.dx : boundedLeft;
-            final currentTop =
-                _activeBookingPopupPositionInitialized ? _activeBookingPopupOffset.dy : boundedTop;
+            final currentLeft = _activeBookingPopupPositionInitialized
+                ? _activeBookingPopupOffset.dx
+                : boundedLeft;
+            final currentTop = _activeBookingPopupPositionInitialized
+                ? _activeBookingPopupOffset.dy
+                : boundedTop;
             _activeBookingPopupOffset = Offset(
-              (currentLeft + (details.delta.dx * _activeBookingPopupDragSpeedMultiplier))
+              (currentLeft +
+                      (details.delta.dx *
+                          _activeBookingPopupDragSpeedMultiplier))
                   .clamp(minLeft, maxLeft)
                   .toDouble(),
-              (currentTop + (details.delta.dy * _activeBookingPopupDragSpeedMultiplier))
+              (currentTop +
+                      (details.delta.dy *
+                          _activeBookingPopupDragSpeedMultiplier))
                   .clamp(minTop, maxTop)
                   .toDouble(),
             );
@@ -4421,7 +4816,9 @@ Widget? _buildServiceStateSliver() {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.88),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.88,
+                                      ),
                                       fontWeight: FontWeight.w700,
                                       fontSize: 10.6,
                                       height: 1.1,
@@ -4514,11 +4911,15 @@ Widget? _buildServiceStateSliver() {
       case _HomeMode.service:
         return _modeFilters.contains(_selectedServiceCategory)
             ? _selectedServiceCategory
-            : (_modeFilters.isEmpty ? _selectedServiceCategory : _modeFilters.first);
+            : (_modeFilters.isEmpty
+                  ? _selectedServiceCategory
+                  : _modeFilters.first);
       case _HomeMode.shop:
         return _modeFilters.contains(_selectedShopCategory)
             ? _selectedShopCategory
-            : (_modeFilters.isEmpty ? _selectedShopCategory : _modeFilters.first);
+            : (_modeFilters.isEmpty
+                  ? _selectedShopCategory
+                  : _modeFilters.first);
     }
   }
 
@@ -4539,7 +4940,9 @@ Widget? _buildServiceStateSliver() {
                 };
         case _HomeMode.service:
           _selectedServiceCategory = value;
-          _selectedServiceSubCategory = _defaultServiceSubcategoryLabelFor(value);
+          _selectedServiceSubCategory = _defaultServiceSubcategoryLabelFor(
+            value,
+          );
           _selectedServiceSubCategory = 'All';
         case _HomeMode.shop:
           _selectedShopCategory = value;
@@ -4574,24 +4977,31 @@ Widget? _buildServiceStateSliver() {
     }
   }
 
-
-List<_ActiveBookingStatus> _filterVisibleActiveBookings(List<_ActiveBookingStatus> statuses) {
-  return statuses.where((status) {
-    final requestStatus = status.requestStatus.trim().toUpperCase();
-    return !(requestStatus == 'OPEN' && !status.canMakePayment && status.bookingId <= 0);
-  }).toList(growable: false);
-}
-
-Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
-  if (!_isAuthenticated) {
-    return const <_ActiveBookingStatus>[];
+  List<_ActiveBookingStatus> _filterVisibleActiveBookings(
+    List<_ActiveBookingStatus> statuses,
+  ) {
+    return statuses
+        .where((status) {
+          final requestStatus = status.requestStatus.trim().toUpperCase();
+          return !(requestStatus == 'OPEN' &&
+              !status.canMakePayment &&
+              status.bookingId <= 0);
+        })
+        .toList(growable: false);
   }
-  try {
-    return _filterVisibleActiveBookings(await _UserAppApi.fetchActiveBookingStatuses());
-  } catch (_) {
-    return _activeBookingStatuses;
+
+  Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
+    if (!_isAuthenticated) {
+      return const <_ActiveBookingStatus>[];
+    }
+    try {
+      return _filterVisibleActiveBookings(
+        await _UserAppApi.fetchActiveBookingStatuses(),
+      );
+    } catch (_) {
+      return _activeBookingStatuses;
+    }
   }
-}
 
   Future<void> _openActiveBookingSheet(_ActiveBookingStatus status) async {
     await showModalBottomSheet<void>(
@@ -4637,7 +5047,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     if (name.isNotEmpty) {
       return name;
     }
-    return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service provider' : 'Labour';
+    return status.bookingType.toUpperCase() == 'SERVICE'
+        ? 'Service provider'
+        : 'Labour';
   }
 
   String _activeBookingPaymentStatusLabel(_ActiveBookingStatus status) {
@@ -4654,13 +5066,19 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     };
   }
 
-  Future<void> _openActiveBookingProviderProfile(_ActiveBookingStatus status) async {
+  Future<void> _openActiveBookingProviderProfile(
+    _ActiveBookingStatus status,
+  ) async {
     final providerId = status.providerEntityId;
     if (providerId == null || providerId <= 0) {
       return;
     }
-    final normalizedProviderType = status.providerEntityType.trim().toUpperCase();
-    final isService = normalizedProviderType == 'SERVICE_PROVIDER' || status.bookingType.trim().toUpperCase() == 'SERVICE';
+    final normalizedProviderType = status.providerEntityType
+        .trim()
+        .toUpperCase();
+    final isService =
+        normalizedProviderType == 'SERVICE_PROVIDER' ||
+        status.bookingType.trim().toUpperCase() == 'SERVICE';
     final detailItem = _DiscoveryItem(
       title: status.providerName.trim().isNotEmpty
           ? status.providerName.trim()
@@ -4669,20 +5087,29 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           ? status.categoryLabel.trim()
           : (isService ? 'Service' : 'Labour'),
       accent: isService ? const Color(0xFFD48E78) : const Color(0xFF5C8FD8),
-      icon: isService ? Icons.miscellaneous_services_rounded : Icons.handyman_rounded,
+      icon: isService
+          ? Icons.miscellaneous_services_rounded
+          : Icons.handyman_rounded,
       price: status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
           ? status.totalAcceptedQuotedPriceAmount.trim()
           : status.quotedPriceAmount.trim(),
       rating: '',
-      distance: status.distanceLabel.trim().isEmpty ? 'Nearby' : status.distanceLabel.trim(),
+      distance: status.distanceLabel.trim().isEmpty
+          ? 'Nearby'
+          : status.distanceLabel.trim(),
       maskedPhone: status.providerPhone.trim(),
       backendLabourId: isService ? null : providerId,
       backendServiceProviderId: isService ? providerId : null,
       profileImageUrl: status.providerPhotoUrl.trim(),
-      serviceItems: status.subcategoryLabel.trim().isEmpty ? const <String>[] : <String>[status.subcategoryLabel.trim()],
+      serviceItems: status.subcategoryLabel.trim().isEmpty
+          ? const <String>[]
+          : <String>[status.subcategoryLabel.trim()],
       serviceTileLabel: status.subcategoryLabel.trim(),
     );
-    await _openCard(detailItem, isService ? _HomeMode.service : _HomeMode.labour);
+    await _openCard(
+      detailItem,
+      isService ? _HomeMode.service : _HomeMode.labour,
+    );
   }
 
   Future<void> _openActiveBookingsOverviewSheet() async {
@@ -4695,7 +5122,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           statusLabelBuilder: _liveBookingStatusLabel,
           paymentLabelBuilder: _activeBookingPaymentStatusLabel,
           titleBuilder: _activeBookingProviderTitle,
-          onOpenDetails: (activeStatus) => _openActiveBookingSheet(activeStatus),
+          onOpenDetails: (activeStatus) =>
+              _openActiveBookingSheet(activeStatus),
         ),
       ),
     );
@@ -4741,15 +5169,14 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     }
     try {
       if (status.bookingType.toUpperCase() == 'SERVICE') {
-        final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
-        if (!mounted) {
+        final invoiceResult = await _showActiveServiceInvoiceDialog(
+          status: status,
+        );
+        if (!mounted || invoiceResult == null) {
           return;
         }
-        final paymentResult = await _PaymentFlow.start(
-          context,
-          paymentCode: payment.paymentCode,
-          title: 'Confirm service booking',
-        );
+        final payment = invoiceResult.payment;
+        final paymentResult = invoiceResult.paymentFlowResult;
         if (!mounted) {
           return;
         }
@@ -4764,22 +5191,21 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           failureTitle: 'Service payment incomplete',
           extraLines: [
             'Booking code: ${payment.bookingCode}',
-            if (status.providerName.trim().isNotEmpty) 'Provider: ${status.providerName}',
-            if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+            if (status.providerName.trim().isNotEmpty)
+              'Provider: ${status.providerName}',
             'Amount: ${payment.amountLabel}',
           ],
         );
         return;
       }
-      final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
-      if (!mounted) {
+      final invoiceResult = await _showActiveLabourInvoiceDialog(
+        status: status,
+      );
+      if (!mounted || invoiceResult == null) {
         return;
       }
-      final paymentResult = await _PaymentFlow.start(
-        context,
-        paymentCode: payment.paymentCode,
-        title: 'Confirm labour booking',
-      );
+      final payment = invoiceResult.payment;
+      final paymentResult = invoiceResult.paymentFlowResult;
       if (!mounted) {
         return;
       }
@@ -4794,8 +5220,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         failureTitle: 'Labour payment incomplete',
         extraLines: [
           'Booking code: ${payment.bookingCode}',
-          if (status.providerName.trim().isNotEmpty) 'Labour: ${status.providerName}',
-          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
+          if (status.providerName.trim().isNotEmpty)
+            'Labour: ${status.providerName}',
           'Amount: ${payment.amountLabel}',
         ],
       );
@@ -4812,53 +5238,78 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         return null;
       case _HomeMode.labour:
         return Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: _LabourModeCard(
-                  label: 'Single booking',
-                  icon: Icons.engineering_rounded,
-                  selected: _labourViewMode == _LabourViewMode.individual,
-                  onTap: () => setState(() => _labourViewMode = _LabourViewMode.individual),
-                ),
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+          child: SizedBox(
+            height: _curveForegroundBaseHeight,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _LabourModeCard(
+                      label: 'Single booking',
+                      icon: Icons.engineering_rounded,
+                      selected: _labourViewMode == _LabourViewMode.individual,
+                      onTap: () => setState(
+                        () => _labourViewMode = _LabourViewMode.individual,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: _LabourModeCard(
+                      label: 'Group booking',
+                      icon: Icons.groups_2_rounded,
+                      selected: _labourViewMode == _LabourViewMode.group,
+                      onTap: () => setState(
+                        () => _labourViewMode = _LabourViewMode.group,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: _LabourModeCard(
-                  label: 'Group booking',
-                  icon: Icons.groups_2_rounded,
-                  selected: _labourViewMode == _LabourViewMode.group,
-                  onTap: () => setState(() => _labourViewMode = _LabourViewMode.group),
-                ),
-              ),
-            ],
+            ),
           ),
         );
       case _HomeMode.service:
+        final showSubcategoryFilter =
+            _serviceSubcategoryStripOptions.isNotEmpty;
+        final showActionControls = _showServiceActionControls;
+        if (!showSubcategoryFilter && !showActionControls) {
+          return null;
+        }
         return Padding(
-          padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_serviceSubcategoryStripOptions.isNotEmpty) ...[
-                _ServiceSubcategoryFilter(
-                  selectedCategory: _serviceSubcategoryStripCategoryLabel,
-                  options: _serviceSubcategoryStripOptions,
-                  selected: _selectedServiceSubCategory,
-                  onSelected: (value) {
-                    setState(() {
-                      _selectedServiceSubCategory = value;
-                    });
-                    if (_serviceRemoteCategories.isNotEmpty) {
-                      unawaited(_loadServiceLanding(silent: false));
-                    }
-                  },
-                ),
-                const SizedBox(height: 4),
-              ],
-              _buildServiceSortAndActionControls(),
-            ],
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+          child: SizedBox(
+            height: _curveForegroundBaseHeight,
+            child: showSubcategoryFilter
+                ? Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        child: _ServiceSubcategoryFilter(
+                          selectedCategory:
+                              _serviceSubcategoryStripCategoryLabel,
+                          options: _serviceSubcategoryStripOptions,
+                          selected: _selectedServiceSubCategory,
+                          onSelected: _handleServiceSubcategorySelect,
+                        ),
+                      ),
+                      if (showActionControls)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: _buildServiceSortAndActionControls(),
+                        ),
+                    ],
+                  )
+                : Align(
+                    alignment: Alignment.topCenter,
+                    child: _buildServiceSortAndActionControls(),
+                  ),
           ),
         );
       case _HomeMode.shop:
@@ -4890,11 +5341,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                   selected: _selectedShopSubCategory,
                   onSelected: (value) {
                     if (_selectedShopCategory == 'Fashion') {
-                      unawaited(_selectFashionSubcategory(value, silent: false));
+                      unawaited(
+                        _selectFashionSubcategory(value, silent: false),
+                      );
                       return;
                     }
                     if (_selectedShopCategory == 'Footwear') {
-                      unawaited(_selectFootwearSubcategory(value, silent: false));
+                      unawaited(
+                        _selectFootwearSubcategory(value, silent: false),
+                      );
                       return;
                     }
                     if (_selectedShopCategory == 'Gift') {
@@ -4902,11 +5357,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                       return;
                     }
                     if (_selectedShopCategory == 'Groceries') {
-                      unawaited(_selectGrocerySubcategory(value, silent: false));
+                      unawaited(
+                        _selectGrocerySubcategory(value, silent: false),
+                      );
                       return;
                     }
                     if (_selectedShopCategory == 'Pharmacy') {
-                      unawaited(_selectPharmacySubcategory(value, silent: false));
+                      unawaited(
+                        _selectPharmacySubcategory(value, silent: false),
+                      );
                       return;
                     }
                     setState(() {
@@ -4919,6 +5378,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               ),
           ],
         );
+    }
+  }
+
+  void _handleServiceSubcategorySelect(String value) {
+    setState(() {
+      _selectedServiceSubCategory = value;
+    });
+    if (_serviceRemoteCategories.isNotEmpty) {
+      unawaited(_loadServiceLanding(silent: false));
     }
   }
 
@@ -4998,10 +5466,12 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
-            onPressed: _serviceRemoteLoading ? null : _startRandomServiceBookingFlow,
+            onPressed: _serviceRemoteLoading
+                ? null
+                : _startRandomServiceBookingFlow,
             icon: const Icon(Icons.shuffle_rounded, size: 18),
             label: const Text(
-              'Random book',
+              'Quick Book',
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
           ),
@@ -5031,7 +5501,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       ..._effectiveGroceryShopCards,
       ..._effectivePharmacyShopCards,
     ];
-    final hasAnyLiveSection = _backendTopProducts.isNotEmpty ||
+    final hasAnyLiveSection =
+        _backendTopProducts.isNotEmpty ||
         _labourRemoteProfiles.isNotEmpty ||
         _serviceRemoteProviders.isNotEmpty ||
         _restaurantRemoteProducts.isNotEmpty ||
@@ -5039,12 +5510,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         nearbyShopProfiles.isNotEmpty;
     final slivers = <Widget>[];
 
-    if (_anyHomeRemoteLoading && _backendTopProducts.isEmpty && !hasAnyLiveSection) {
+    if (_anyHomeRemoteLoading &&
+        _backendTopProducts.isEmpty &&
+        !hasAnyLiveSection) {
       slivers.add(
         _buildRemoteStateSliver(
           icon: Icons.storefront_rounded,
           title: 'Loading nearby options',
-          message: 'We are checking live shops, labour, and services around your selected location.',
+          message:
+              'We are checking live shops, labour, and services around your selected location.',
           loading: true,
         ),
       );
@@ -5062,7 +5536,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             isFavourited: _isFavourited,
             onWishlistToggle: _toggleWishlist,
             onFavouriteToggle: _toggleFavourite,
-            onAddToCart: (item) => _handleShopCartAdd(item, openCartAfterAdd: true),
+            onAddToCart: (item) =>
+                _handleShopCartAdd(item, openCartAfterAdd: true),
           ),
         ),
       );
@@ -5086,7 +5561,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       );
       slivers.add(
         SliverList.builder(
-          itemCount: nearbyShopProfiles.length > 4 ? 4 : nearbyShopProfiles.length,
+          itemCount: nearbyShopProfiles.length > 4
+              ? 4
+              : nearbyShopProfiles.length,
           itemBuilder: (context, index) => _VerticalShopCard(
             item: nearbyShopProfiles[index],
             isWishlisted: _isWishlisted(nearbyShopProfiles[index]),
@@ -5100,9 +5577,7 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     if (_labourRemoteLoading) {
       slivers.add(
         const SliverToBoxAdapter(
-          child: _AllLabourLoadingSection(
-            title: 'Labour nearby',
-          ),
+          child: _AllLabourLoadingSection(title: 'Labour nearby'),
         ),
       );
     } else if (_labourRemoteProfiles.isNotEmpty) {
@@ -5120,7 +5595,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     }
 
     if (_serviceRemoteProviders.isNotEmpty) {
-      final spotlightServices = _filteredServiceProviders.take(20).toList(growable: false);
+      final spotlightServices = _filteredServiceProviders
+          .take(20)
+          .toList(growable: false);
       slivers.add(
         SliverToBoxAdapter(
           child: _AllServiceSection(
@@ -5158,11 +5635,14 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       );
     }
 
-    if (_initialDiscoveryBatchResolved && !hasAnyLiveSection && !_anyHomeRemoteLoading) {
+    if (_initialDiscoveryBatchResolved &&
+        !hasAnyLiveSection &&
+        !_anyHomeRemoteLoading) {
       slivers.add(
         _buildAreaComingSoonSliver(
           icon: Icons.location_city_rounded,
-          message: 'No labour, service, or shop is registered within your selected range yet.',
+          message:
+              'No labour, service, or shop is registered within your selected range yet.',
         ),
       );
     }
@@ -5173,67 +5653,76 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
   List<Widget> _buildLabourMode({bool includeTopControls = true}) {
     final labourStateSliver = _buildLabourStateSliver();
     final visibleLabourProfiles = _filteredSingleLabourProfiles;
-    final effectiveGroupLabourCategoryLabel = _effectiveGroupLabourCategoryLabel();
-    final selectedGroupCategoryId = _labourCategoryIdForLabel(effectiveGroupLabourCategoryLabel ?? '');
-    final allowManualGroupLabourTypeSelection = _isGroupBookingUsingAllLabourFilter;
-    final needsManualGroupLabourTypeSelection = _isGroupBookingUsingAllLabourFilter && selectedGroupCategoryId == null;
-    final groupAvailableLabour = _availableLabourCountForGroupCategory(selectedGroupCategoryId);
+    final selectedGroupCategoryId = _labourCategoryIdForLabel(
+      _selectedLabourCategory,
+    );
+    final groupAvailableLabour = _availableLabourCountForGroupCategory(
+      selectedGroupCategoryId,
+    );
     return [
       if (includeTopControls)
         SliverToBoxAdapter(child: _buildCurveForeground()),
       if (labourStateSliver != null)
         labourStateSliver
-      else
-      if (_labourViewMode == _LabourViewMode.individual)
-        ...[
-          SliverToBoxAdapter(
+      else if (_labourViewMode == _LabourViewMode.individual) ...[
+        SliverToBoxAdapter(
+          child: Transform.translate(
+            offset: Offset(0, -_curveForegroundLift * 0.35),
             child: _SingleLabourFilterBar(
               selectedPeriod: _selectedSingleLabourPeriod,
               maxPrice: _selectedSingleLabourMaxPrice,
-              onPeriodSelected: (value) => setState(() => _selectedSingleLabourPeriod = value),
-              onMaxPriceChanged: (value) => setState(() => _selectedSingleLabourMaxPrice = value),
+              onPeriodSelected: (value) =>
+                  setState(() => _selectedSingleLabourPeriod = value),
+              onMaxPriceChanged: (value) =>
+                  setState(() => _selectedSingleLabourMaxPrice = value),
+              onQuickBook: visibleLabourProfiles.isEmpty || _labourRemoteLoading
+                  ? null
+                  : _startQuickLabourBookingFlow,
             ),
           ),
-          if (_labourRemoteLoading)
-            const _LabourGridLoadingSection()
-          else if (visibleLabourProfiles.isEmpty)
-            _buildRemoteStateSliver(
-              icon: Icons.filter_alt_off_rounded,
-              title: 'No labour matched this filter',
-              message: 'Try changing Half Day / Full Day or increasing your price range.',
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
-              sliver: SliverGrid.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  mainAxisExtent: 246,
-                ),
-                itemCount: visibleLabourProfiles.length,
-                itemBuilder: (context, index) {
-                  final item = visibleLabourProfiles[index];
-                  return _LabourPortraitTile(
-                    item: item,
-                    isFavourited: _isFavourited(item),
-                    onFavouriteToggle: () => _toggleFavourite(item),
-                    onTap: () => unawaited(_openCard(item, _mode)),
-                    compactScale: 0.62,
-                  );
-                },
+        ),
+        if (_labourRemoteLoading)
+          const _LabourGridLoadingSection()
+        else if (visibleLabourProfiles.isEmpty)
+          _buildRemoteStateSliver(
+            icon: Icons.filter_alt_off_rounded,
+            title: 'No labour matched this filter',
+            message:
+                'Try changing Half Day / Full Day or increasing your price range.',
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+            sliver: SliverGrid.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                mainAxisExtent: 246,
               ),
+              itemCount: visibleLabourProfiles.length,
+              itemBuilder: (context, index) {
+                final item = visibleLabourProfiles[index];
+                return _LabourPortraitTile(
+                  item: item,
+                  isFavourited: _isFavourited(item),
+                  onFavouriteToggle: () => _toggleFavourite(item),
+                  onTap: () => unawaited(_openCard(item, _mode)),
+                  compactScale: 0.62,
+                );
+              },
             ),
-        ]
-      else
+          ),
+      ] else
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 6, 18, 0),
             child: _GroupBookingCard(
               availableLabour: groupAvailableLabour,
-              selectedLabourType: effectiveGroupLabourCategoryLabel ?? 'All labour',
-              needsLabourTypeSelection: needsManualGroupLabourTypeSelection,
+              selectedLabourType: _selectedLabourCategory.trim().isEmpty
+                  ? 'Select category'
+                  : _selectedLabourCategory,
+              needsLabourTypeSelection: selectedGroupCategoryId == null,
               selectedMaxPrice: _selectedLabourPrice,
               selectedPricePeriod: _selectedLabourPricePeriod,
               selectedCount: _selectedLabourCount,
@@ -5242,21 +5731,21 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               showPriceError: _showLabourPriceError,
               showCountError: _showLabourCountError,
               countErrorText: _labourCountErrorText,
-              onLabourTypeSelected: allowManualGroupLabourTypeSelection
-                  ? () => unawaited(_resolveGroupLabourCategoryId(allowExistingSelection: false))
-                  : () {},
+              onLabourTypeSelected: () {},
               onPriceSelected: (value) => setState(() {
                 _selectedLabourPrice = value;
                 if (value.trim().isNotEmpty) {
                   _showLabourPriceError = false;
                 }
               }),
-              onPricePeriodSelected: (value) => setState(() => _selectedLabourPricePeriod = value),
+              onPricePeriodSelected: (value) =>
+                  setState(() => _selectedLabourPricePeriod = value),
               onCountSelected: (value) => setState(() {
                 _selectedLabourCount = value;
                 if (value > 0 && value > groupAvailableLabour) {
                   _showLabourCountError = true;
-                  _labourCountErrorText = 'Only $groupAvailableLabour labour available';
+                  _labourCountErrorText =
+                      'Only $groupAvailableLabour labour available';
                 } else if (value > 0) {
                   _showLabourCountError = false;
                   _labourCountErrorText = null;
@@ -5267,7 +5756,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                   setState(() {
                     _showLabourPriceError = true;
                   });
-                  _showCartSnack('Enter the maximum budget for each labour first.');
+                  _showCartSnack(
+                    'Enter the maximum budget for each labour first.',
+                  );
                   return;
                 }
                 if (_selectedLabourCount <= 0) {
@@ -5281,7 +5772,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                 if (_selectedLabourCount > groupAvailableLabour) {
                   setState(() {
                     _showLabourCountError = true;
-                    _labourCountErrorText = 'Only $groupAvailableLabour labour available';
+                    _labourCountErrorText =
+                        'Only $groupAvailableLabour labour available';
                   });
                   return;
                 }
@@ -5294,34 +5786,40 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                   final loggedIn = await _ensureAuthenticated();
                   if (!loggedIn) {
                     if (mounted) {
-                      _showCartSnack('Please log in to continue group booking.');
+                      _showCartSnack(
+                        'Please log in to continue group booking.',
+                      );
                     }
                     return;
                   }
                 }
-                final confirmed = await _confirmBookingLocationUsage(bookingLabel: 'labour');
+                final confirmed = await _confirmBookingLocationUsage(
+                  bookingLabel: 'labour',
+                );
                 if (!mounted || !confirmed) {
                   return;
                 }
-                final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
-                  bookingLabel: 'labour',
-                );
+                final bookingAddressId =
+                    await _ensureBookingAddressIdForServiceOrLabour(
+                      bookingLabel: 'labour',
+                    );
                 if (bookingAddressId == null || !mounted) {
                   return;
                 }
-                final categoryId = await _resolveGroupLabourCategoryId();
-                if (!mounted) {
-                  return;
-                }
+                final categoryId = _labourCategoryIdForLabel(
+                  _selectedLabourCategory,
+                );
                 if (categoryId == null) {
-                  _showCartSnack('Please select a labour type first.');
+                  _showCartSnack('Please select a labour category first.');
                   return;
                 }
-                final selectedTypeAvailableLabour = _availableLabourCountForGroupCategory(categoryId);
+                final selectedTypeAvailableLabour =
+                    _availableLabourCountForGroupCategory(categoryId);
                 if (_selectedLabourCount > selectedTypeAvailableLabour) {
                   setState(() {
                     _showLabourCountError = true;
-                    _labourCountErrorText = 'Only $selectedTypeAvailableLabour labour available';
+                    _labourCountErrorText =
+                        'Only $selectedTypeAvailableLabour labour available';
                   });
                   return;
                 }
@@ -5348,11 +5846,40 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                     timeoutSeconds: 60,
                     requestedCount: result.requestedCount,
                     isGroupRequest: true,
+                    retryRequest: () async {
+                      final refreshed =
+                          await _UserAppApi.requestGroupLabourBooking(
+                            categoryId: categoryId,
+                            bookingPeriod: _selectedLabourPricePeriod,
+                            maxPrice: _selectedLabourPrice,
+                            labourCount: _selectedLabourCount,
+                            addressId: bookingAddressId,
+                          );
+                      return _RemoteLabourBookingResult(
+                        requestId: refreshed.requestId,
+                        requestCode: refreshed.requestCode,
+                        requestStatus: 'OPEN',
+                        quotedPriceAmount: refreshed.platformAmountDue,
+                        labourName: 'nearby labour',
+                      );
+                    },
+                    candidates: _labourWaitCandidates(
+                      _labourRemoteProfiles.where(
+                        (item) =>
+                            item.backendCategoryId == categoryId ||
+                            item.labourCategoryPricing.any(
+                              (pricing) => pricing.categoryId == categoryId,
+                            ),
+                      ),
+                      _selectedLabourPricePeriod,
+                    ),
                   );
                   if (!mounted) {
                     return;
                   }
-                  if (status == null || !status.canMakePayment || status.acceptedProviderCount <= 0) {
+                  if (status == null ||
+                      !status.canMakePayment ||
+                      status.acceptedProviderCount <= 0) {
                     await _showLabourRequestStateDialog(
                       request: request,
                       status: status,
@@ -5369,25 +5896,23 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                       ),
                     );
                   });
-                  final shouldPay = await _showAcceptedLabourDialog(
+                  final invoiceResult = await _showAcceptedLabourInvoiceDialog(
                     request: request,
                     status: status,
                     requestedCount: result.requestedCount,
+                    categoryLabel: _selectedLabourCategory,
+                    periodLabel: _selectedLabourPricePeriod,
                     isGroupRequest: true,
                   );
-                  if (!mounted || !shouldPay) {
+                  if (!mounted || invoiceResult == null) {
                     return;
                   }
-                  final acceptedPayments = math.max(1, status.acceptedProviderCount);
-                  final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
-                  if (!mounted) {
-                    return;
-                  }
-                  final paymentResult = await _PaymentFlow.start(
-                    context,
-                    paymentCode: payment.paymentCode,
-                    title: 'Confirm group labour booking',
+                  final payment = invoiceResult.payment;
+                  final acceptedPayments = math.max(
+                    1,
+                    status.acceptedProviderCount,
                   );
+                  final paymentResult = invoiceResult.paymentFlowResult;
                   if (!mounted) {
                     return;
                   }
@@ -5421,7 +5946,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
 
   List<Widget> _buildServiceMode({bool includeTopControls = true}) {
     final providers = _filteredServiceProviders;
-    final serviceStateSliver = _buildServiceStateSliver();
+    final serviceStateSliver = _buildServiceStateSliver(
+      hasVisibleProviders: providers.isNotEmpty,
+    );
     return [
       if (includeTopControls)
         SliverToBoxAdapter(child: _buildCurveForeground()),
@@ -5456,8 +5983,7 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         SliverToBoxAdapter(child: _buildCurveForeground()),
       if (shopRemoteStateSliver != null)
         shopRemoteStateSliver
-      else
-      if (_showShopAllLanding) ...[
+      else if (_showShopAllLanding) ...[
         if (_restaurantRemoteProducts.isNotEmpty)
           SliverToBoxAdapter(
             child: _ShopSingleRowSection(
@@ -5480,11 +6006,14 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           ),
         if (allNearbyShopProfiles.isNotEmpty)
           SliverList.builder(
-            itemCount: allNearbyShopProfiles.length > 6 ? 6 : allNearbyShopProfiles.length,
+            itemCount: allNearbyShopProfiles.length > 6
+                ? 6
+                : allNearbyShopProfiles.length,
             itemBuilder: (context, index) => _VerticalShopCard(
               item: allNearbyShopProfiles[index],
               isWishlisted: _isWishlisted(allNearbyShopProfiles[index]),
-              onWishlistToggle: () => _toggleWishlist(allNearbyShopProfiles[index]),
+              onWishlistToggle: () =>
+                  _toggleWishlist(allNearbyShopProfiles[index]),
               onTap: () => _openShopProfile(allNearbyShopProfiles[index]),
             ),
           ),
@@ -5496,9 +6025,7 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             onSelected: _selectRestaurantCuisine,
           ),
         ),
-        const SliverToBoxAdapter(
-          child: _RestaurantFilterRow(),
-        ),
+        const SliverToBoxAdapter(child: _RestaurantFilterRow()),
         if (visibleRestaurantListings.isNotEmpty)
           SliverToBoxAdapter(
             child: _RestaurantRecommendedSection(
@@ -5518,7 +6045,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             );
           },
         ),
-      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Gift') ...[
+      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
+          _selectedShopCategory == 'Gift') ...[
         if (_giftRemoteReady)
           if (_giftRemoteProducts.isNotEmpty)
             SliverToBoxAdapter(
@@ -5533,11 +6061,13 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               itemBuilder: (context, index) => _VerticalShopCard(
                 item: _effectiveGiftShopCards[index],
                 isWishlisted: _isWishlisted(_effectiveGiftShopCards[index]),
-                onWishlistToggle: () => _toggleWishlist(_effectiveGiftShopCards[index]),
+                onWishlistToggle: () =>
+                    _toggleWishlist(_effectiveGiftShopCards[index]),
                 onTap: () => _openShopProfile(_effectiveGiftShopCards[index]),
               ),
             ),
-      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Groceries') ...[
+      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
+          _selectedShopCategory == 'Groceries') ...[
         if (_groceryRemoteReady)
           if (_groceryRemoteProducts.isNotEmpty)
             SliverToBoxAdapter(
@@ -5545,7 +6075,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                 items: _groceryRemoteProducts,
                 selectedCategory: _selectedShopSubCategory,
                 onItemTap: _openShopItemFromHome,
-                onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
+                onAddToCart: (item) =>
+                    _openShopProfile(item, autoAddItem: true),
                 isWishlisted: _isWishlisted,
                 onWishlistToggle: _toggleWishlist,
               ),
@@ -5556,11 +6087,14 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               itemBuilder: (context, index) => _VerticalShopCard(
                 item: _effectiveGroceryShopCards[index],
                 isWishlisted: _isWishlisted(_effectiveGroceryShopCards[index]),
-                onWishlistToggle: () => _toggleWishlist(_effectiveGroceryShopCards[index]),
-                onTap: () => _openShopProfile(_effectiveGroceryShopCards[index]),
+                onWishlistToggle: () =>
+                    _toggleWishlist(_effectiveGroceryShopCards[index]),
+                onTap: () =>
+                    _openShopProfile(_effectiveGroceryShopCards[index]),
               ),
             ),
-      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise && _selectedShopCategory == 'Pharmacy') ...[
+      ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
+          _selectedShopCategory == 'Pharmacy') ...[
         if (_pharmacyRemoteReady)
           if (_pharmacyRemoteProducts.isNotEmpty)
             SliverToBoxAdapter(
@@ -5568,7 +6102,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                 items: _pharmacyRemoteProducts,
                 selectedCategory: _selectedShopSubCategory,
                 onItemTap: _openShopItemFromHome,
-                onAddToCart: (item) => _openShopProfile(item, autoAddItem: true),
+                onAddToCart: (item) =>
+                    _openShopProfile(item, autoAddItem: true),
                 isWishlisted: _isWishlisted,
                 onWishlistToggle: _toggleWishlist,
               ),
@@ -5579,8 +6114,10 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               itemBuilder: (context, index) => _VerticalShopCard(
                 item: _effectivePharmacyShopCards[index],
                 isWishlisted: _isWishlisted(_effectivePharmacyShopCards[index]),
-                onWishlistToggle: () => _toggleWishlist(_effectivePharmacyShopCards[index]),
-                onTap: () => _openShopProfile(_effectivePharmacyShopCards[index]),
+                onWishlistToggle: () =>
+                    _toggleWishlist(_effectivePharmacyShopCards[index]),
+                onTap: () =>
+                    _openShopProfile(_effectivePharmacyShopCards[index]),
               ),
             ),
       ] else if (_shopBrowseMode == _ShopBrowseMode.itemWise &&
@@ -5602,7 +6139,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             itemBuilder: (context, index) => _VerticalShopCard(
               item: _effectiveFashionShopCards[index],
               isWishlisted: _isWishlisted(_effectiveFashionShopCards[index]),
-              onWishlistToggle: () => _toggleWishlist(_effectiveFashionShopCards[index]),
+              onWishlistToggle: () =>
+                  _toggleWishlist(_effectiveFashionShopCards[index]),
               onTap: () => _openShopProfile(_effectiveFashionShopCards[index]),
             ),
           ),
@@ -5625,7 +6163,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             itemBuilder: (context, index) => _VerticalShopCard(
               item: _effectiveFootwearShopCards[index],
               isWishlisted: _isWishlisted(_effectiveFootwearShopCards[index]),
-              onWishlistToggle: () => _toggleWishlist(_effectiveFootwearShopCards[index]),
+              onWishlistToggle: () =>
+                  _toggleWishlist(_effectiveFootwearShopCards[index]),
               onTap: () => _openShopProfile(_effectiveFootwearShopCards[index]),
             ),
           ),
@@ -5637,7 +6176,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           itemBuilder: (context, index) => _VerticalShopCard(
             item: _effectiveGroceryShopCards[index],
             isWishlisted: _isWishlisted(_effectiveGroceryShopCards[index]),
-            onWishlistToggle: () => _toggleWishlist(_effectiveGroceryShopCards[index]),
+            onWishlistToggle: () =>
+                _toggleWishlist(_effectiveGroceryShopCards[index]),
             onTap: () => _openShopProfile(_effectiveGroceryShopCards[index]),
           ),
         ),
@@ -5648,7 +6188,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           itemBuilder: (context, index) => _VerticalShopCard(
             item: _effectivePharmacyShopCards[index],
             isWishlisted: _isWishlisted(_effectivePharmacyShopCards[index]),
-            onWishlistToggle: () => _toggleWishlist(_effectivePharmacyShopCards[index]),
+            onWishlistToggle: () =>
+                _toggleWishlist(_effectivePharmacyShopCards[index]),
             onTap: () => _openShopProfile(_effectivePharmacyShopCards[index]),
           ),
         ),
@@ -5659,7 +6200,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           itemBuilder: (context, index) => _VerticalShopCard(
             item: _effectiveGiftShopCards[index],
             isWishlisted: _isWishlisted(_effectiveGiftShopCards[index]),
-            onWishlistToggle: () => _toggleWishlist(_effectiveGiftShopCards[index]),
+            onWishlistToggle: () =>
+                _toggleWishlist(_effectiveGiftShopCards[index]),
             onTap: () => _openShopProfile(_effectiveGiftShopCards[index]),
           ),
         ),
@@ -5671,7 +6213,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           itemBuilder: (context, index) => _VerticalShopCard(
             item: _effectiveFashionShopCards[index],
             isWishlisted: _isWishlisted(_effectiveFashionShopCards[index]),
-            onWishlistToggle: () => _toggleWishlist(_effectiveFashionShopCards[index]),
+            onWishlistToggle: () =>
+                _toggleWishlist(_effectiveFashionShopCards[index]),
             onTap: () => _openShopProfile(_effectiveFashionShopCards[index]),
           ),
         ),
@@ -5683,7 +6226,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
           itemBuilder: (context, index) => _VerticalShopCard(
             item: _effectiveFootwearShopCards[index],
             isWishlisted: _isWishlisted(_effectiveFootwearShopCards[index]),
-            onWishlistToggle: () => _toggleWishlist(_effectiveFootwearShopCards[index]),
+            onWishlistToggle: () =>
+                _toggleWishlist(_effectiveFootwearShopCards[index]),
             onTap: () => _openShopProfile(_effectiveFootwearShopCards[index]),
           ),
         ),
@@ -5701,22 +6245,31 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         categoryId: item.backendCategoryId,
         subcategoryId: item.backendSubcategoryId,
       );
-      final selectedOption = backendProfile.serviceOptions
-          .where((option) => option.subcategoryId == item.backendSubcategoryId)
-          .firstOrNull ?? backendProfile.serviceOptions.firstOrNull;
+      final selectedOption =
+          backendProfile.serviceOptions
+              .where(
+                (option) => option.subcategoryId == item.backendSubcategoryId,
+              )
+              .firstOrNull ??
+          backendProfile.serviceOptions.firstOrNull;
       final serviceLabels = backendProfile.serviceOptions.isNotEmpty
           ? backendProfile.serviceOptions
                 .map((option) => option.subcategoryName.trim())
                 .where((label) => label.isNotEmpty)
                 .toSet()
                 .toList(growable: false)
-          : (backendProfile.serviceItems.isNotEmpty ? backendProfile.serviceItems : item.serviceItems);
-      final selectedTileLabel = selectedOption?.subcategoryName.trim().isNotEmpty == true
+          : (backendProfile.serviceItems.isNotEmpty
+                ? backendProfile.serviceItems
+                : item.serviceItems);
+      final selectedTileLabel =
+          selectedOption?.subcategoryName.trim().isNotEmpty == true
           ? selectedOption!.subcategoryName.trim()
           : _deriveSelectedServiceTileLabel(
               backendProfile.provider.copyWith(
                 title: item.title,
-                serviceTileLabel: item.serviceTileLabel.isNotEmpty ? item.serviceTileLabel : item.title,
+                serviceTileLabel: item.serviceTileLabel.isNotEmpty
+                    ? item.serviceTileLabel
+                    : item.title,
                 serviceItems: serviceLabels,
               ),
             );
@@ -5731,8 +6284,14 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         serviceItems: serviceLabels,
         serviceOptions: backendProfile.serviceOptions,
         serviceTileLabel: selectedTileLabel,
-        backendCategoryId: selectedOption?.categoryId ?? item.backendCategoryId ?? backendProfile.provider.backendCategoryId,
-        backendSubcategoryId: selectedOption?.subcategoryId ?? item.backendSubcategoryId ?? backendProfile.provider.backendSubcategoryId,
+        backendCategoryId:
+            selectedOption?.categoryId ??
+            item.backendCategoryId ??
+            backendProfile.provider.backendCategoryId,
+        backendSubcategoryId:
+            selectedOption?.subcategoryId ??
+            item.backendSubcategoryId ??
+            backendProfile.provider.backendSubcategoryId,
         isDisabled: item.isDisabled,
         disabledLabel: item.disabledLabel,
       );
@@ -5783,14 +6342,20 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
             isFavourited: _isFavourited(detailItem),
             onWishlistToggle: () => _toggleWishlist(detailItem),
             onFavouriteToggle: () => _toggleFavourite(detailItem),
-            onPrimaryAction: (labourBookingPeriod, labourCategoryId, serviceCategoryId, serviceSubcategoryId) => _handlePrimaryAction(
-              detailItem,
-              mode,
-              labourBookingPeriod: labourBookingPeriod,
-              labourCategoryId: labourCategoryId,
-              serviceCategoryId: serviceCategoryId,
-              serviceSubcategoryId: serviceSubcategoryId,
-            ),
+            onPrimaryAction:
+                (
+                  labourBookingPeriod,
+                  labourCategoryId,
+                  serviceCategoryId,
+                  serviceSubcategoryId,
+                ) => _handlePrimaryAction(
+                  detailItem,
+                  mode,
+                  labourBookingPeriod: labourBookingPeriod,
+                  labourCategoryId: labourCategoryId,
+                  serviceCategoryId: serviceCategoryId,
+                  serviceSubcategoryId: serviceSubcategoryId,
+                ),
           ),
         ),
       );
@@ -5811,7 +6376,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
       final backendProfile = await _UserAppApi.fetchLabourProfile(labourId);
       return _buildLabourProfileDetailItem(
         backendProfile.copyWith(
-          backendCategoryId: item.backendCategoryId ?? backendProfile.backendCategoryId,
+          backendCategoryId:
+              item.backendCategoryId ?? backendProfile.backendCategoryId,
           isDisabled: item.isDisabled,
           disabledLabel: item.disabledLabel,
         ),
@@ -5850,10 +6416,15 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
               ),
             ];
       for (final pricing in pricingEntries) {
-        final resolvedCategoryId = pricing.categoryId ?? profile.backendCategoryId;
+        final resolvedCategoryId =
+            pricing.categoryId ?? profile.backendCategoryId;
         final normalizedLabel =
             _labourCategoryLabelForId(resolvedCategoryId) ??
-            pricing.label.trim().split(',').map((part) => part.trim()).firstWhere(
+            pricing.label
+                .trim()
+                .split(',')
+                .map((part) => part.trim())
+                .firstWhere(
                   (part) => part.isNotEmpty,
                   orElse: () => profile.subtitle.trim(),
                 );
@@ -5876,23 +6447,33 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     final selectedCategory = sourceProfiles.firstWhere(
       (profile) =>
           profile.backendCategoryId == item.backendCategoryId ||
-          profile.labourCategoryPricing.any((pricing) => pricing.categoryId == item.backendCategoryId),
+          profile.labourCategoryPricing.any(
+            (pricing) => pricing.categoryId == item.backendCategoryId,
+          ),
       orElse: () => item,
     );
     final selectedCategoryLabel =
         _labourCategoryLabelForId(selectedCategory.backendCategoryId) ??
         categoryPricing
-            .where((pricing) => pricing.categoryId == selectedCategory.backendCategoryId)
+            .where(
+              (pricing) =>
+                  pricing.categoryId == selectedCategory.backendCategoryId,
+            )
             .map((pricing) => pricing.label.trim())
-            .firstWhere((label) => label.isNotEmpty, orElse: () => selectedCategory.subtitle);
+            .firstWhere(
+              (label) => label.isNotEmpty,
+              orElse: () => selectedCategory.subtitle,
+            );
     final selectedPricing = categoryPricing.firstWhere(
       (pricing) => pricing.categoryId == selectedCategory.backendCategoryId,
-      orElse: () => categoryPricing.firstOrNull ?? _LabourCategoryPricing(
-        categoryId: selectedCategory.backendCategoryId,
-        label: selectedCategoryLabel,
-        halfDayPrice: selectedCategory.labourHalfDayPrice,
-        fullDayPrice: selectedCategory.labourFullDayPrice,
-      ),
+      orElse: () =>
+          categoryPricing.firstOrNull ??
+          _LabourCategoryPricing(
+            categoryId: selectedCategory.backendCategoryId,
+            label: selectedCategoryLabel,
+            halfDayPrice: selectedCategory.labourHalfDayPrice,
+            fullDayPrice: selectedCategory.labourFullDayPrice,
+          ),
     );
     return selectedCategory.copyWith(
       subtitle: selectedCategoryLabel,
@@ -5942,9 +6523,9 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
   Future<void> _openShopItemFromHome(_DiscoveryItem item) async {
     final itemCategory = _shopCategoryForItem(item);
     if (_shopComingSoonCategories.contains(itemCategory)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$itemCategory is coming soon.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$itemCategory is coming soon.')));
       return;
     }
     if (item.isDisabled) {
@@ -5965,92 +6546,112 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     bool? added;
     if (isFashionItem) {
       added = await navigator.push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => _ShopItemDetailPage(
-                item: item,
-                supportsColorVariants: true,
-                useFoodPopupStyle: false,
-                returnToShopOnBackAfterAdd: true,
-                onAddToCart: () => _handleShopCartAdd(item),
-                onOpenCart: _openCartPage,
-                onWishlistTap: () => _toggleWishlist(item),
-                onShareTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-                  );
-                },
-              ),
-            ),
-          );
+        MaterialPageRoute<bool>(
+          builder: (_) => _ShopItemDetailPage(
+            item: item,
+            supportsColorVariants: true,
+            useFoodPopupStyle: false,
+            returnToShopOnBackAfterAdd: true,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: _openCartPage,
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
     } else if (isFootwearItem) {
       added = await navigator.push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => _FootwearItemDetailPage(
-                item: item,
-                returnToShopOnBackAfterAdd: true,
-                onAddToCart: () => _handleShopCartAdd(item),
-                onOpenCart: _openCartPage,
-                onWishlistTap: () => _toggleWishlist(item),
-                onShareTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-                  );
-                },
-              ),
-            ),
-          );
+        MaterialPageRoute<bool>(
+          builder: (_) => _FootwearItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: true,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: _openCartPage,
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
     } else if (isGroceryItem) {
       added = await navigator.push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => _GroceryItemDetailPage(
-                item: item,
-                returnToShopOnBackAfterAdd: true,
-                onAddToCart: () => _handleShopCartAdd(item),
-                onOpenCart: _openCartPage,
-                onWishlistTap: () => _toggleWishlist(item),
-                onShareTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-                  );
-                },
-              ),
-            ),
-          );
+        MaterialPageRoute<bool>(
+          builder: (_) => _GroceryItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: true,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: _openCartPage,
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
     } else if (isPharmacyItem) {
       added = await navigator.push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => _PharmacyItemDetailPage(
-                item: item,
-                returnToShopOnBackAfterAdd: true,
-                onAddToCart: () => _handleShopCartAdd(item),
-                onOpenCart: _openCartPage,
-                onWishlistTap: () => _toggleWishlist(item),
-                onShareTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-                  );
-                },
-              ),
-            ),
-          );
+        MaterialPageRoute<bool>(
+          builder: (_) => _PharmacyItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: true,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: _openCartPage,
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
     } else if (isGiftItem) {
       added = await navigator.push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => _GiftItemDetailPage(
-                item: item,
-                returnToShopOnBackAfterAdd: true,
-                onAddToCart: () => _handleShopCartAdd(item),
-                onOpenCart: _openCartPage,
-                onGiftNow: () => _handleShopCartAdd(item, openCartAfterAdd: true),
-                onWishlistTap: () => _toggleWishlist(item),
-                onShareTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-                  );
-                },
-              ),
-            ),
-          );
+        MaterialPageRoute<bool>(
+          builder: (_) => _GiftItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: true,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: _openCartPage,
+            onGiftNow: () => _handleShopCartAdd(item, openCartAfterAdd: true),
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
     } else {
       added = await showModalBottomSheet<bool>(
         context: context,
@@ -6058,17 +6659,21 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
         useSafeArea: true,
         backgroundColor: Colors.transparent,
         barrierColor: Colors.black.withValues(alpha: 0.52),
-              builder: (_) => _ShopItemDetailPage(
-                item: item,
-                supportsColorVariants: false,
-                useFoodPopupStyle: isRestaurantItem,
-                returnToShopOnBackAfterAdd: true,
-                onAddToCart: () => _handleShopCartAdd(item),
-                onOpenCart: _openCartPage,
-                onWishlistTap: () => _toggleWishlist(item),
-                onShareTap: () {
+        builder: (_) => _ShopItemDetailPage(
+          item: item,
+          supportsColorVariants: false,
+          useFoodPopupStyle: isRestaurantItem,
+          returnToShopOnBackAfterAdd: true,
+          onAddToCart: () => _handleShopCartAdd(item),
+          onOpenCart: _openCartPage,
+          onWishlistTap: () => _toggleWishlist(item),
+          onShareTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+              SnackBar(
+                content: Text(
+                  'Share link for ${item.title} will be connected next.',
+                ),
+              ),
             );
           },
         ),
@@ -6086,8 +6691,8 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
                 setState(() {
                   _cartShopName = cart.shopName;
                   _cartItems
-                  ..clear()
-                  ..addAll(cart.items);
+                    ..clear()
+                    ..addAll(cart.items);
                 });
               },
               isWishlisted: _isWishlisted,
@@ -6200,143 +6805,167 @@ Future<List<_ActiveBookingStatus>> _loadActiveBookingStatusesSafe() async {
     }
   }
 
-
-Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
-  final itemCategory = _shopCategoryForItem(item);
-  if (item.isDisabled) {
-    _showCartSnack(
-      item.disabledLabel.trim().isEmpty
-          ? '${item.subtitle} is unavailable right now.'
-          : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
-    );
-    return;
-  }
-  final isFashionItem = itemCategory == 'Fashion';
-  final isFootwearItem = itemCategory == 'Footwear';
-  final isGroceryItem = itemCategory == 'Groceries';
-  final isPharmacyItem = itemCategory == 'Pharmacy';
-  final isGiftItem = itemCategory == 'Gift';
-  final isRestaurantItem = itemCategory == 'Restaurant';
-  final navigator = Navigator.of(context);
-  if (isFashionItem) {
-    await navigator.push<bool>(
-      MaterialPageRoute<bool>(
+  Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
+    final itemCategory = _shopCategoryForItem(item);
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.subtitle} is unavailable right now.'
+            : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
+      return;
+    }
+    final isFashionItem = itemCategory == 'Fashion';
+    final isFootwearItem = itemCategory == 'Footwear';
+    final isGroceryItem = itemCategory == 'Groceries';
+    final isPharmacyItem = itemCategory == 'Pharmacy';
+    final isGiftItem = itemCategory == 'Gift';
+    final isRestaurantItem = itemCategory == 'Restaurant';
+    final navigator = Navigator.of(context);
+    if (isFashionItem) {
+      await navigator.push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => _ShopItemDetailPage(
+            item: item,
+            supportsColorVariants: true,
+            useFoodPopupStyle: false,
+            returnToShopOnBackAfterAdd: false,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: () => Navigator.of(context).pop(),
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else if (isFootwearItem) {
+      await navigator.push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => _FootwearItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: false,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: () => Navigator.of(context).pop(),
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else if (isGroceryItem) {
+      await navigator.push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => _GroceryItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: false,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: () => Navigator.of(context).pop(),
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else if (isPharmacyItem) {
+      await navigator.push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => _PharmacyItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: false,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: () => Navigator.of(context).pop(),
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else if (isGiftItem) {
+      await navigator.push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => _GiftItemDetailPage(
+            item: item,
+            returnToShopOnBackAfterAdd: false,
+            onAddToCart: () => _handleShopCartAdd(item),
+            onOpenCart: () => Navigator.of(context).pop(),
+            onGiftNow: () => _handleShopCartAdd(item, openCartAfterAdd: true),
+            onWishlistTap: () => _toggleWishlist(item),
+            onShareTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Share link for ${item.title} will be connected next.',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } else {
+      await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.52),
         builder: (_) => _ShopItemDetailPage(
           item: item,
-          supportsColorVariants: true,
-          useFoodPopupStyle: false,
+          supportsColorVariants: false,
+          useFoodPopupStyle: isRestaurantItem,
           returnToShopOnBackAfterAdd: false,
           onAddToCart: () => _handleShopCartAdd(item),
           onOpenCart: () => Navigator.of(context).pop(),
           onWishlistTap: () => _toggleWishlist(item),
           onShareTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
+              SnackBar(
+                content: Text(
+                  'Share link for ${item.title} will be connected next.',
+                ),
+              ),
             );
           },
         ),
-      ),
-    );
-  } else if (isFootwearItem) {
-    await navigator.push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => _FootwearItemDetailPage(
-          item: item,
-          returnToShopOnBackAfterAdd: false,
-          onAddToCart: () => _handleShopCartAdd(item),
-          onOpenCart: () => Navigator.of(context).pop(),
-          onWishlistTap: () => _toggleWishlist(item),
-          onShareTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-            );
-          },
-        ),
-      ),
-    );
-  } else if (isGroceryItem) {
-    await navigator.push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => _GroceryItemDetailPage(
-          item: item,
-          returnToShopOnBackAfterAdd: false,
-          onAddToCart: () => _handleShopCartAdd(item),
-          onOpenCart: () => Navigator.of(context).pop(),
-          onWishlistTap: () => _toggleWishlist(item),
-          onShareTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-            );
-          },
-        ),
-      ),
-    );
-  } else if (isPharmacyItem) {
-    await navigator.push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => _PharmacyItemDetailPage(
-          item: item,
-          returnToShopOnBackAfterAdd: false,
-          onAddToCart: () => _handleShopCartAdd(item),
-          onOpenCart: () => Navigator.of(context).pop(),
-          onWishlistTap: () => _toggleWishlist(item),
-          onShareTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-            );
-          },
-        ),
-      ),
-    );
-  } else if (isGiftItem) {
-    await navigator.push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => _GiftItemDetailPage(
-          item: item,
-          returnToShopOnBackAfterAdd: false,
-          onAddToCart: () => _handleShopCartAdd(item),
-          onOpenCart: () => Navigator.of(context).pop(),
-          onGiftNow: () => _handleShopCartAdd(item, openCartAfterAdd: true),
-          onWishlistTap: () => _toggleWishlist(item),
-          onShareTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-            );
-          },
-        ),
-      ),
-    );
-  } else {
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.52),
-      builder: (_) => _ShopItemDetailPage(
-        item: item,
-        supportsColorVariants: false,
-        useFoodPopupStyle: isRestaurantItem,
-        returnToShopOnBackAfterAdd: false,
-        onAddToCart: () => _handleShopCartAdd(item),
-        onOpenCart: () => Navigator.of(context).pop(),
-        onWishlistTap: () => _toggleWishlist(item),
-        onShareTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Share link for ${item.title} will be connected next.')),
-          );
-        },
-      ),
-    );
+      );
+    }
+    if (mounted && _isAuthenticated) {
+      await _hydrateRemoteState(silent: true);
+    }
   }
-  if (mounted && _isAuthenticated) {
-    await _hydrateRemoteState(silent: true);
-  }
-}
 
   void _openShopProfile(_DiscoveryItem item, {bool autoAddItem = false}) {
-    final inferredCategory =
-        _selectedShopCategory == 'All Deals' ? _shopCategoryForItem(item) : _selectedShopCategory;
+    final inferredCategory = _selectedShopCategory == 'All Deals'
+        ? _shopCategoryForItem(item)
+        : _selectedShopCategory;
     if (_shopComingSoonCategories.contains(inferredCategory)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$inferredCategory is coming soon.')),
@@ -6362,8 +6991,8 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
               setState(() {
                 _cartShopName = cart.shopName;
                 _cartItems
-                ..clear()
-                ..addAll(cart.items);
+                  ..clear()
+                  ..addAll(cart.items);
               });
             },
             isWishlisted: _isWishlisted,
@@ -6466,10 +7095,13 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
         MaterialPageRoute<void>(
           builder: (_) => _GroceryProfilePage(
             item: item,
-            initialCategory: _selectedShopSubCategory != 'All' ? _selectedShopSubCategory : 'Biscuits',
+            initialCategory: _selectedShopSubCategory != 'All'
+                ? _selectedShopSubCategory
+                : 'Biscuits',
             isWishlisted: _isWishlisted,
             onWishlistToggle: _toggleWishlist,
-            onAddToCart: (selectedItem) => _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
+            onAddToCart: (selectedItem) =>
+                _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
             onOpenCart: _openCartPage,
             autoAddItem: autoAddItem,
           ),
@@ -6482,10 +7114,13 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
         MaterialPageRoute<void>(
           builder: (_) => _PharmacyProfilePage(
             item: item,
-            initialCategory: _selectedShopSubCategory != 'All' ? _selectedShopSubCategory : 'Wellness',
+            initialCategory: _selectedShopSubCategory != 'All'
+                ? _selectedShopSubCategory
+                : 'Wellness',
             isWishlisted: _isWishlisted,
             onWishlistToggle: _toggleWishlist,
-            onAddToCart: (selectedItem) => _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
+            onAddToCart: (selectedItem) =>
+                _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
             onOpenCart: _openCartPage,
             autoAddItem: autoAddItem,
           ),
@@ -6498,10 +7133,13 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
         MaterialPageRoute<void>(
           builder: (_) => _GiftProfilePage(
             item: item,
-            initialCategory: _selectedShopSubCategory != 'All' ? _selectedShopSubCategory : 'Birthday',
+            initialCategory: _selectedShopSubCategory != 'All'
+                ? _selectedShopSubCategory
+                : 'Birthday',
             isWishlisted: _isWishlisted,
             onWishlistToggle: _toggleWishlist,
-            onAddToCart: (selectedItem) => _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
+            onAddToCart: (selectedItem) =>
+                _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
             onOpenCart: _openCartPage,
             autoAddItem: autoAddItem,
           ),
@@ -6514,13 +7152,16 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
         builder: (_) => _ShopProfilePage(
           item: item,
           shopCategory: inferredCategory,
-          initialFashionSubcategory: (inferredCategory == 'Fashion' || inferredCategory == 'Footwear') &&
+          initialFashionSubcategory:
+              (inferredCategory == 'Fashion' ||
+                      inferredCategory == 'Footwear') &&
                   _selectedShopSubCategory != 'All'
               ? _selectedShopSubCategory
               : 'All',
           isWishlisted: _isWishlisted,
           onWishlistToggle: _toggleWishlist,
-          onAddToCart: (selectedItem) => _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
+          onAddToCart: (selectedItem) =>
+              _handleShopCartAdd(selectedItem, openCartAfterAdd: autoAddItem),
           onOpenCart: _openCartPage,
           autoAddItem: autoAddItem,
         ),
@@ -6528,165 +7169,167 @@ Future<void> _openCartItemFromCart(_DiscoveryItem item) async {
     );
   }
 
+  Future<void> _openProfilePage() async {
+    if (!_isAuthenticated) {
+      final canContinue = await _ensureAuthenticated();
+      if (!mounted || !canContinue) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      return;
+    }
+    final initialProfile =
+        _cachedUserProfile ?? await _readCachedProfilePreview();
+    if (!mounted) {
+      return;
+    }
+    if (_cachedUserProfile == null && initialProfile != null) {
+      setState(() {
+        _cachedUserProfile = initialProfile;
+        _headerProfilePhotoDataUri = initialProfile.profilePhotoDataUri.trim();
+        _headerProfilePhotoObjectKey = initialProfile.profilePhotoObjectKey
+            .trim();
+      });
+    }
+    final updatedProfile = await Navigator.of(context).push<_UserProfileData>(
+      MaterialPageRoute<_UserProfileData>(
+        builder: (_) => _ProfilePage(
+          phoneNumber: _currentPhoneNumber,
+          initialProfile: initialProfile,
+          onLogout: () async {
+            await _NotificationBootstrap.deactivateCurrentToken();
+            await _LocalSessionStore.clear();
+            if (!mounted) {
+              return;
+            }
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute<void>(builder: (_) => const UserHomePage()),
+              (route) => false,
+            );
+          },
+        ),
+      ),
+    );
+    if (mounted && updatedProfile != null) {
+      setState(() {
+        _cachedUserProfile = updatedProfile;
+        _headerProfilePhotoDataUri = updatedProfile.profilePhotoDataUri.trim();
+        _headerProfilePhotoObjectKey = updatedProfile.profilePhotoObjectKey
+            .trim();
+      });
+      await _LocalSessionStore.saveProfileCache(
+        jsonEncode(updatedProfile.toJson()),
+      );
+    }
+    await _refreshNotificationPreview(silent: true);
+    await _hydrateRemoteState(silent: true);
+  }
 
-Future<void> _openProfilePage() async {
-  if (!_isAuthenticated) {
+  Future<void> _openNotificationsPage() async {
     final canContinue = await _ensureAuthenticated();
     if (!mounted || !canContinue) {
       return;
     }
-    await _hydrateRemoteState(silent: true);
-    return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const _NotificationsPage()));
+    await _refreshNotificationPreview(silent: true);
   }
-  final initialProfile = _cachedUserProfile ?? await _readCachedProfilePreview();
-  if (!mounted) {
-    return;
-  }
-  if (_cachedUserProfile == null && initialProfile != null) {
-    setState(() {
-      _cachedUserProfile = initialProfile;
-      _headerProfilePhotoDataUri = initialProfile.profilePhotoDataUri.trim();
-      _headerProfilePhotoObjectKey = initialProfile.profilePhotoObjectKey.trim();
-    });
-  }
-  final updatedProfile = await Navigator.of(context).push<_UserProfileData>(
-    MaterialPageRoute<_UserProfileData>(
-      builder: (_) => _ProfilePage(
-        phoneNumber: _currentPhoneNumber,
-        initialProfile: initialProfile,
-        onLogout: () async {
-          await _NotificationBootstrap.deactivateCurrentToken();
-          await _LocalSessionStore.clear();
-          if (!mounted) {
-            return;
-          }
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute<void>(builder: (_) => const UserHomePage()),
-            (route) => false,
-          );
-        },
-      ),
-    ),
-  );
-  if (mounted && updatedProfile != null) {
-    setState(() {
-      _cachedUserProfile = updatedProfile;
-      _headerProfilePhotoDataUri = updatedProfile.profilePhotoDataUri.trim();
-      _headerProfilePhotoObjectKey = updatedProfile.profilePhotoObjectKey.trim();
-    });
-    await _LocalSessionStore.saveProfileCache(jsonEncode(updatedProfile.toJson()));
-  }
-  await _refreshNotificationPreview(silent: true);
-  await _hydrateRemoteState(silent: true);
-}
 
-Future<void> _openNotificationsPage() async {
-  final canContinue = await _ensureAuthenticated();
-  if (!mounted || !canContinue) {
-    return;
-  }
-  await Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => const _NotificationsPage(),
-    ),
-  );
-  await _refreshNotificationPreview(silent: true);
-}
-
-Future<void> _openCartPage() async {
-  if (_cartPageOpening) {
-    return;
-  }
-  _cartPageOpening = true;
-  try {
-    if (_isAuthenticated) {
-      await _hydrateRemoteState();
-      if (!mounted) {
-        return;
-      }
+  Future<void> _openCartPage() async {
+    if (_cartPageOpening) {
+      return;
     }
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _CartPage(
-          shopName: _cartShopName ?? 'Your cart',
-          items: List<_DiscoveryItem>.unmodifiable(_cartItems),
-          isAuthenticated: _isAuthenticated,
-          onCheckout: _checkoutFromCartPage,
-          onBrowseItems: () => Navigator.of(context).pop(),
-          onRequireLogin: _ensureAuthenticated,
-          onItemTap: _openCartItemFromCart,
+    _cartPageOpening = true;
+    try {
+      if (_isAuthenticated) {
+        await _hydrateRemoteState();
+        if (!mounted) {
+          return;
+        }
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _CartPage(
+            shopName: _cartShopName ?? 'Your cart',
+            items: List<_DiscoveryItem>.unmodifiable(_cartItems),
+            isAuthenticated: _isAuthenticated,
+            onCheckout: _checkoutFromCartPage,
+            onBrowseItems: () => Navigator.of(context).pop(),
+            onRequireLogin: _ensureAuthenticated,
+            onItemTap: _openCartItemFromCart,
+          ),
         ),
-      ),
-    );
-    if (mounted) {
-      await _hydrateRemoteState(silent: true);
+      );
+      if (mounted) {
+        await _hydrateRemoteState(silent: true);
+      }
+    } finally {
+      _cartPageOpening = false;
     }
-  } finally {
-    _cartPageOpening = false;
   }
-}
 
-Future<void> _checkoutFromCartPage(int? addressId) async {
-  final canContinue = await _ensureAuthenticated();
-  if (!mounted || !canContinue) {
-    return;
-  }
-  await _syncLocalCartToBackend();
-  try {
-    final preview = await _UserAppApi.previewCheckout(addressId: addressId);
-    if (!preview.canPlaceOrder) {
+  Future<void> _checkoutFromCartPage(int? addressId) async {
+    final canContinue = await _ensureAuthenticated();
+    if (!mounted || !canContinue) {
+      return;
+    }
+    await _syncLocalCartToBackend();
+    try {
+      final preview = await _UserAppApi.previewCheckout(addressId: addressId);
+      if (!preview.canPlaceOrder) {
+        if (!mounted) {
+          return;
+        }
+        _showCartSnack(
+          preview.issues.isEmpty
+              ? 'This order cannot be placed right now.'
+              : preview.issues.join(' • '),
+        );
+        return;
+      }
+      final order = await _UserAppApi.placeOrder(
+        fulfillmentType: preview.fulfillmentType,
+        addressId: preview.addressId ?? addressId,
+      );
       if (!mounted) {
         return;
       }
-      _showCartSnack(
-        preview.issues.isEmpty
-            ? 'This order cannot be placed right now.'
-            : preview.issues.join(' • '),
+      Navigator.of(context).pop();
+      final paymentResult = await _PaymentFlow.start(
+        context,
+        paymentCode: order.paymentCode,
+        title: 'Pay for ${preview.shopName}',
       );
-      return;
+      if (!mounted) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      if (!mounted) {
+        return;
+      }
+      await _PaymentFlow.showOutcome(
+        context,
+        result: paymentResult,
+        successTitle: 'Order confirmed',
+        failureTitle: 'Order payment incomplete',
+        extraLines: [
+          'Order code: ${order.orderCode}',
+          'Amount: ${order.totalAmount}',
+          preview.addressLine.isEmpty
+              ? 'Default delivery address was used.'
+              : 'Delivering to ${preview.addressLine}',
+        ],
+      );
+    } on _UserAppApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showCartSnack(error.message);
     }
-    final order = await _UserAppApi.placeOrder(
-      fulfillmentType: preview.fulfillmentType,
-      addressId: preview.addressId ?? addressId,
-    );
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop();
-    final paymentResult = await _PaymentFlow.start(
-      context,
-      paymentCode: order.paymentCode,
-      title: 'Pay for ${preview.shopName}',
-    );
-    if (!mounted) {
-      return;
-    }
-    await _hydrateRemoteState(silent: true);
-    if (!mounted) {
-      return;
-    }
-    await _PaymentFlow.showOutcome(
-      context,
-      result: paymentResult,
-      successTitle: 'Order confirmed',
-      failureTitle: 'Order payment incomplete',
-      extraLines: [
-        'Order code: ${order.orderCode}',
-        'Amount: ${order.totalAmount}',
-        preview.addressLine.isEmpty
-            ? 'Default delivery address was used.'
-            : 'Delivering to ${preview.addressLine}',
-      ],
-    );
-  } on _UserAppApiException catch (error) {
-    if (!mounted) {
-      return;
-    }
-    _showCartSnack(error.message);
   }
-}
 
-Future<bool> _handlePrimaryAction(
+  Future<bool> _handlePrimaryAction(
     _DiscoveryItem item,
     _HomeMode mode, {
     String? labourBookingPeriod,
@@ -6695,7 +7338,8 @@ Future<bool> _handlePrimaryAction(
     int? serviceSubcategoryId,
   }) async {
     await _refreshSessionPhoneFromStore();
-    if ((mode == _HomeMode.labour || mode == _HomeMode.service) && !_isAuthenticated) {
+    if ((mode == _HomeMode.labour || mode == _HomeMode.service) &&
+        !_isAuthenticated) {
       final loggedIn = await _ensureAuthenticated();
       if (!loggedIn) {
         return false;
@@ -6719,31 +7363,44 @@ Future<bool> _handlePrimaryAction(
       case _HomeMode.labour:
         if (item.backendLabourId == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${item.title} is not connected to live labour booking yet.')),
+            SnackBar(
+              content: Text(
+                '${item.title} is not connected to live labour booking yet.',
+              ),
+            ),
           );
           return false;
         }
         return _startLabourBookingRequestFlow(
-          labourCategoryId == null ? item : item.copyWith(backendCategoryId: labourCategoryId),
+          labourCategoryId == null
+              ? item
+              : item.copyWith(backendCategoryId: labourCategoryId),
           labourBookingPeriod ?? 'Full Day',
         );
       case _HomeMode.service:
         if (item.backendServiceProviderId == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${item.title} is not connected to live service booking yet.')),
+            SnackBar(
+              content: Text(
+                '${item.title} is not connected to live service booking yet.',
+              ),
+            ),
           );
           return false;
         }
         await _startServiceBookingRequestFlow(
           item.copyWith(
             backendCategoryId: serviceCategoryId ?? item.backendCategoryId,
-            backendSubcategoryId: serviceSubcategoryId ?? item.backendSubcategoryId,
+            backendSubcategoryId:
+                serviceSubcategoryId ?? item.backendSubcategoryId,
           ),
         );
         return false;
       case _HomeMode.all:
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Open ${item.title} from its mode to continue.')),
+          SnackBar(
+            content: Text('Open ${item.title} from its mode to continue.'),
+          ),
         );
         return false;
     }
@@ -6751,26 +7408,36 @@ Future<bool> _handlePrimaryAction(
 
   Future<bool> _startLabourBookingRequestFlow(
     _DiscoveryItem item,
-    String bookingPeriod,
-  ) async {
+    String bookingPeriod, {
+    int? retryAddressId,
+  }) async {
     var bookingLocked = false;
     try {
-      final confirmed = await _confirmBookingLocationUsage(bookingLabel: 'labour');
-      if (!mounted || !confirmed) {
-        return false;
+      int? bookingAddressId = retryAddressId;
+      if (bookingAddressId == null) {
+        final confirmed = await _confirmBookingLocationUsage(
+          bookingLabel: 'labour',
+        );
+        if (!mounted || !confirmed) {
+          return false;
+        }
+        final selectedLocation =
+            _selectedLocationChoice ?? _currentLocationChoice;
+        if (selectedLocation != null &&
+            !_isLabourWithinSelectedRange(item, selectedLocation)) {
+          final radiusKm = item.labourRadiusKm;
+          final radiusLabel = radiusKm == null || radiusKm <= 0
+              ? ''
+              : ' within ${radiusKm.toStringAsFixed(radiusKm >= 10 ? 0 : 1)} km';
+          _showCartSnack(
+            'Labour is out of range for this address. Please choose a nearer address or another labour$radiusLabel.',
+          );
+          return false;
+        }
+        bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
+          bookingLabel: 'labour',
+        );
       }
-      final selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
-      if (selectedLocation != null && !_isLabourWithinSelectedRange(item, selectedLocation)) {
-        final radiusKm = item.labourRadiusKm;
-        final radiusLabel = radiusKm == null || radiusKm <= 0
-            ? ''
-            : ' within ${radiusKm.toStringAsFixed(radiusKm >= 10 ? 0 : 1)} km';
-        _showCartSnack('Labour is out of range for this address. Please choose a nearer address or another labour$radiusLabel.');
-        return false;
-      }
-      final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
-        bookingLabel: 'labour',
-      );
       if (bookingAddressId == null) {
         return false;
       }
@@ -6785,15 +7452,22 @@ Future<bool> _handlePrimaryAction(
       if (!mounted) {
         return false;
       }
-      final status = await _waitForLabourAcceptance(request);
+      final status = await _waitForLabourAcceptance(
+        request,
+        retryRequest: () => _UserAppApi.bookLabourDirect(
+          item: item,
+          bookingPeriod: bookingPeriod,
+          addressId: bookingAddressId,
+        ),
+        candidates: _labourWaitCandidates(<_DiscoveryItem>[
+          item,
+        ], bookingPeriod),
+      );
       if (!mounted) {
         return false;
       }
       if (status == null || !status.canMakePayment) {
-        await _showLabourRequestStateDialog(
-          request: request,
-          status: status,
-        );
+        await _showLabourRequestStateDialog(request: request, status: status);
         return false;
       }
       setState(() {
@@ -6808,23 +7482,18 @@ Future<bool> _handlePrimaryAction(
         _markLabourBookedLocally(item.backendLabourId!);
       }
       bookingLocked = true;
-      final shouldPay = await _showAcceptedLabourDialog(
+      final invoiceResult = await _showAcceptedLabourInvoiceDialog(
         request: request,
         status: status,
         requestedCount: 1,
+        categoryLabel: _selectedLabourCategory,
+        periodLabel: bookingPeriod,
       );
-      if (!mounted || !shouldPay) {
+      if (!mounted || invoiceResult == null) {
         return bookingLocked;
       }
-      final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
-      if (!mounted) {
-        return bookingLocked;
-      }
-      final paymentResult = await _PaymentFlow.start(
-        context,
-        paymentCode: payment.paymentCode,
-        title: 'Confirm labour booking',
-      );
+      final payment = invoiceResult.payment;
+      final paymentResult = invoiceResult.paymentFlowResult;
       if (!mounted) {
         return bookingLocked;
       }
@@ -6840,7 +7509,6 @@ Future<bool> _handlePrimaryAction(
         extraLines: [
           'Booking code: ${payment.bookingCode}',
           'Labour: ${status.providerName.trim().isNotEmpty ? status.providerName : request.labourName}',
-          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
           'Amount: ${payment.amountLabel}',
         ],
       );
@@ -6852,7 +7520,9 @@ Future<bool> _handlePrimaryAction(
           if (!mounted) {
             return false;
           }
-          _showCartSnack('This labour is no longer available. Availability has been refreshed.');
+          _showCartSnack(
+            'This labour is no longer available. Availability has been refreshed.',
+          );
           return false;
         }
         _showCartSnack(error.message);
@@ -6861,11 +7531,146 @@ Future<bool> _handlePrimaryAction(
     return bookingLocked;
   }
 
-  bool _isLabourWithinSelectedRange(_DiscoveryItem item, _HomeLocationChoice selectedLocation) {
+  Future<void> _startQuickLabourBookingFlow({int? retryAddressId}) async {
+    final categoryId = _labourCategoryIdForLabel(_selectedLabourCategory);
+    if (categoryId == null) {
+      _showCartSnack('Please select a labour category first.');
+      return;
+    }
+    if (_selectedSingleLabourPeriod == 'All') {
+      return;
+    }
+    if (retryAddressId == null && !_isAuthenticated) {
+      final loggedIn = await _ensureAuthenticated();
+      if (!mounted || !loggedIn) {
+        return;
+      }
+    }
+    int? bookingAddressId = retryAddressId;
+    if (bookingAddressId == null) {
+      final confirmed = await _confirmBookingLocationUsage(
+        bookingLabel: 'labour',
+      );
+      if (!mounted || !confirmed) {
+        return;
+      }
+      bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
+        bookingLabel: 'labour',
+      );
+    }
+    if (bookingAddressId == null || !mounted) {
+      return;
+    }
+    try {
+      final result = await _UserAppApi.requestGroupLabourBooking(
+        categoryId: categoryId,
+        bookingPeriod: _selectedSingleLabourPeriod,
+        maxPrice: _selectedSingleLabourMaxPrice.trim().isEmpty
+            ? _singleLabourQuickBookOpenBudget
+            : _selectedSingleLabourMaxPrice,
+        labourCount: 1,
+        addressId: bookingAddressId,
+      );
+      if (!mounted) {
+        return;
+      }
+      final request = _RemoteLabourBookingResult(
+        requestId: result.requestId,
+        requestCode: result.requestCode,
+        requestStatus: 'OPEN',
+        quotedPriceAmount: result.platformAmountDue,
+        labourName: 'nearby labour',
+      );
+      final status = await _waitForLabourAcceptance(
+        request,
+        timeoutSeconds: 45,
+        requestedCount: 1,
+        retryRequest: () async {
+          final refreshed = await _UserAppApi.requestGroupLabourBooking(
+            categoryId: categoryId,
+            bookingPeriod: _selectedSingleLabourPeriod,
+            maxPrice: _selectedSingleLabourMaxPrice.trim().isEmpty
+                ? _singleLabourQuickBookOpenBudget
+                : _selectedSingleLabourMaxPrice,
+            labourCount: 1,
+            addressId: bookingAddressId,
+          );
+          return _RemoteLabourBookingResult(
+            requestId: refreshed.requestId,
+            requestCode: refreshed.requestCode,
+            requestStatus: 'OPEN',
+            quotedPriceAmount: refreshed.platformAmountDue,
+            labourName: 'nearby labour',
+          );
+        },
+        candidates: _labourWaitCandidates(
+          _filteredSingleLabourProfiles,
+          _selectedSingleLabourPeriod,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      if (status == null || !status.canMakePayment) {
+        await _showLabourRequestStateDialog(request: request, status: status);
+        return;
+      }
+      setState(() {
+        _upsertActiveBookingStatus(
+          _activeBookingStatusFromLabourRequest(
+            request: request,
+            status: status,
+          ),
+        );
+      });
+      final invoiceResult = await _showAcceptedLabourInvoiceDialog(
+        request: request,
+        status: status,
+        requestedCount: 1,
+        categoryLabel: _selectedLabourCategory,
+        periodLabel: _selectedSingleLabourPeriod,
+      );
+      if (!mounted || invoiceResult == null) {
+        return;
+      }
+      final payment = invoiceResult.payment;
+      final paymentResult = invoiceResult.paymentFlowResult;
+      if (!mounted) {
+        return;
+      }
+      await _hydrateRemoteState(silent: true);
+      if (!mounted) {
+        return;
+      }
+      await _PaymentFlow.showOutcome(
+        context,
+        result: paymentResult,
+        successTitle: 'Labour booking confirmed',
+        failureTitle: 'Labour payment incomplete',
+        extraLines: [
+          'Booking code: ${payment.bookingCode}',
+          'Labour: ${status.providerName.trim().isNotEmpty ? status.providerName : request.labourName}',
+          'Amount: ${payment.amountLabel}',
+        ],
+      );
+    } on _UserAppApiException catch (error) {
+      if (mounted) {
+        _showCartSnack(error.message);
+      }
+    }
+  }
+
+  bool _isLabourWithinSelectedRange(
+    _DiscoveryItem item,
+    _HomeLocationChoice selectedLocation,
+  ) {
     final radiusKm = item.labourRadiusKm;
     final workLatitude = item.labourWorkLatitude;
     final workLongitude = item.labourWorkLongitude;
-    if (radiusKm == null || radiusKm <= 0 || workLatitude == null || workLongitude == null) {
+    if (radiusKm == null ||
+        radiusKm <= 0 ||
+        workLatitude == null ||
+        workLongitude == null) {
       return true;
     }
     final distanceMeters = Geolocator.distanceBetween(
@@ -6886,16 +7691,153 @@ Future<bool> _handlePrimaryAction(
             normalized.contains('unavailable'));
   }
 
+  LatLng _bookingWaitCenter() {
+    final selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+    if (selectedLocation != null) {
+      return LatLng(selectedLocation.latitude, selectedLocation.longitude);
+    }
+    final latitude = _selectedLatitude;
+    final longitude = _selectedLongitude;
+    if (latitude != null && longitude != null) {
+      return LatLng(latitude, longitude);
+    }
+    return const LatLng(26.8467, 80.9462);
+  }
+
+  List<_BookingWaitCandidate> _labourWaitCandidates(
+    Iterable<_DiscoveryItem> items,
+    String bookingPeriod,
+  ) {
+    final center = _bookingWaitCenter();
+    final normalizedPeriod = bookingPeriod.trim().toUpperCase();
+    return items
+        .where((item) => !item.isDisabled)
+        .take(24)
+        .toList(growable: false)
+        .asMap()
+        .entries
+        .map((entry) {
+          final item = entry.value;
+          final priceLabel = normalizedPeriod == 'HALF DAY'
+              ? item.labourHalfDayPrice
+              : normalizedPeriod == 'FULL DAY'
+              ? item.labourFullDayPrice
+              : (item.labourFullDayPrice.trim().isNotEmpty
+                    ? item.labourFullDayPrice
+                    : item.labourHalfDayPrice);
+          return _BookingWaitCandidate(
+            label: item.title.trim().isEmpty ? 'Labour' : item.title.trim(),
+            priceLabel: priceLabel.trim().isEmpty
+                ? 'Price on accept'
+                : priceLabel,
+            location: _candidateLocationOrOffset(
+              center: center,
+              index: entry.key,
+              latitude: item.labourWorkLatitude,
+              longitude: item.labourWorkLongitude,
+            ),
+            color: const Color(0xFFF2A13D),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<_BookingWaitCandidate> _serviceWaitCandidates(
+    Iterable<_DiscoveryItem> items,
+  ) {
+    final center = _bookingWaitCenter();
+    return items
+        .where((item) => !item.isDisabled)
+        .take(24)
+        .toList(growable: false)
+        .asMap()
+        .entries
+        .map((entry) {
+          final item = entry.value;
+          final label = item.serviceTileLabel.trim().isNotEmpty
+              ? item.serviceTileLabel.trim()
+              : item.title.trim();
+          return _BookingWaitCandidate(
+            label: label.isEmpty ? 'Service' : label,
+            priceLabel: item.price.trim().isEmpty
+                ? 'Visit on accept'
+                : item.price.trim(),
+            location: _candidateLocationOrOffset(
+              center: center,
+              index: entry.key,
+              latitude: item.serviceLatitude,
+              longitude: item.serviceLongitude,
+            ),
+            color: _serviceSubcategoryVisual(label).$2,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  LatLng _candidateLocationOrOffset({
+    required LatLng center,
+    required int index,
+    double? latitude,
+    double? longitude,
+  }) {
+    if (latitude != null &&
+        longitude != null &&
+        latitude != 0 &&
+        longitude != 0) {
+      return LatLng(latitude, longitude);
+    }
+    final ring = 0.006 + ((index % 4) * 0.0025);
+    final angle = (index * 47) * math.pi / 180;
+    return LatLng(
+      center.latitude + (math.sin(angle) * ring),
+      center.longitude + (math.cos(angle) * ring),
+    );
+  }
+
   Future<_RemoteLabourBookingRequestStatus?> _waitForLabourAcceptance(
     _RemoteLabourBookingResult request, {
     int timeoutSeconds = 45,
     int requestedCount = 1,
     bool isGroupRequest = false,
+    Future<_RemoteLabourBookingResult> Function()? retryRequest,
+    List<_BookingWaitCandidate> candidates = const <_BookingWaitCandidate>[],
   }) async {
+    var currentRequest = request;
     final remainingSeconds = ValueNotifier<int>(timeoutSeconds);
-    final dragOffset = ValueNotifier<Offset>(Offset.zero);
-    final cancelledByUser = Completer<bool>();
-    final deadline = DateTime.now().add(Duration(seconds: timeoutSeconds));
+    final snapshot = ValueNotifier<_BookingWaitSnapshot>(
+      _BookingWaitSnapshot(
+        title: isGroupRequest
+            ? 'Waiting for labour responses'
+            : 'Waiting for labour to accept',
+        message: isGroupRequest
+            ? 'Your request was sent to nearby matching labour.'
+            : '${currentRequest.labourName} has received your booking request.',
+      ),
+    );
+    Completer<_BookingWaitAction> actionCompleter =
+        Completer<_BookingWaitAction>();
+    _BookingWaitAction? selectedAction;
+    void completeAction(_BookingWaitAction action) {
+      selectedAction ??= action;
+      if (!actionCompleter.isCompleted) {
+        actionCompleter.complete(action);
+      }
+    }
+
+    void resetWaitingState() {
+      snapshot.value = _BookingWaitSnapshot(
+        title: isGroupRequest
+            ? 'Waiting for labour responses'
+            : 'Waiting for labour to accept',
+        message: isGroupRequest
+            ? 'Your request was sent to nearby matching labour.'
+            : '${currentRequest.labourName} has received your booking request.',
+      );
+      selectedAction = null;
+      actionCompleter = Completer<_BookingWaitAction>();
+    }
+
+    var deadline = DateTime.now().add(Duration(seconds: timeoutSeconds));
     var dialogVisible = true;
     Timer? timer;
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -6911,161 +7853,27 @@ Future<bool> _handlePrimaryAction(
         barrierDismissible: false,
         builder: (dialogContext) => PopScope(
           canPop: false,
-          child: ValueListenableBuilder<Offset>(
-            valueListenable: dragOffset,
-            builder: (context, offset, child) => Transform.translate(
-              offset: offset,
-              child: Dialog(
-                insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 430),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.16),
-                          blurRadius: 30,
-                          offset: const Offset(0, 18),
-                        ),
-                      ],
-                    ),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onPanUpdate: (details) {
-                        dragOffset.value = dragOffset.value + details.delta;
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 5,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE5D9D2),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    isGroupRequest ? 'Waiting for labour responses' : 'Waiting for labour to accept',
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF22314D),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                ValueListenableBuilder<int>(
-                                  valueListenable: remainingSeconds,
-                                  builder: (context, seconds, child) => Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF2A13D),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      '${seconds}s',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            ValueListenableBuilder<int>(
-                              valueListenable: remainingSeconds,
-                              builder: (context, seconds, child) {
-                                final progress = timeoutSeconds <= 0
-                                    ? 0.0
-                                    : (seconds / timeoutSeconds).clamp(0.0, 1.0);
-                                return ClipRRect(
-                                  borderRadius: BorderRadius.circular(999),
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    minHeight: 9,
-                                    backgroundColor: const Color(0xFFFBE8C8),
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF2A13D)),
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 18),
-                            const SizedBox(
-                              width: 34,
-                              height: 34,
-                              child: CircularProgressIndicator(strokeWidth: 3.2),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              isGroupRequest
-                                  ? 'Your request was sent to nearby matching labour.'
-                                  : '${request.labourName} has received your booking request.',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF22314D),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              isGroupRequest
-                                  ? 'We will wait 1 minute and show how many labour accepted.'
-                                  : 'Please wait while the labour accepts or rejects it.',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xFF66748C),
-                                fontWeight: FontWeight.w700,
-                                height: 1.35,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFFD84A4A),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  if (!cancelledByUser.isCompleted) {
-                                    cancelledByUser.complete(true);
-                                  }
-                                  dialogVisible = false;
-                                  Navigator.of(dialogContext).pop();
-                                },
-                                child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(fontWeight: FontWeight.w900),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          child: _BookingRequestWaitSheet(
+            candidates: candidates,
+            center: _bookingWaitCenter(),
+            remainingSeconds: remainingSeconds,
+            totalSeconds: timeoutSeconds,
+            snapshot: snapshot,
+            showAcceptedProvidersList: isGroupRequest,
+            accent: const Color(0xFFF2A13D),
+            onCancel: () {
+              completeAction(_BookingWaitAction.cancel);
+              dialogVisible = false;
+              Navigator.of(dialogContext).pop();
+            },
+            onPay: () {
+              completeAction(_BookingWaitAction.pay);
+              dialogVisible = false;
+              Navigator.of(dialogContext).pop();
+            },
+            onRetry: () {
+              completeAction(_BookingWaitAction.retry);
+            },
           ),
         ),
       ).whenComplete(() => dialogVisible = false),
@@ -7074,52 +7882,176 @@ Future<bool> _handlePrimaryAction(
 
     _RemoteLabourBookingRequestStatus? status;
     try {
-      while (DateTime.now().isBefore(deadline)) {
-        if (cancelledByUser.isCompleted) {
-          await _UserAppApi.cancelLabourBookingRequest(
-            request.requestId,
-            reason: 'You cancelled this booking request while we were still finding a matching labour.',
+      retryLoop:
+      while (true) {
+        deadline = DateTime.now().add(Duration(seconds: timeoutSeconds));
+        remainingSeconds.value = timeoutSeconds;
+        resetWaitingState();
+        status = null;
+        while (DateTime.now().isBefore(deadline)) {
+          if (selectedAction == _BookingWaitAction.cancel) {
+            await _UserAppApi.cancelLabourBookingRequest(
+              currentRequest.requestId,
+              reason:
+                  'You cancelled this booking request while we were still finding a matching labour.',
+            );
+            status = await _UserAppApi.fetchLabourBookingRequestStatus(
+              currentRequest.requestId,
+            );
+            return status;
+          }
+          status = await _UserAppApi.fetchLabourBookingRequestStatus(
+            currentRequest.requestId,
           );
-          status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
+          if (isGroupRequest) {
+            final acceptedCount = status.acceptedProviderCount;
+            final enoughAccepted = acceptedCount >= requestedCount;
+            final allCandidatesResolved = status.pendingProviderCount <= 0;
+            final someAccepted = acceptedCount > 0;
+            final closedWithoutAcceptance =
+                _isClosedLabourRequestStatus(status.requestStatus) &&
+                allCandidatesResolved &&
+                !someAccepted;
+            final resolvedWithPartialAcceptance =
+                allCandidatesResolved && someAccepted;
+            final finalAcceptedState =
+                enoughAccepted || resolvedWithPartialAcceptance;
+            snapshot.value = snapshot.value.copyWith(
+              accepted: finalAcceptedState,
+              timedOut: false,
+              acceptedProviders: status.acceptedProviders,
+              title: someAccepted
+                  ? '$acceptedCount labour accepted'
+                  : 'Waiting for labour responses',
+              message: someAccepted
+                  ? finalAcceptedState
+                        ? acceptedCount >= requestedCount
+                              ? 'All requested labour accepted. Tap Go to payment to continue.'
+                              : '$acceptedCount of $requestedCount labour accepted. Tap Go to payment to continue for the accepted labour.'
+                        : '$acceptedCount of $requestedCount labour accepted so far. We are still waiting for more responses.'
+                  : 'Your request was sent to nearby matching labour.',
+            );
+            if (finalAcceptedState) {
+              timer.cancel();
+              final action = await actionCompleter.future;
+              if (action == _BookingWaitAction.retry && retryRequest != null) {
+                currentRequest = await retryRequest();
+                continue retryLoop;
+              }
+              return status;
+            }
+            if (closedWithoutAcceptance) {
+              break;
+            }
+          } else {
+            snapshot.value = snapshot.value.copyWith(
+              accepted:
+                  status.canMakePayment || status.acceptedProviderCount > 0,
+              acceptedProviders: status.acceptedProviders,
+              title: status.canMakePayment || status.acceptedProviderCount > 0
+                  ? 'Labour accepted'
+                  : null,
+              message: status.canMakePayment || status.acceptedProviderCount > 0
+                  ? 'Tap Go to payment to continue this booking.'
+                  : null,
+            );
+            final accepted =
+                status.canMakePayment || status.acceptedProviderCount > 0;
+            if (accepted) {
+              timer.cancel();
+              final action = await actionCompleter.future;
+              if (action == _BookingWaitAction.retry && retryRequest != null) {
+                currentRequest = await retryRequest();
+                continue retryLoop;
+              }
+              return status;
+            }
+            if (status.canMakePayment ||
+                _isClosedLabourRequestStatus(status.requestStatus)) {
+              break;
+            }
+          }
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+        if (isGroupRequest &&
+            status != null &&
+            status.acceptedProviderCount > 0) {
+          timer.cancel();
+          snapshot.value = snapshot.value.copyWith(
+            accepted: true,
+            timedOut: false,
+            acceptedProviders: status.acceptedProviders,
+            title: '${status.acceptedProviderCount} labour accepted',
+            message: status.acceptedProviderCount >= requestedCount
+                ? 'All requested labour accepted. Tap Go to payment to continue.'
+                : 'Only ${status.acceptedProviderCount} of $requestedCount labour accepted within 1 minute. Tap Go to payment to continue for the accepted labour.',
+          );
+          final action = await actionCompleter.future;
+          if (action == _BookingWaitAction.retry && retryRequest != null) {
+            currentRequest = await retryRequest();
+            continue;
+          }
           return status;
         }
-        status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
-        if (isGroupRequest) {
-          final enoughAccepted = status.acceptedProviderCount >= requestedCount;
-          final allCandidatesResolved = status.pendingProviderCount <= 0;
-          final someAccepted = status.acceptedProviderCount > 0;
-          final closedWithoutAcceptance =
-              _isClosedLabourRequestStatus(status.requestStatus) &&
-              allCandidatesResolved &&
-              !someAccepted;
-          final resolvedWithPartialAcceptance =
-              allCandidatesResolved && someAccepted;
-          if (enoughAccepted || resolvedWithPartialAcceptance || closedWithoutAcceptance) {
-            break;
+        if (status == null ||
+            (!status.canMakePayment && status.acceptedProviderCount <= 0)) {
+          snapshot.value = snapshot.value.copyWith(
+            timedOut: true,
+            title: 'No acceptance yet',
+            message:
+                'You can retry with matching providers or cancel this request.',
+          );
+          final action = await actionCompleter.future;
+          if (action == _BookingWaitAction.retry) {
+            if (status == null || status.acceptedProviderCount <= 0) {
+              await _UserAppApi.cancelLabourBookingRequest(
+                currentRequest.requestId,
+                reason:
+                    'You retried this booking request after no labour accepted in time.',
+              );
+            }
+            if (retryRequest != null) {
+              currentRequest = await retryRequest();
+              continue;
+            }
+            return null;
           }
-        } else if (status.canMakePayment || _isClosedLabourRequestStatus(status.requestStatus)) {
-          break;
+          if (action == _BookingWaitAction.cancel) {
+            await _UserAppApi.cancelLabourBookingRequest(
+              currentRequest.requestId,
+              reason:
+                  'You cancelled this booking request after no labour accepted in time.',
+            );
+            status = await _UserAppApi.fetchLabourBookingRequestStatus(
+              currentRequest.requestId,
+            );
+            return status;
+          }
         }
-        await Future<void>.delayed(const Duration(seconds: 2));
+        if (!isGroupRequest && (status == null || !status.canMakePayment)) {
+          await _UserAppApi.cancelLabourBookingRequest(
+            currentRequest.requestId,
+            reason: 'Labour did not accept within $timeoutSeconds seconds.',
+          );
+          status = await _UserAppApi.fetchLabourBookingRequestStatus(
+            currentRequest.requestId,
+          );
+        } else if (isGroupRequest &&
+            (status == null || status.acceptedProviderCount <= 0)) {
+          await _UserAppApi.cancelLabourBookingRequest(
+            currentRequest.requestId,
+            reason: 'No labour accepted within $timeoutSeconds seconds.',
+          );
+          status = await _UserAppApi.fetchLabourBookingRequestStatus(
+            currentRequest.requestId,
+          );
+        }
+        return status;
       }
-      if (!isGroupRequest && (status == null || !status.canMakePayment)) {
-        await _UserAppApi.cancelLabourBookingRequest(
-          request.requestId,
-          reason: 'Labour did not accept within $timeoutSeconds seconds.',
-        );
-        status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
-      } else if (isGroupRequest && (status == null || status.acceptedProviderCount <= 0)) {
-        await _UserAppApi.cancelLabourBookingRequest(
-          request.requestId,
-          reason: 'No labour accepted within $timeoutSeconds seconds.',
-        );
-        status = await _UserAppApi.fetchLabourBookingRequestStatus(request.requestId);
-      }
-      return status;
     } finally {
       timer.cancel();
       remainingSeconds.dispose();
-      dragOffset.dispose();
+      snapshot.dispose();
       if (mounted && dialogVisible) {
         final navigator = Navigator.of(context, rootNavigator: true);
         if (navigator.canPop()) {
@@ -7146,12 +8078,17 @@ Future<bool> _handlePrimaryAction(
     bool isGroupRequest = false,
     int requestedCount = 1,
   }) async {
-    final normalized = status?.requestStatus.trim().toUpperCase() ?? request.requestStatus.trim().toUpperCase();
-    final title = normalized == 'OPEN' ? 'Still waiting' : 'Booking request update';
+    final normalized =
+        status?.requestStatus.trim().toUpperCase() ??
+        request.requestStatus.trim().toUpperCase();
+    final title = normalized == 'OPEN'
+        ? 'Still waiting'
+        : 'Booking request update';
     final acceptedCount = status?.acceptedProviderCount ?? 0;
     final message = isGroupRequest
         ? switch (acceptedCount) {
-            <= 0 => 'No labour accepted your booking yet. Please try again, or choose another labour type available near you.',
+            <= 0 =>
+              'No labour accepted your booking yet. Please try again, or choose another labour type available near you.',
             _ =>
               'Only $acceptedCount of $requestedCount labour accepted your booking. You can make payment to confirm the accepted labour, then try again for the remaining requirement.',
           }
@@ -7162,7 +8099,8 @@ Future<bool> _handlePrimaryAction(
               'This labour did not accept your request within 45 seconds. Please select a different labour available near you.',
             'REJECTED' =>
               'This labour rejected your booking request. Please select a different labour available near you.',
-            _ => 'Waiting for labour to accept the booking. Please try again in a moment.',
+            _ =>
+              'Waiting for labour to accept the booking. Please try again in a moment.',
           };
     await showDialog<void>(
       context: context,
@@ -7180,96 +8118,104 @@ Future<bool> _handlePrimaryAction(
     );
   }
 
-  Future<bool> _showAcceptedLabourDialog({
+  Future<_InvoicePaymentResult<_RemoteLabourBookingPaymentResult>?>
+  _showAcceptedLabourInvoiceDialog({
     required _RemoteLabourBookingResult request,
     required _RemoteLabourBookingRequestStatus status,
     required int requestedCount,
+    required String categoryLabel,
+    String periodLabel = '',
     bool isGroupRequest = false,
-  }) async {
-    final providerName = status.providerName.trim().isNotEmpty ? status.providerName : request.labourName;
-    final acceptedCount = status.acceptedProviderCount <= 0 ? 1 : status.acceptedProviderCount;
+  }) {
+    final providerName = status.providerName.trim().isNotEmpty
+        ? status.providerName
+        : request.labourName;
+    final acceptedCount = status.acceptedProviderCount <= 0
+        ? 1
+        : status.acceptedProviderCount;
     final totalAcceptedPriceLabel = isGroupRequest
         ? (status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
-            ? status.totalAcceptedQuotedPriceAmount
-            : 'As accepted')
+              ? status.totalAcceptedQuotedPriceAmount
+              : 'As accepted')
         : status.quotedPriceAmount;
     final bookingChargeLabel = isGroupRequest
         ? (status.totalAcceptedBookingChargeAmount.trim().isNotEmpty
-            ? status.totalAcceptedBookingChargeAmount
-            : request.quotedPriceAmount)
+              ? status.totalAcceptedBookingChargeAmount
+              : request.quotedPriceAmount)
         : _formatRupee(
             _amountFromLabel(status.quotedPriceAmount) *
                 (_amountFromLabel(_labourBookingChargePerLabour) / 100),
           );
-    final shouldPay = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: Text(isGroupRequest ? 'Labour accepted' : 'Booking accepted'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isGroupRequest ? '$acceptedCount labour accepted' : providerName,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-            ),
-            const SizedBox(height: 10),
-            if (isGroupRequest && acceptedCount < requestedCount)
-              Text(
-                'You requested $requestedCount labour. Only $acceptedCount accepted within 1 minute. Make payment to confirm these $acceptedCount, then you can try again for the remaining labour.',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            if (isGroupRequest && acceptedCount >= requestedCount)
-              Text(
-                'All requested labour accepted. Make payment to confirm the booking.',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            if (isGroupRequest) const SizedBox(height: 10),
-            if (status.distanceLabel.trim().isNotEmpty) Text('Distance: ${status.distanceLabel}'),
-            if (status.providerPhone.trim().isNotEmpty) Text('Phone: ${status.providerPhone}'),
-            const SizedBox(height: 10),
-            Text('Booking code: ${status.bookingCode.trim().isNotEmpty ? status.bookingCode : request.requestCode}'),
-            Text(isGroupRequest ? 'Accepted labour amount: $totalAcceptedPriceLabel' : 'Labour amount: ${status.quotedPriceAmount}'),
-            Text('Booking charges: $bookingChargeLabel'),
-            const SizedBox(height: 12),
-            const Text(
-              'Booking fee is separate and will not be deducted from the labour amount. You still pay the full labour charge for Half Day or Full Day work.',
-              style: TextStyle(fontWeight: FontWeight.w700, height: 1.35),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Confirm booking by making booking charges.',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ],
+    final bookingCode = status.bookingCode.trim().isNotEmpty
+        ? status.bookingCode
+        : request.requestCode;
+    final heading = isGroupRequest ? 'Group labour invoice' : 'Labour invoice';
+    final subtitle = isGroupRequest
+        ? '$acceptedCount labour accepted'
+        : providerName;
+    final invoiceMessage = isGroupRequest
+        ? acceptedCount < requestedCount
+              ? 'Only $acceptedCount of $requestedCount accepted within the payment window. You can confirm these accepted labour now.'
+              : 'All requested labour accepted. Please confirm the booking payment.'
+        : 'Review the booking fee before opening payment.';
+    return _showBookingPaymentInvoice<_RemoteLabourBookingPaymentResult>(
+      title: heading,
+      subtitle: subtitle,
+      message: invoiceMessage,
+      note:
+          'Labour charge is paid to labour after work confirmation. Only booking fee and any platform fee are charged here.',
+      preparePayment: () =>
+          _UserAppApi.initiateLabourBookingPayment(status.requestId),
+      paymentCode: (payment) => payment.paymentCode,
+      paymentTitle: isGroupRequest
+          ? 'Confirm group labour booking'
+          : 'Confirm labour booking',
+      totalLabel: (payment) => payment.amountLabel,
+      detailLines: <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(
+          label: 'Category',
+          value: categoryLabel.trim().isEmpty
+              ? 'Labour booking'
+              : categoryLabel,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Later'),
+        if (periodLabel.trim().isNotEmpty)
+          _PaymentInvoiceLine(label: 'Booking type', value: periodLabel),
+        _PaymentInvoiceLine(label: 'Booking code', value: bookingCode),
+        _PaymentInvoiceLine(
+          label: isGroupRequest ? 'Accepted labour charge' : 'Labour charge',
+          value: totalAcceptedPriceLabel,
+        ),
+      ],
+      chargeLinesBuilder: (payment) => <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(label: 'Booking fee', value: bookingChargeLabel),
+        _PaymentInvoiceLine(
+          label: 'Platform fee',
+          value: _differenceAmountLabel(
+            payment.amountLabel,
+            bookingChargeLabel,
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Make payment'),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
-    return shouldPay ?? false;
   }
 
-
-  Future<void> _startServiceBookingRequestFlow(_DiscoveryItem item) async {
+  Future<void> _startServiceBookingRequestFlow(
+    _DiscoveryItem item, {
+    int? retryAddressId,
+  }) async {
     try {
-      final confirmed = await _confirmBookingLocationUsage(bookingLabel: 'service');
-      if (!mounted || !confirmed) {
-        return;
+      int? bookingAddressId = retryAddressId;
+      if (bookingAddressId == null) {
+        final confirmed = await _confirmBookingLocationUsage(
+          bookingLabel: 'service',
+        );
+        if (!mounted || !confirmed) {
+          return;
+        }
+        bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
+          bookingLabel: 'service',
+        );
       }
-      final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
-        bookingLabel: 'service',
-      );
       if (bookingAddressId == null) {
         return;
       }
@@ -7283,15 +8229,19 @@ Future<bool> _handlePrimaryAction(
       if (!mounted) {
         return;
       }
-      final status = await _waitForServiceAcceptance(request);
+      final status = await _waitForServiceAcceptance(
+        request,
+        retryRequest: () => _UserAppApi.bookServiceDirect(
+          item: item,
+          addressId: bookingAddressId,
+        ),
+        candidates: _serviceWaitCandidates(<_DiscoveryItem>[item]),
+      );
       if (!mounted) {
         return;
       }
       if (status == null || !status.canMakePayment) {
-        await _showServiceRequestStateDialog(
-          request: request,
-          status: status,
-        );
+        await _showServiceRequestStateDialog(request: request, status: status);
         return;
       }
       setState(() {
@@ -7302,22 +8252,15 @@ Future<bool> _handlePrimaryAction(
           ),
         );
       });
-      final shouldPay = await _showAcceptedServiceDialog(
+      final invoiceResult = await _showAcceptedServiceInvoiceDialog(
         request: request,
         status: status,
       );
-      if (!mounted || !shouldPay) {
+      if (!mounted || invoiceResult == null) {
         return;
       }
-      final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
-      if (!mounted) {
-        return;
-      }
-      final paymentResult = await _PaymentFlow.start(
-        context,
-        paymentCode: payment.paymentCode,
-        title: 'Confirm service booking',
-      );
+      final payment = invoiceResult.payment;
+      final paymentResult = invoiceResult.paymentFlowResult;
       if (!mounted) {
         return;
       }
@@ -7333,7 +8276,6 @@ Future<bool> _handlePrimaryAction(
         extraLines: [
           'Booking code: ${payment.bookingCode}',
           'Provider: ${status.providerName.trim().isNotEmpty ? status.providerName : request.providerName}',
-          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
           'Amount: ${payment.amountLabel}',
         ],
       );
@@ -7344,14 +8286,16 @@ Future<bool> _handlePrimaryAction(
     }
   }
 
-  Future<void> _startRandomServiceBookingFlow() async {
-    final canContinue = await _ensureAuthenticated();
-    if (!mounted) {
-      return;
-    }
-    if (!canContinue) {
-      _showCartSnack('Please log in to continue service booking.');
-      return;
+  Future<void> _startRandomServiceBookingFlow({int? retryAddressId}) async {
+    if (retryAddressId == null) {
+      final canContinue = await _ensureAuthenticated();
+      if (!mounted) {
+        return;
+      }
+      if (!canContinue) {
+        _showCartSnack('Please log in to continue service booking.');
+        return;
+      }
     }
 
     final categoryId = _serviceCategoryIdForLabel(_selectedServiceCategory);
@@ -7365,13 +8309,18 @@ Future<bool> _handlePrimaryAction(
     }
 
     try {
-      final confirmed = await _confirmBookingLocationUsage(bookingLabel: 'service');
-      if (!mounted || !confirmed) {
-        return;
+      int? bookingAddressId = retryAddressId;
+      if (bookingAddressId == null) {
+        final confirmed = await _confirmBookingLocationUsage(
+          bookingLabel: 'service',
+        );
+        if (!mounted || !confirmed) {
+          return;
+        }
+        bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
+          bookingLabel: 'service',
+        );
       }
-      final bookingAddressId = await _ensureBookingAddressIdForServiceOrLabour(
-        bookingLabel: 'service',
-      );
       if (bookingAddressId == null || !mounted) {
         return;
       }
@@ -7384,15 +8333,22 @@ Future<bool> _handlePrimaryAction(
       if (!mounted) {
         return;
       }
-      final status = await _waitForServiceAcceptance(request);
+      final status = await _waitForServiceAcceptance(
+        request,
+        candidates: _serviceWaitCandidates(_filteredServiceProviders),
+        timeoutSeconds: 45,
+        retryRequest: () => _UserAppApi.bookServiceRandom(
+          categoryId: categoryId,
+          subcategoryId: subcategoryId,
+          serviceName: _selectedServiceBookingLabel,
+          addressId: bookingAddressId,
+        ),
+      );
       if (!mounted) {
         return;
       }
       if (status == null || !status.canMakePayment) {
-        await _showServiceRequestStateDialog(
-          request: request,
-          status: status,
-        );
+        await _showServiceRequestStateDialog(request: request, status: status);
         return;
       }
       setState(() {
@@ -7403,22 +8359,15 @@ Future<bool> _handlePrimaryAction(
           ),
         );
       });
-      final shouldPay = await _showAcceptedServiceDialog(
+      final invoiceResult = await _showAcceptedServiceInvoiceDialog(
         request: request,
         status: status,
       );
-      if (!mounted || !shouldPay) {
+      if (!mounted || invoiceResult == null) {
         return;
       }
-      final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
-      if (!mounted) {
-        return;
-      }
-      final paymentResult = await _PaymentFlow.start(
-        context,
-        paymentCode: payment.paymentCode,
-        title: 'Confirm service booking',
-      );
+      final payment = invoiceResult.payment;
+      final paymentResult = invoiceResult.paymentFlowResult;
       if (!mounted) {
         return;
       }
@@ -7434,7 +8383,6 @@ Future<bool> _handlePrimaryAction(
         extraLines: [
           'Booking code: ${payment.bookingCode}',
           'Provider: ${status.providerName.trim().isNotEmpty ? status.providerName : request.providerName}',
-          if (status.distanceLabel.trim().isNotEmpty) 'Distance: ${status.distanceLabel}',
           'Amount: ${payment.amountLabel}',
         ],
       );
@@ -7476,9 +8424,7 @@ Future<bool> _handlePrimaryAction(
       });
       return selectedAddress.addressId;
     }
-    final saved = await _promptAddAddressForBooking(
-      bookingLabel: bookingLabel,
-    );
+    final saved = await _promptAddAddressForBooking(bookingLabel: bookingLabel);
     if (!saved || !mounted) {
       return null;
     }
@@ -7505,20 +8451,24 @@ Future<bool> _handlePrimaryAction(
         addresses = _savedAddresses;
       }
     }
-    final options = addresses.map(_locationChoiceFromAddress).toList(growable: false);
+    final options = addresses
+        .map(_locationChoiceFromAddress)
+        .toList(growable: false);
     if (options.isEmpty) {
       return null;
     }
     if (!mounted) {
       return null;
     }
-    _HomeLocationChoice? pendingSelection = _selectedLocationChoice?.addressId != null
+    _HomeLocationChoice? pendingSelection =
+        _selectedLocationChoice?.addressId != null
         ? options.cast<_HomeLocationChoice?>().firstWhere(
-              (option) => option?.addressId == _selectedLocationChoice?.addressId,
-              orElse: () => options.isNotEmpty ? options.first : null,
-            )
+            (option) => option?.addressId == _selectedLocationChoice?.addressId,
+            orElse: () => options.isNotEmpty ? options.first : null,
+          )
         : (options.isNotEmpty ? options.first : null);
-    final currentPickedLocation = _selectedLocationChoice ?? _currentLocationChoice;
+    final currentPickedLocation =
+        _selectedLocationChoice ?? _currentLocationChoice;
     final result = await showModalBottomSheet<Object?>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -7560,9 +8510,9 @@ Future<bool> _handlePrimaryAction(
                     Text(
                       'Select address for booking',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF22314D),
-                          ),
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF22314D),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -7581,7 +8531,8 @@ Future<bool> _handlePrimaryAction(
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final option = options[index];
-                          final isSelected = pendingSelection?.addressId != null &&
+                          final isSelected =
+                              pendingSelection?.addressId != null &&
                               pendingSelection!.addressId == option.addressId;
                           return _HomeLocationOptionTile(
                             option: option,
@@ -7646,7 +8597,9 @@ Future<bool> _handlePrimaryAction(
                             ),
                             onPressed: pendingSelection == null
                                 ? null
-                                : () => Navigator.of(sheetContext).pop(pendingSelection),
+                                : () => Navigator.of(
+                                    sheetContext,
+                                  ).pop(pendingSelection),
                             child: const Text(
                               'Continue',
                               style: TextStyle(fontWeight: FontWeight.w900),
@@ -7685,15 +8638,19 @@ Future<bool> _handlePrimaryAction(
       if (updatedLocation?.addressId != null) {
         return updatedLocation;
       }
-      final refreshedOptions = _savedAddresses.map(_locationChoiceFromAddress).toList(growable: false);
+      final refreshedOptions = _savedAddresses
+          .map(_locationChoiceFromAddress)
+          .toList(growable: false);
       if (refreshedOptions.isEmpty) {
         return null;
       }
       return refreshedOptions.firstWhere(
         (option) =>
             currentPickedLocation != null &&
-            (option.latitude - currentPickedLocation.latitude).abs() < 0.00001 &&
-            (option.longitude - currentPickedLocation.longitude).abs() < 0.00001,
+            (option.latitude - currentPickedLocation.latitude).abs() <
+                0.00001 &&
+            (option.longitude - currentPickedLocation.longitude).abs() <
+                0.00001,
         orElse: () => refreshedOptions.last,
       );
     }
@@ -7743,9 +8700,9 @@ Future<bool> _handlePrimaryAction(
                   Text(
                     'Save address to continue',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: const Color(0xFF22314D),
-                        ),
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF22314D),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -7769,7 +8726,8 @@ Future<bool> _handlePrimaryAction(
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () => Navigator.of(sheetContext).pop('cancel'),
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop('cancel'),
                           child: const Text(
                             'Not now',
                             style: TextStyle(fontWeight: FontWeight.w800),
@@ -7787,7 +8745,8 @@ Future<bool> _handlePrimaryAction(
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () => Navigator.of(sheetContext).pop('add'),
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop('add'),
                           child: const Text(
                             'Add address',
                             style: TextStyle(fontWeight: FontWeight.w900),
@@ -7809,10 +8768,8 @@ Future<bool> _handlePrimaryAction(
     _markDiscoveryPending();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const _AddressesPage(
-          autoOpenEditor: true,
-          closeAfterSave: true,
-        ),
+        builder: (_) =>
+            const _AddressesPage(autoOpenEditor: true, closeAfterSave: true),
       ),
     );
     await _loadHomeLocationOptions();
@@ -7822,12 +8779,16 @@ Future<bool> _handlePrimaryAction(
       return true;
     }
     if (mounted) {
-      _showCartSnack('Please add an address to continue booking $bookingLabel.');
+      _showCartSnack(
+        'Please add an address to continue booking $bookingLabel.',
+      );
     }
     return false;
   }
 
-  Future<bool> _confirmBookingLocationUsage({required String bookingLabel}) async {
+  Future<bool> _confirmBookingLocationUsage({
+    required String bookingLabel,
+  }) async {
     var selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
     if (_isAuthenticated && _savedAddresses.length > 1) {
       final selectedAddress = await _promptSelectSavedAddressForBooking(
@@ -7841,7 +8802,9 @@ Future<bool> _handlePrimaryAction(
       });
       return true;
     }
-    if (_isAuthenticated && _savedAddresses.isNotEmpty && (selectedLocation == null || selectedLocation.addressId == null)) {
+    if (_isAuthenticated &&
+        _savedAddresses.isNotEmpty &&
+        (selectedLocation == null || selectedLocation.addressId == null)) {
       final selectedAddress = await _promptSelectSavedAddressForBooking(
         bookingLabel: bookingLabel,
       );
@@ -7863,14 +8826,18 @@ Future<bool> _handlePrimaryAction(
       }
       selectedLocation = _selectedLocationChoice ?? _currentLocationChoice;
       if (selectedLocation == null) {
-        _showCartSnack('Please choose a location before booking $bookingLabel.');
+        _showCartSnack(
+          'Please choose a location before booking $bookingLabel.',
+        );
         return false;
       }
     }
 
     final locationTitle = selectedLocation.isCurrentLocation
         ? 'Current location'
-        : (selectedLocation.title.trim().isEmpty ? 'Selected location' : selectedLocation.title.trim());
+        : (selectedLocation.title.trim().isEmpty
+              ? 'Selected location'
+              : selectedLocation.title.trim());
     final locationSubtitle = selectedLocation.subtitle.trim().isEmpty
         ? 'We will use your detected location for this booking.'
         : selectedLocation.subtitle.trim();
@@ -7915,9 +8882,9 @@ Future<bool> _handlePrimaryAction(
                   Text(
                     'Booking at detected location',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: const Color(0xFF22314D),
-                        ),
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF22314D),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -7973,7 +8940,8 @@ Future<bool> _handlePrimaryAction(
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () => Navigator.of(sheetContext).pop('change'),
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop('change'),
                           child: const Text(
                             'Change',
                             style: TextStyle(fontWeight: FontWeight.w800),
@@ -7981,17 +8949,18 @@ Future<bool> _handlePrimaryAction(
                         ),
                       ),
                       const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFFD48E78),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
+                      Expanded(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFD48E78),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () => Navigator.of(sheetContext).pop('continue'),
+                          onPressed: () =>
+                              Navigator.of(sheetContext).pop('continue'),
                           child: const Text(
                             'Continue',
                             style: TextStyle(fontWeight: FontWeight.w900),
@@ -8033,65 +9002,179 @@ Future<bool> _handlePrimaryAction(
   }
 
   Future<_RemoteServiceBookingRequestStatus?> _waitForServiceAcceptance(
-    _RemoteServiceBookingResult request,
-  ) async {
-    final waitingTitle = request.isBroadcast
-        ? 'Waiting for a provider to accept'
-        : 'Waiting for provider to accept';
-    final waitingLine = request.isBroadcast
-        ? 'Matching service providers have received your booking request.'
-        : '${request.providerName} has received your service booking request.';
+    _RemoteServiceBookingResult request, {
+    List<_BookingWaitCandidate> candidates = const <_BookingWaitCandidate>[],
+    int timeoutSeconds = 45,
+    Future<_RemoteServiceBookingResult> Function()? retryRequest,
+  }) async {
+    var currentRequest = request;
+    final remainingSeconds = ValueNotifier<int>(timeoutSeconds);
+    final snapshot = ValueNotifier<_BookingWaitSnapshot>(
+      _BookingWaitSnapshot(
+        title: currentRequest.isBroadcast
+            ? 'Waiting for a provider to accept'
+            : 'Waiting for provider to accept',
+        message: currentRequest.isBroadcast
+            ? ''
+            : '${currentRequest.providerName} has received your service booking request.',
+      ),
+    );
+    Completer<_BookingWaitAction> actionCompleter =
+        Completer<_BookingWaitAction>();
+    _BookingWaitAction? selectedAction;
+    void completeAction(_BookingWaitAction action) {
+      selectedAction ??= action;
+      if (!actionCompleter.isCompleted) {
+        actionCompleter.complete(action);
+      }
+    }
+
+    void resetWaitingState() {
+      snapshot.value = _BookingWaitSnapshot(
+        title: currentRequest.isBroadcast
+            ? 'Waiting for a provider to accept'
+            : 'Waiting for provider to accept',
+        message: currentRequest.isBroadcast
+            ? ''
+            : '${currentRequest.providerName} has received your service booking request.',
+      );
+      selectedAction = null;
+      actionCompleter = Completer<_BookingWaitAction>();
+    }
+
+    var dialogVisible = true;
+    var deadline = DateTime.now().add(Duration(seconds: timeoutSeconds));
+    Timer? timer;
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final remaining = deadline.difference(DateTime.now()).inSeconds + 1;
+      remainingSeconds.value = remaining.clamp(0, timeoutSeconds);
+      if (remainingSeconds.value <= 0) {
+        snapshot.value = snapshot.value.copyWith(
+          timedOut: true,
+          title: 'No acceptance yet',
+          message:
+              'You can retry with matching providers or cancel this request.',
+        );
+        timer?.cancel();
+      }
+    });
     unawaited(
       showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => PopScope(
           canPop: false,
-          child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: Text(waitingTitle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  waitingLine,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  request.isBroadcast
-                      ? 'Please wait while one available matching provider accepts or rejects it.'
-                      : 'Please wait while the provider accepts or rejects it.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+          child: _BookingRequestWaitSheet(
+            candidates: candidates,
+            center: _bookingWaitCenter(),
+            remainingSeconds: remainingSeconds,
+            totalSeconds: timeoutSeconds,
+            snapshot: snapshot,
+            showAcceptedProvidersList: false,
+            accent: const Color(0xFFE36C93),
+            onCancel: () {
+              completeAction(_BookingWaitAction.cancel);
+              dialogVisible = false;
+              Navigator.of(dialogContext).pop();
+            },
+            onPay: () {
+              completeAction(_BookingWaitAction.pay);
+              dialogVisible = false;
+              Navigator.of(dialogContext).pop();
+            },
+            onRetry: () {
+              completeAction(_BookingWaitAction.retry);
+            },
           ),
         ),
-      ),
+      ).whenComplete(() => dialogVisible = false),
     );
     await Future<void>.delayed(Duration.zero);
 
     _RemoteServiceBookingRequestStatus? status;
     try {
-      for (int attempt = 0; attempt < 18; attempt++) {
-        status = await _UserAppApi.fetchServiceBookingRequestStatus(request.requestId);
-        if (status.canMakePayment || _isClosedServiceRequestStatus(status.requestStatus)) {
-          break;
+      retryLoop:
+      while (true) {
+        deadline = DateTime.now().add(Duration(seconds: timeoutSeconds));
+        remainingSeconds.value = timeoutSeconds;
+        resetWaitingState();
+        status = null;
+        final maxAttempts = (timeoutSeconds / 3).ceil();
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+          if (selectedAction == _BookingWaitAction.cancel) {
+            await _UserAppApi.cancelServiceBookingRequest(
+              currentRequest.requestId,
+              reason:
+                  'You cancelled this service request while we were still finding a matching provider.',
+            );
+            status = await _UserAppApi.fetchServiceBookingRequestStatus(
+              currentRequest.requestId,
+            );
+            return status;
+          }
+          status = await _UserAppApi.fetchServiceBookingRequestStatus(
+            currentRequest.requestId,
+          );
+          snapshot.value = snapshot.value.copyWith(
+            accepted: status.canMakePayment,
+            acceptedProviders: status.acceptedProviders,
+            title: status.canMakePayment ? 'Provider accepted' : null,
+            message: status.canMakePayment
+                ? 'Tap Go to payment to continue this service booking.'
+                : null,
+          );
+          if (status.canMakePayment ||
+              _isClosedServiceRequestStatus(status.requestStatus)) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(seconds: 3));
         }
-        await Future<void>.delayed(const Duration(seconds: 3));
+        if (status != null && status.canMakePayment) {
+          timer.cancel();
+          final action = await actionCompleter.future;
+          if (action == _BookingWaitAction.retry && retryRequest != null) {
+            currentRequest = await retryRequest();
+            continue retryLoop;
+          }
+          return status;
+        }
+        snapshot.value = snapshot.value.copyWith(
+          timedOut: true,
+          title: 'No acceptance yet',
+          message:
+              'You can retry with matching providers or cancel this request.',
+        );
+        final action = await actionCompleter.future;
+        if (action == _BookingWaitAction.retry) {
+          await _UserAppApi.cancelServiceBookingRequest(
+            currentRequest.requestId,
+            reason:
+                'You retried this service request after no provider accepted in time.',
+          );
+          if (retryRequest != null) {
+            currentRequest = await retryRequest();
+            continue;
+          }
+          return null;
+        } else if (action == _BookingWaitAction.cancel) {
+          await _UserAppApi.cancelServiceBookingRequest(
+            currentRequest.requestId,
+            reason:
+                'You cancelled this service request after no provider accepted in time.',
+          );
+          status = await _UserAppApi.fetchServiceBookingRequestStatus(
+            currentRequest.requestId,
+          );
+        }
+        return status;
       }
-      return status;
     } finally {
+      timer.cancel();
+      remainingSeconds.dispose();
+      snapshot.dispose();
       if (mounted) {
         final navigator = Navigator.of(context, rootNavigator: true);
-        if (navigator.canPop()) {
+        if (dialogVisible && navigator.canPop()) {
           navigator.pop();
         }
       }
@@ -8113,19 +9196,26 @@ Future<bool> _handlePrimaryAction(
     required _RemoteServiceBookingResult request,
     _RemoteServiceBookingRequestStatus? status,
   }) async {
-    final normalized = status?.requestStatus.trim().toUpperCase() ?? request.requestStatus.trim().toUpperCase();
-    final title = normalized == 'OPEN' ? 'Still waiting' : 'Booking request update';
+    final normalized =
+        status?.requestStatus.trim().toUpperCase() ??
+        request.requestStatus.trim().toUpperCase();
+    final title = normalized == 'OPEN'
+        ? 'Still waiting'
+        : 'Booking request update';
     final message = switch (normalized) {
-      'CANCELLED' => request.isBroadcast
-          ? 'No matching provider accepted your service booking request.'
-          : 'No provider accepted your service booking request.',
-      'EXPIRED' => request.isBroadcast
-          ? 'This request timed out before any matching provider accepted it.'
-          : 'This service booking request timed out before any provider accepted it.',
+      'CANCELLED' =>
+        request.isBroadcast
+            ? 'No matching provider accepted your service booking request.'
+            : 'No provider accepted your service booking request.',
+      'EXPIRED' =>
+        request.isBroadcast
+            ? 'This request timed out before any matching provider accepted it.'
+            : 'This service booking request timed out before any provider accepted it.',
       'REJECTED' => 'The service provider rejected this booking request.',
-      _ => request.isBroadcast
-          ? 'Waiting for a matching provider to accept the booking. Please try again in a moment.'
-          : 'Waiting for the provider to accept the booking. Please try again in a moment.',
+      _ =>
+        request.isBroadcast
+            ? 'Waiting for a matching provider to accept the booking. Please try again in a moment.'
+            : 'Waiting for the provider to accept the booking. Please try again in a moment.',
     };
     await showDialog<void>(
       context: context,
@@ -8143,54 +9233,738 @@ Future<bool> _handlePrimaryAction(
     );
   }
 
-  Future<bool> _showAcceptedServiceDialog({
+  Future<_InvoicePaymentResult<_RemoteServiceBookingPaymentResult>?>
+  _showAcceptedServiceInvoiceDialog({
     required _RemoteServiceBookingResult request,
     required _RemoteServiceBookingRequestStatus status,
-  }) async {
-    final providerName = status.providerName.trim().isNotEmpty ? status.providerName : request.providerName;
-    final shouldPay = await showDialog<bool>(
+  }) {
+    final providerName = status.providerName.trim().isNotEmpty
+        ? status.providerName
+        : request.providerName;
+    return _showBookingPaymentInvoice<_RemoteServiceBookingPaymentResult>(
+      title: 'Service invoice',
+      subtitle: providerName,
+      message: 'Please review the service visit amount before payment.',
+      preparePayment: () =>
+          _UserAppApi.initiateServiceBookingPayment(status.requestId),
+      paymentCode: (payment) => payment.paymentCode,
+      paymentTitle: 'Confirm service booking',
+      totalLabel: (payment) => payment.amountLabel,
+      detailLines: <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(
+          label: 'Category',
+          value: request.serviceName.trim().isEmpty
+              ? 'Service booking'
+              : request.serviceName,
+        ),
+        _PaymentInvoiceLine(
+          label: 'Booking code',
+          value: status.bookingCode.trim().isNotEmpty
+              ? status.bookingCode
+              : request.requestCode,
+        ),
+      ],
+      chargeLinesBuilder: (payment) => <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(
+          label: 'Visiting fee',
+          value: status.quotedPriceAmount,
+        ),
+        _PaymentInvoiceLine(
+          label: 'Platform fee',
+          value: _differenceAmountLabel(
+            payment.amountLabel,
+            status.quotedPriceAmount,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<_InvoicePaymentResult<_RemoteServiceBookingPaymentResult>?>
+  _showActiveServiceInvoiceDialog({required _ActiveBookingStatus status}) {
+    final categoryLabel = status.categoryLabel.trim().isNotEmpty
+        ? status.categoryLabel.trim()
+        : (status.subcategoryLabel.trim().isNotEmpty
+              ? status.subcategoryLabel.trim()
+              : 'Service booking');
+    return _showBookingPaymentInvoice<_RemoteServiceBookingPaymentResult>(
+      title: 'Service invoice',
+      subtitle: status.providerName.trim().isEmpty
+          ? 'Service provider'
+          : status.providerName,
+      message: 'Please review the service visit amount before payment.',
+      preparePayment: () =>
+          _UserAppApi.initiateServiceBookingPayment(status.requestId),
+      paymentCode: (payment) => payment.paymentCode,
+      paymentTitle: 'Confirm service booking',
+      totalLabel: (payment) => payment.amountLabel,
+      detailLines: <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(label: 'Category', value: categoryLabel),
+        _PaymentInvoiceLine(label: 'Booking code', value: status.bookingCode),
+      ],
+      chargeLinesBuilder: (payment) => <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(
+          label: 'Visiting fee',
+          value: status.quotedPriceAmount,
+        ),
+        _PaymentInvoiceLine(
+          label: 'Platform fee',
+          value: _differenceAmountLabel(
+            payment.amountLabel,
+            status.quotedPriceAmount,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<_InvoicePaymentResult<_RemoteLabourBookingPaymentResult>?>
+  _showActiveLabourInvoiceDialog({required _ActiveBookingStatus status}) {
+    final categoryLabel = status.categoryLabel.trim().isNotEmpty
+        ? status.categoryLabel.trim()
+        : 'Labour booking';
+    final periodLabel = status.labourPricingModel.trim();
+    final labourAmountLabel =
+        status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
+        ? status.totalAcceptedQuotedPriceAmount.trim()
+        : status.quotedPriceAmount.trim();
+    final bookingFeeLabel =
+        status.totalAcceptedBookingChargeAmount.trim().isNotEmpty
+        ? status.totalAcceptedBookingChargeAmount.trim()
+        : _formatRupee(
+            _amountFromLabel(status.quotedPriceAmount) *
+                (_amountFromLabel(_labourBookingChargePerLabour) / 100),
+          );
+    return _showBookingPaymentInvoice<_RemoteLabourBookingPaymentResult>(
+      title: 'Labour invoice',
+      subtitle: status.providerName.trim().isEmpty
+          ? 'Accepted labour'
+          : status.providerName,
+      message: 'Review the booking fee before opening payment.',
+      note:
+          'Labour charge is paid to labour after work confirmation. Only booking fee and any platform fee are charged here.',
+      preparePayment: () =>
+          _UserAppApi.initiateLabourBookingPayment(status.requestId),
+      paymentCode: (payment) => payment.paymentCode,
+      paymentTitle: 'Confirm labour booking',
+      totalLabel: (payment) => payment.amountLabel,
+      detailLines: <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(label: 'Category', value: categoryLabel),
+        if (periodLabel.isNotEmpty)
+          _PaymentInvoiceLine(label: 'Booking type', value: periodLabel),
+        _PaymentInvoiceLine(label: 'Booking code', value: status.bookingCode),
+        _PaymentInvoiceLine(
+          label: 'Labour charge',
+          value: labourAmountLabel.trim().isEmpty ? '-' : labourAmountLabel,
+        ),
+      ],
+      chargeLinesBuilder: (payment) => <_PaymentInvoiceLine>[
+        _PaymentInvoiceLine(label: 'Booking fee', value: bookingFeeLabel),
+        _PaymentInvoiceLine(
+          label: 'Platform fee',
+          value: _differenceAmountLabel(payment.amountLabel, bookingFeeLabel),
+        ),
+      ],
+    );
+  }
+
+  Future<_InvoicePaymentResult<T>?> _showBookingPaymentInvoice<T>({
+    required String title,
+    required String subtitle,
+    String message = '',
+    String note = '',
+    required Future<T> Function() preparePayment,
+    required String Function(T payment) paymentCode,
+    required String paymentTitle,
+    required String Function(T payment) totalLabel,
+    required List<_PaymentInvoiceLine> detailLines,
+    required List<_PaymentInvoiceLine> Function(T payment) chargeLinesBuilder,
+  }) {
+    var activeFuture = preparePayment();
+    String? paymentLaunchError;
+    bool startingPayment = false;
+    return showDialog<_InvoicePaymentResult<T>?>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: const Text('Booking accepted'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: false,
+          child: SafeArea(
+            bottom: true,
+            child: Material(
+              color: Colors.white,
+              child: SizedBox(
+                width: double.infinity,
+                height:
+                    MediaQuery.of(dialogContext).size.height -
+                    MediaQuery.of(dialogContext).padding.top,
+                child: FutureBuilder<T>(
+                  future: activeFuture,
+                  builder: (invoiceContext, snapshot) {
+                    return Column(
+                      children: [
+                        const SizedBox(
+                          height: 10,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFFD84A4A),
+                                  Color(0xFFF2A13D),
+                                  Color(0xFF5C8FD8),
+                                  Color(0xFF2E8E45),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                            child:
+                                snapshot.connectionState != ConnectionState.done
+                                ? _buildInvoiceLoadingView(
+                                    title: title,
+                                    subtitle: subtitle,
+                                    onClose: () =>
+                                        Navigator.of(dialogContext).pop(),
+                                  )
+                                : snapshot.hasError || !snapshot.hasData
+                                ? _buildInvoiceErrorView(
+                                    title: title,
+                                    subtitle: subtitle,
+                                    message:
+                                        snapshot.error is _UserAppApiException
+                                        ? (snapshot.error
+                                                  as _UserAppApiException)
+                                              .message
+                                        : 'Unable to prepare the payment invoice right now.',
+                                    onClose: () =>
+                                        Navigator.of(dialogContext).pop(),
+                                    onRetry: () {
+                                      setDialogState(() {
+                                        paymentLaunchError = null;
+                                        startingPayment = false;
+                                        activeFuture = preparePayment();
+                                      });
+                                    },
+                                  )
+                                : _buildInvoiceReadyView(
+                                    dialogContext: dialogContext,
+                                    title: title,
+                                    subtitle: subtitle,
+                                    message: message,
+                                    note: note,
+                                    payableLabel: totalLabel(
+                                      snapshot.data as T,
+                                    ),
+                                    detailLines: detailLines,
+                                    chargeLines: chargeLinesBuilder(
+                                      snapshot.data as T,
+                                    ),
+                                    paymentButtonLabel:
+                                        paymentLaunchError == null
+                                        ? 'Payment'
+                                        : 'Retry',
+                                    paymentErrorMessage: paymentLaunchError,
+                                    startingPayment: startingPayment,
+                                    onPay: () async {
+                                      if (startingPayment) {
+                                        return;
+                                      }
+                                      setDialogState(() {
+                                        startingPayment = true;
+                                        paymentLaunchError = null;
+                                      });
+                                      final payment = snapshot.data as T;
+                                      try {
+                                        final paymentFlowResult =
+                                            await _PaymentFlow.start(
+                                              context,
+                                              paymentCode: paymentCode(payment),
+                                              title: paymentTitle,
+                                            );
+                                        if (!mounted) {
+                                          return;
+                                        }
+                                        Navigator.of(dialogContext).pop(
+                                          _InvoicePaymentResult<T>(
+                                            payment: payment,
+                                            paymentFlowResult:
+                                                paymentFlowResult,
+                                          ),
+                                        );
+                                      } on _UserAppApiException catch (error) {
+                                        setDialogState(() {
+                                          startingPayment = false;
+                                          paymentLaunchError = error.message;
+                                        });
+                                      } catch (_) {
+                                        setDialogState(() {
+                                          startingPayment = false;
+                                          paymentLaunchError =
+                                              'Payment could not be started right now. Please try again.';
+                                        });
+                                      }
+                                    },
+                                  ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInvoiceLoadingView({
+    required String title,
+    required String subtitle,
+    required VoidCallback onClose,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInvoiceHeader(title: title, subtitle: subtitle),
+        const SizedBox(height: 16),
+        Row(
           children: [
-            Text(providerName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-            const SizedBox(height: 6),
-            if (request.serviceName.trim().isNotEmpty) Text(request.serviceName),
-            const SizedBox(height: 10),
-            if (status.distanceLabel.trim().isNotEmpty) Text('Distance: ${status.distanceLabel}'),
-            if (status.providerPhone.trim().isNotEmpty) Text('Phone: ${status.providerPhone}'),
-            const SizedBox(height: 10),
-            Text('Booking code: ${status.bookingCode.trim().isNotEmpty ? status.bookingCode : request.requestCode}'),
-            Text('Booking charges: ${status.quotedPriceAmount}'),
-            const SizedBox(height: 12),
-            const Text(
-              'Confirm booking by making booking charges.',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Expanded(
+              child: Text(
+                'Opening payment details',
+                style: const TextStyle(
+                  color: Color(0xFF22314D),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+              color: const Color(0xFF6A7587),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Later'),
+        const SizedBox(height: 6),
+        const Text(
+          'Please wait while we prepare the payment breakup.',
+          style: TextStyle(
+            color: Color(0xFF66748C),
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Make payment'),
+        ),
+        const SizedBox(height: 18),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInvoiceLoadingCard(lines: 4),
+                const SizedBox(height: 14),
+                _buildInvoiceLoadingCard(lines: 3),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF6EE),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFF0D5BF)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Expanded(child: _LoadingSheenBox(height: 16, width: 110)),
+                      SizedBox(width: 12),
+                      _LoadingSheenBox(height: 22, width: 92),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: onClose,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            child: const Text('Close'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInvoiceErrorView({
+    required String title,
+    required String subtitle,
+    required String message,
+    required VoidCallback onClose,
+    required VoidCallback onRetry,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInvoiceHeader(title: title, subtitle: subtitle),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Payment details unavailable',
+                style: const TextStyle(
+                  color: Color(0xFF22314D),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+              color: const Color(0xFF6A7587),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          message,
+          style: const TextStyle(
+            color: Color(0xFF526071),
+            fontWeight: FontWeight.w700,
+            height: 1.4,
+          ),
+        ),
+        const Spacer(),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onClose,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                child: const Text('Close'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInvoiceReadyView({
+    required BuildContext dialogContext,
+    required String title,
+    required String subtitle,
+    required String message,
+    required String note,
+    required String payableLabel,
+    required List<_PaymentInvoiceLine> detailLines,
+    required List<_PaymentInvoiceLine> chargeLines,
+    required String paymentButtonLabel,
+    required String? paymentErrorMessage,
+    required bool startingPayment,
+    required Future<void> Function() onPay,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildInvoiceHeader(title: title, subtitle: subtitle),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              icon: const Icon(Icons.close_rounded),
+              color: const Color(0xFF6A7587),
+            ),
+          ],
+        ),
+        if (message.trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: const TextStyle(
+              color: Color(0xFF526071),
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+            ),
+          ),
+        ],
+        if (paymentErrorMessage != null &&
+            paymentErrorMessage.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            paymentErrorMessage,
+            style: const TextStyle(
+              color: Color(0xFFB84B4B),
+              fontWeight: FontWeight.w800,
+              height: 1.35,
+            ),
+          ),
+        ],
+        const SizedBox(height: 18),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInvoiceSection(
+                  title: 'Booking details',
+                  lines: detailLines,
+                ),
+                const SizedBox(height: 14),
+                _buildInvoiceSection(title: 'Payable now', lines: chargeLines),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF6EE),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFF0D5BF)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Amount to pay',
+                          style: TextStyle(
+                            color: Color(0xFF22314D),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        payableLabel,
+                        style: const TextStyle(
+                          color: Color(0xFFCB6E5B),
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (note.trim().isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    note,
+                    style: const TextStyle(
+                      color: Color(0xFF6A7587),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                child: const Text('Later'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: startingPayment ? null : onPay,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFCB6E5B),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                child: Text(paymentButtonLabel),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInvoiceLoadingCard({required int lines}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8E2DA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _LoadingSheenBox(height: 18, width: 132),
+          const SizedBox(height: 14),
+          for (var index = 0; index < lines; index++) ...[
+            Row(
+              children: [
+                const Expanded(child: _LoadingSheenBox(height: 14)),
+                const SizedBox(width: 14),
+                _LoadingSheenBox(height: 14, width: index.isEven ? 96 : 74),
+              ],
+            ),
+            if (index < lines - 1) const SizedBox(height: 12),
+          ],
         ],
       ),
     );
-    return shouldPay ?? false;
   }
-  bool _isWishlisted(_DiscoveryItem item) => _wishlistedItems.contains('${item.subtitle}:${item.title}');
 
-  bool _isFavourited(_DiscoveryItem item) => _favouriteProfiles.contains(item.title);
+  Widget _buildInvoiceHeader({
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF2E6), Color(0xFFFFF8EF), Color(0xFFFFF2E6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF22314D),
+              fontSize: 23,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          if (subtitle.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: Color(0xFFCB6E5B),
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvoiceSection({
+    required String title,
+    required List<_PaymentInvoiceLine> lines,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8E2DA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF22314D),
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < lines.length; index++) ...[
+            if (index > 0) const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    lines[index].label,
+                    style: const TextStyle(
+                      color: Color(0xFF6A7587),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    lines[index].value,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      color: const Color(0xFF22314D),
+                      fontWeight: FontWeight.w900,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _differenceAmountLabel(String totalLabel, String componentLabel) {
+    final difference =
+        _amountFromLabel(totalLabel) - _amountFromLabel(componentLabel);
+    return _formatRupee(difference > 0 ? difference : 0);
+  }
+
+  bool _isWishlisted(_DiscoveryItem item) =>
+      _wishlistedItems.contains('${item.subtitle}:${item.title}');
+
+  bool _isFavourited(_DiscoveryItem item) =>
+      _favouriteProfiles.contains(item.title);
 
   void _toggleWishlist(_DiscoveryItem item) {
     final key = '${item.subtitle}:${item.title}';
@@ -8213,127 +9987,131 @@ Future<bool> _handlePrimaryAction(
     });
   }
 
-
-Future<bool> _handleShopCartAdd(_DiscoveryItem item, {bool openCartAfterAdd = false}) async {
-  if (item.isDisabled) {
-    _showCartSnack(
-      item.disabledLabel.trim().isEmpty
-          ? '${item.subtitle} is unavailable right now.'
-          : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
-    );
-    return false;
-  }
-  final shopName = item.subtitle;
-  final category = _shopCategoryForItem(item);
-  if (_isAuthenticated && item.backendProductId != null) {
-    try {
-      final remoteCart = await _UserAppApi.addItemToCart(item);
-      if (!mounted) {
+  Future<bool> _handleShopCartAdd(
+    _DiscoveryItem item, {
+    bool openCartAfterAdd = false,
+  }) async {
+    if (item.isDisabled) {
+      _showCartSnack(
+        item.disabledLabel.trim().isEmpty
+            ? '${item.subtitle} is unavailable right now.'
+            : '${item.subtitle} is ${item.disabledLabel.toLowerCase()} right now.',
+      );
+      return false;
+    }
+    final shopName = item.subtitle;
+    final category = _shopCategoryForItem(item);
+    if (_isAuthenticated && item.backendProductId != null) {
+      try {
+        final remoteCart = await _UserAppApi.addItemToCart(item);
+        if (!mounted) {
+          return false;
+        }
+        setState(() {
+          _cartShopName = remoteCart.shopName;
+          _cartItems
+            ..clear()
+            ..addAll(remoteCart.items);
+          _localCartNeedsSync = false;
+        });
+        _showCartSnack(
+          '${item.title} added to cart from ${remoteCart.shopName}.',
+        );
+        if (openCartAfterAdd) {
+          unawaited(_openCartPage());
+        }
+        return true;
+      } on _UserAppApiException catch (error) {
+        if (mounted) {
+          _showCartSnack(error.message);
+        }
+        return false;
+      } catch (_) {
+        if (mounted) {
+          _showCartSnack('Could not add ${item.title} right now.');
+        }
         return false;
       }
+    }
+    if (_isShopItemOutOfStock(item)) {
+      _showCartSnack('${item.title} is out of stock right now.');
+      return false;
+    }
+    final shopTiming = _shopTimingFor(shopName, category);
+    if (!shopTiming.acceptsOrders) {
+      _showCartSnack(
+        shopTiming.isOpen
+            ? '$shopName has stopped receiving orders for today.'
+            : '$shopName is closed right now.',
+      );
+      return false;
+    }
+    if (_cartShopName == null || _cartShopName == shopName) {
       setState(() {
-        _cartShopName = remoteCart.shopName;
-        _cartItems
-          ..clear()
-          ..addAll(remoteCart.items);
-        _localCartNeedsSync = false;
+        _cartShopName = shopName;
+        _cartItems.add(item);
+        if (item.backendProductId != null) {
+          _localCartNeedsSync = true;
+        }
       });
-      _showCartSnack('${item.title} added to cart from ${remoteCart.shopName}.');
+      _showCartSnack('${item.title} added to cart from $shopName.');
       if (openCartAfterAdd) {
-        unawaited(_openCartPage());
+        _openCartPage();
       }
       return true;
-    } on _UserAppApiException catch (error) {
-      if (mounted) {
-        _showCartSnack(error.message);
-      }
-      return false;
-    } catch (_) {
-      if (mounted) {
-        _showCartSnack('Could not add ${item.title} right now.');
-      }
-      return false;
     }
-  }
-  if (_isShopItemOutOfStock(item)) {
-    _showCartSnack('${item.title} is out of stock right now.');
-    return false;
-  }
-  final shopTiming = _shopTimingFor(shopName, category);
-  if (!shopTiming.acceptsOrders) {
-    _showCartSnack(
-      shopTiming.isOpen
-          ? '$shopName has stopped receiving orders for today.'
-          : '$shopName is closed right now.',
-    );
-    return false;
-  }
-  if (_cartShopName == null || _cartShopName == shopName) {
-    setState(() {
-      _cartShopName = shopName;
-      _cartItems.add(item);
-      if (item.backendProductId != null) {
-        _localCartNeedsSync = true;
-      }
-    });
-    _showCartSnack('${item.title} added to cart from $shopName.');
-    if (openCartAfterAdd) {
-      _openCartPage();
-    }
-    return true;
-  }
 
-  final replace = await showDialog<bool>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text('Replace existing cart?'),
-        content: Text(
-          'Your current cart has items from $_cartShopName. If you continue, existing items will be removed and ${item.title} from $shopName will be added.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
+    final replace = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Replace existing cart?'),
+          content: Text(
+            'Your current cart has items from $_cartShopName. If you continue, existing items will be removed and ${item.title} from $shopName will be added.',
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFCB6E5B),
-              foregroundColor: Colors.white,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('No'),
             ),
-            child: const Text('Yes'),
-          ),
-        ],
-      );
-    },
-  );
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFCB6E5B),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
 
-  if (replace == true) {
-    setState(() {
-      _cartShopName = shopName;
-      _cartItems
-        ..clear()
-        ..add(item);
-      _localCartNeedsSync = item.backendProductId != null;
-    });
-    _showCartSnack('Cart replaced. ${item.title} added from $shopName.');
-    if (openCartAfterAdd) {
-      _openCartPage();
+    if (replace == true) {
+      setState(() {
+        _cartShopName = shopName;
+        _cartItems
+          ..clear()
+          ..add(item);
+        _localCartNeedsSync = item.backendProductId != null;
+      });
+      _showCartSnack('Cart replaced. ${item.title} added from $shopName.');
+      if (openCartAfterAdd) {
+        _openCartPage();
+      }
+      return true;
     }
-    return true;
+    return false;
   }
-  return false;
-}
 
-void _showCartSnack(String message) {
+  void _showCartSnack(String message) {
     if (_looksLikeExpiredSessionMessage(message)) {
       unawaited(_clearExpiredSessionAndReset());
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _clearExpiredSessionAndReset() async {
@@ -8374,10 +10152,7 @@ void _showCartSnack(String message) {
 }
 
 class _ActiveBookingAvatar extends StatelessWidget {
-  const _ActiveBookingAvatar({
-    required this.status,
-    required this.size,
-  });
+  const _ActiveBookingAvatar({required this.status, required this.size});
 
   final _ActiveBookingStatus status;
   final double size;
@@ -8399,7 +10174,11 @@ class _ActiveBookingAvatar extends StatelessWidget {
           : Image.network(
               imageUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Icon(Icons.person_rounded, color: Colors.white, size: size * 0.58),
+              errorBuilder: (_, _, _) => Icon(
+                Icons.person_rounded,
+                color: Colors.white,
+                size: size * 0.58,
+              ),
             ),
     );
   }
@@ -8420,7 +10199,10 @@ class _ActiveBookingsOverviewPage extends StatelessWidget {
   final String Function(_ActiveBookingStatus status) titleBuilder;
   final Future<void> Function(_ActiveBookingStatus status) onOpenDetails;
 
-  Future<void> _handleOpenDetails(BuildContext context, _ActiveBookingStatus status) async {
+  Future<void> _handleOpenDetails(
+    BuildContext context,
+    _ActiveBookingStatus status,
+  ) async {
     Navigator.of(context).pop();
     await onOpenDetails(status);
   }
@@ -8488,7 +10270,8 @@ class _ActiveBookingsOverviewPage extends StatelessWidget {
                   title: activeStatus.providerName.trim().isNotEmpty
                       ? activeStatus.providerName
                       : titleBuilder(activeStatus),
-                  onOpenDetails: () => unawaited(_handleOpenDetails(context, activeStatus)),
+                  onOpenDetails: () =>
+                      unawaited(_handleOpenDetails(context, activeStatus)),
                 );
               },
             ),
@@ -8521,10 +10304,12 @@ class _ActiveBookingOverviewCard extends StatefulWidget {
   final bool showOpenDetailsButton;
 
   @override
-  State<_ActiveBookingOverviewCard> createState() => _ActiveBookingOverviewCardState();
+  State<_ActiveBookingOverviewCard> createState() =>
+      _ActiveBookingOverviewCardState();
 }
 
-class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> {
+class _ActiveBookingOverviewCardState
+    extends State<_ActiveBookingOverviewCard> {
   Color _paymentColor(String label) {
     switch (label.trim().toUpperCase()) {
       case 'PAID':
@@ -8539,11 +10324,15 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
   }
 
   String _bookingTypeLabel(_ActiveBookingStatus status) {
-    return status.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Service' : 'Labour';
+    return status.bookingType.trim().toUpperCase() == 'SERVICE'
+        ? 'Service'
+        : 'Labour';
   }
 
   String _providerLabel(_ActiveBookingStatus status) {
-    return status.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Servicemen' : 'Labour';
+    return status.bookingType.trim().toUpperCase() == 'SERVICE'
+        ? 'Servicemen'
+        : 'Labour';
   }
 
   String _bookingAmountLabel(_ActiveBookingStatus status) {
@@ -8571,12 +10360,12 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
   }
 
   String _subcategoryLabel(_ActiveBookingStatus status) {
-    final category = status.categoryLabel.trim().toLowerCase();
+    final category = status.categoryLabel.trim();
     final subcategory = status.subcategoryLabel.trim();
     if (subcategory.isEmpty) {
       return '';
     }
-    if (subcategory.toLowerCase() == category) {
+    if (subcategory == category) {
       return '';
     }
     return subcategory;
@@ -8584,7 +10373,9 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
 
   bool _canDialPhone(String phone) {
     final trimmed = phone.trim();
-    if (trimmed.isEmpty || trimmed.contains('*') || trimmed.toLowerCase().contains('x')) {
+    if (trimmed.isEmpty ||
+        trimmed.contains('*') ||
+        trimmed.toLowerCase().contains('x')) {
       return false;
     }
     final digits = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -8596,7 +10387,10 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
     if (digits.isEmpty) {
       return;
     }
-    await launchUrl(Uri(scheme: 'tel', path: digits), mode: LaunchMode.externalApplication);
+    await launchUrl(
+      Uri(scheme: 'tel', path: digits),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   @override
@@ -8613,15 +10407,13 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFF6D8D1),
-            Color(0xFFFFF2D8),
-            Color(0xFFFFFFFF),
-          ],
+          colors: [Color(0xFFF6D8D1), Color(0xFFFFF2D8), Color(0xFFFFFFFF)],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: widget.selected ? const Color(0xFFD48E78) : const Color(0xFFE7D8D0),
+          color: widget.selected
+              ? const Color(0xFFD48E78)
+              : const Color(0xFFE7D8D0),
           width: widget.selected ? 1.3 : 1,
         ),
         boxShadow: [
@@ -8642,7 +10434,9 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
               children: [
                 Expanded(
                   child: Text(
-                    status.bookingCode.trim().isNotEmpty ? status.bookingCode : status.requestCode,
+                    status.bookingCode.trim().isNotEmpty
+                        ? status.bookingCode
+                        : status.requestCode,
                     style: const TextStyle(
                       color: Color(0xFFBE6F5D),
                       fontWeight: FontWeight.w900,
@@ -8723,7 +10517,9 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
                             amountLabel,
                             textAlign: TextAlign.end,
                             style: TextStyle(
-                              color: status.canMakePayment ? const Color(0xFFC67A1F) : const Color(0xFF177245),
+                              color: status.canMakePayment
+                                  ? const Color(0xFFC67A1F)
+                                  : const Color(0xFF177245),
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
                             ),
@@ -8773,35 +10569,56 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
                           Text(
                             'Mobile',
                             style: TextStyle(
-                              color: canDialPhone ? const Color(0xFFBE6F5D) : const Color(0xFF8D8A86),
+                              color: canDialPhone
+                                  ? const Color(0xFFBE6F5D)
+                                  : const Color(0xFF8D8A86),
                               fontWeight: FontWeight.w700,
                               fontSize: 11.2,
                             ),
                           ),
                           const SizedBox(height: 4),
                           InkWell(
-                            onTap: canDialPhone ? () => unawaited(_callProviderPhone(status.providerPhone)) : null,
+                            onTap: canDialPhone
+                                ? () => unawaited(
+                                    _callProviderPhone(status.providerPhone),
+                                  )
+                                : null,
                             borderRadius: BorderRadius.circular(999),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
-                                color: canDialPhone ? const Color(0xFFFFF5F2) : const Color(0xFFF7F3F0),
+                                color: canDialPhone
+                                    ? const Color(0xFFFFF5F2)
+                                    : const Color(0xFFF7F3F0),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
-                                  color: canDialPhone ? const Color(0xFFE8B7AA) : const Color(0xFFE6D9D1),
+                                  color: canDialPhone
+                                      ? const Color(0xFFE8B7AA)
+                                      : const Color(0xFFE6D9D1),
                                 ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (canDialPhone) ...[
-                                    const Icon(Icons.call_rounded, size: 13, color: Color(0xFFBE6F5D)),
+                                    const Icon(
+                                      Icons.call_rounded,
+                                      size: 13,
+                                      color: Color(0xFFBE6F5D),
+                                    ),
                                     const SizedBox(width: 4),
                                   ],
                                   Text(
-                                    status.providerPhone.trim().isEmpty ? '-' : status.providerPhone.trim(),
+                                    status.providerPhone.trim().isEmpty
+                                        ? '-'
+                                        : status.providerPhone.trim(),
                                     style: TextStyle(
-                                      color: canDialPhone ? const Color(0xFF22314D) : const Color(0xFF7D889A),
+                                      color: canDialPhone
+                                          ? const Color(0xFF22314D)
+                                          : const Color(0xFF7D889A),
                                       fontWeight: FontWeight.w800,
                                       fontSize: 12.0,
                                     ),
@@ -8826,8 +10643,13 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFFD48E78),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                   icon: const Icon(Icons.open_in_new_rounded, size: 18),
                   label: const Text(
@@ -8838,6 +10660,547 @@ class _ActiveBookingOverviewCardState extends State<_ActiveBookingOverviewCard> 
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingWaitCandidate {
+  const _BookingWaitCandidate({
+    required this.label,
+    required this.priceLabel,
+    required this.location,
+    required this.color,
+  });
+
+  final String label;
+  final String priceLabel;
+  final LatLng location;
+  final Color color;
+}
+
+class _BookingWaitSnapshot {
+  const _BookingWaitSnapshot({
+    required this.title,
+    required this.message,
+    this.accepted = false,
+    this.timedOut = false,
+    this.acceptedProviders = const <_RemoteAcceptedProvider>[],
+  });
+
+  final String title;
+  final String message;
+  final bool accepted;
+  final bool timedOut;
+  final List<_RemoteAcceptedProvider> acceptedProviders;
+
+  _BookingWaitSnapshot copyWith({
+    String? title,
+    String? message,
+    bool? accepted,
+    bool? timedOut,
+    List<_RemoteAcceptedProvider>? acceptedProviders,
+  }) {
+    return _BookingWaitSnapshot(
+      title: title ?? this.title,
+      message: message ?? this.message,
+      accepted: accepted ?? this.accepted,
+      timedOut: timedOut ?? this.timedOut,
+      acceptedProviders: acceptedProviders ?? this.acceptedProviders,
+    );
+  }
+}
+
+enum _BookingWaitAction { cancel, pay, retry }
+
+class _BookingRequestWaitSheet extends StatefulWidget {
+  const _BookingRequestWaitSheet({
+    required this.candidates,
+    required this.center,
+    required this.remainingSeconds,
+    required this.totalSeconds,
+    required this.snapshot,
+    required this.showAcceptedProvidersList,
+    required this.accent,
+    required this.onCancel,
+    required this.onPay,
+    required this.onRetry,
+  });
+
+  final List<_BookingWaitCandidate> candidates;
+  final LatLng center;
+  final ValueNotifier<int> remainingSeconds;
+  final int totalSeconds;
+  final ValueNotifier<_BookingWaitSnapshot> snapshot;
+  final bool showAcceptedProvidersList;
+  final Color accent;
+  final VoidCallback onCancel;
+  final VoidCallback onPay;
+  final VoidCallback onRetry;
+
+  @override
+  State<_BookingRequestWaitSheet> createState() =>
+      _BookingRequestWaitSheetState();
+}
+
+class _BookingRequestWaitSheetState extends State<_BookingRequestWaitSheet> {
+  BitmapDescriptor? _scooterIcon;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadScooterIcon());
+  }
+
+  Future<void> _loadScooterIcon() async {
+    final icon = await _buildScooterMapMarker();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _scooterIcon = icon);
+  }
+
+  Set<Marker> _markers() {
+    final markers = <Marker>{};
+    for (var index = 0; index < widget.candidates.length; index++) {
+      final candidate = widget.candidates[index];
+      markers.add(
+        Marker(
+          markerId: MarkerId('booking_wait_candidate_$index'),
+          position: candidate.location,
+          infoWindow: InfoWindow(
+            title: candidate.label,
+            snippet: candidate.priceLabel,
+          ),
+          icon:
+              _scooterIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        ),
+      );
+    }
+    return markers;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final sheetHeight = media.size.height - media.padding.top;
+    return SafeArea(
+      bottom: true,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            height: sheetHeight,
+            width: double.infinity,
+            decoration: const BoxDecoration(color: Colors.white),
+            child: ClipRect(
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: sheetHeight * 0.58,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: widget.center,
+                              zoom: widget.candidates.length <= 1 ? 13.5 : 12.2,
+                            ),
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: false,
+                            zoomControlsEnabled: false,
+                            compassEnabled: false,
+                            mapToolbarEnabled: false,
+                            markers: _markers(),
+                          ),
+                        ),
+                        Positioned(
+                          left: 14,
+                          top: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${widget.candidates.length} matching nearby',
+                              style: const TextStyle(
+                                color: Color(0xFF22314D),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xFFF0E4DC)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x14000000),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ValueListenableBuilder<_BookingWaitSnapshot>(
+                          valueListenable: widget.snapshot,
+                          builder: (context, snapshot, child) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        snapshot.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Color(0xFF17233C),
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    if (!snapshot.accepted)
+                                      ValueListenableBuilder<int>(
+                                        valueListenable:
+                                            widget.remainingSeconds,
+                                        builder: (context, seconds, child) {
+                                          return Text(
+                                            '${seconds}s',
+                                            style: TextStyle(
+                                              color: widget.accent,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                  ],
+                                ),
+                                if (!snapshot.accepted) ...[
+                                  const SizedBox(height: 14),
+                                  ValueListenableBuilder<int>(
+                                    valueListenable: widget.remainingSeconds,
+                                    builder: (context, seconds, child) {
+                                      final elapsed = widget.totalSeconds <= 0
+                                          ? 1.0
+                                          : ((widget.totalSeconds - seconds) /
+                                                    widget.totalSeconds)
+                                                .clamp(0.0, 1.0);
+                                      return LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          return Container(
+                                            height: 25,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFEEEEEE),
+                                              borderRadius:
+                                                  BorderRadius.circular(15),
+                                            ),
+                                            clipBehavior: Clip.antiAlias,
+                                            child: Stack(
+                                              children: [
+                                                if (elapsed > 0)
+                                                  AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 500,
+                                                    ),
+                                                    curve: Curves.easeInOut,
+                                                    width:
+                                                        constraints.maxWidth *
+                                                        elapsed,
+                                                    height: double.infinity,
+                                                    decoration: BoxDecoration(
+                                                      gradient:
+                                                          const LinearGradient(
+                                                            begin: Alignment
+                                                                .centerLeft,
+                                                            end: Alignment
+                                                                .centerRight,
+                                                            colors: [
+                                                              Color(0xFF006400),
+                                                              Color(0xFF90EE90),
+                                                              Color(0xFFFFFF00),
+                                                              Color(0xFFFF0000),
+                                                              Color(0xFF006400),
+                                                            ],
+                                                            stops: [
+                                                              0.0,
+                                                              0.25,
+                                                              0.50,
+                                                              0.75,
+                                                              1.0,
+                                                            ],
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            15,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                Positioned.fill(
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      gradient: LinearGradient(
+                                                        begin:
+                                                            Alignment.topCenter,
+                                                        end: Alignment
+                                                            .bottomCenter,
+                                                        colors: [
+                                                          Colors.white
+                                                              .withValues(
+                                                                alpha: 0.22,
+                                                              ),
+                                                          Colors.transparent,
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                Positioned(
+                                                  left: 8,
+                                                  right: 8,
+                                                  top: 4,
+                                                  child: Container(
+                                                    height: 4,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white
+                                                          .withValues(
+                                                            alpha: 0.28,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            15,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ],
+                                if (snapshot.message.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    snapshot.message,
+                                    maxLines: snapshot.acceptedProviders.isEmpty
+                                        ? 2
+                                        : 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xFF66748C),
+                                      fontSize: 12.8,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                                if (snapshot.acceptedProviders.isNotEmpty &&
+                                    widget.showAcceptedProvidersList) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    snapshot.accepted
+                                        ? 'Accepted providers'
+                                        : 'Accepted so far',
+                                    style: TextStyle(
+                                      color: widget.accent,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    height: 156,
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF7F9FC),
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: const Color(0xFFE3E9F2),
+                                        ),
+                                      ),
+                                      child: ListView.separated(
+                                        padding: EdgeInsets.zero,
+                                        itemCount:
+                                            snapshot.acceptedProviders.length,
+                                        separatorBuilder: (context, index) =>
+                                            const SizedBox(height: 8),
+                                        itemBuilder: (context, index) {
+                                          final provider =
+                                              snapshot.acceptedProviders[index];
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 10,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 34,
+                                                  height: 34,
+                                                  decoration: BoxDecoration(
+                                                    color: widget.accent
+                                                        .withValues(
+                                                          alpha: 0.14,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.check_rounded,
+                                                    color: widget.accent,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    provider.providerName,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF17233C),
+                                                      fontSize: 13.5,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (provider.quotedPriceAmount
+                                                    .trim()
+                                                    .isNotEmpty)
+                                                  Text(
+                                                    provider.quotedPriceAmount,
+                                                    style: TextStyle(
+                                                      color: widget.accent,
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ] else if (snapshot
+                                    .acceptedProviders
+                                    .isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    snapshot
+                                        .acceptedProviders
+                                        .first
+                                        .providerName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: widget.accent,
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ] else
+                                  const Spacer(),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    if (snapshot.timedOut) ...[
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: widget.onRetry,
+                                          icon: const Icon(
+                                            Icons.refresh_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Retry'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                    ],
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: snapshot.accepted
+                                            ? widget.onPay
+                                            : widget.onCancel,
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: snapshot.accepted
+                                              ? const Color(0xFF2E8E45)
+                                              : const Color(0xFFD84A4A),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 13,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: Icon(
+                                          snapshot.accepted
+                                              ? Icons.payments_rounded
+                                              : Icons.close_rounded,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          snapshot.accepted
+                                              ? 'Go to payment'
+                                              : 'Cancel',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -8855,18 +11218,24 @@ class _ActiveBookingDetailsSheet extends StatefulWidget {
   final _ActiveBookingStatus initialStatus;
   final Future<void> Function(_ActiveBookingStatus status) onPayNow;
   final ValueChanged<_ActiveBookingStatus?> onStatusChanged;
-  final Future<void> Function(_ActiveBookingStatus status)? onOpenProviderProfile;
+  final Future<void> Function(_ActiveBookingStatus status)?
+  onOpenProviderProfile;
 
   @override
-  State<_ActiveBookingDetailsSheet> createState() => _ActiveBookingDetailsSheetState();
+  State<_ActiveBookingDetailsSheet> createState() =>
+      _ActiveBookingDetailsSheetState();
 }
 
-class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> {
+class _ActiveBookingDetailsSheetState
+    extends State<_ActiveBookingDetailsSheet> {
   static final RegExp _sixDigitOtpRegex = RegExp(r'^\d{6}$');
-  static const String _androidDirectionsApiKey = 'AIzaSyA51i0ow9o6wBQzJ1km94Hv_9g2rzesgRA';
-  static const String _iosDirectionsApiKey = 'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
+  static const String _androidDirectionsApiKey =
+      'AIzaSyA51i0ow9o6wBQzJ1km94Hv_9g2rzesgRA';
+  static const String _iosDirectionsApiKey =
+      'AIzaSyBSV5mUsHDu_XcocYqRaFfGOERKsggAdyQ';
   final TextEditingController _startWorkOtpController = TextEditingController();
-  final TextEditingController _mutualCancelOtpController = TextEditingController();
+  final TextEditingController _mutualCancelOtpController =
+      TextEditingController();
   BitmapDescriptor? _providerScooterMarkerIcon;
   _ActiveBookingStatus? _status;
   Timer? _liveTrackingPollTimer;
@@ -8886,6 +11255,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   bool _reviewDialogOpen = false;
   String? _startOtpError;
   String? _mutualCancelOtpError;
+  String? _completeWorkOtpError;
+  String? _cancelActionError;
+  String? _statusBannerMessage;
+  bool _statusBannerIsError = false;
   String? _completeWorkOtpCode;
   bool _mutualCancelRequested = false;
   final Set<int> _reviewPromptedBookingIds = <int>{};
@@ -8910,7 +11283,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 
   Future<_ActiveBookingStatus?> _loadMatchingStatus() async {
-    final currentRequestId = _status?.requestId ?? widget.initialStatus.requestId;
+    final currentRequestId =
+        _status?.requestId ?? widget.initialStatus.requestId;
     final statuses = await _UserAppApi.fetchActiveBookingStatuses();
     for (final status in statuses) {
       if (status.requestId == currentRequestId) {
@@ -8921,7 +11295,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 
   Future<_ActiveBookingStatus?> _loadMatchingHistoryStatus() async {
-    final currentRequestId = _status?.requestId ?? widget.initialStatus.requestId;
+    final currentRequestId =
+        _status?.requestId ?? widget.initialStatus.requestId;
     final statuses = await _UserAppApi.fetchBookingHistoryStatuses();
     for (final status in statuses) {
       if (status.requestId == currentRequestId) {
@@ -8937,7 +11312,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       return explicit;
     }
     final bookingStatus = status.bookingStatus.trim().toUpperCase();
-    if (bookingStatus == 'CANCELLED' && status.paymentStatus.trim().toUpperCase() == 'FAILED') {
+    if (bookingStatus == 'CANCELLED' &&
+        status.paymentStatus.trim().toUpperCase() == 'FAILED') {
       return 'PAYMENT_FAILED';
     }
     return bookingStatus;
@@ -8993,7 +11369,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       final previousStatus = _status;
       final latest = await _loadMatchingStatus();
       _ActiveBookingStatus? reviewCandidate;
-      if (promptForReview || (latest == null && previousStatus?.bookingId != null && previousStatus!.bookingId > 0)) {
+      if (promptForReview ||
+          (latest == null &&
+              previousStatus?.bookingId != null &&
+              previousStatus!.bookingId > 0)) {
         reviewCandidate = await _loadMatchingHistoryStatus();
       }
       if (!mounted) {
@@ -9053,9 +11432,12 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
 
   void _syncCountdownTimer() {
     final status = _status;
-    final needsCountdown = status != null &&
-        ((status.paymentDueAt != null && DateTime.now().isBefore(status.paymentDueAt!)) ||
-            (status.reachByAt != null && DateTime.now().isBefore(status.reachByAt!)));
+    final needsCountdown =
+        status != null &&
+        ((status.paymentDueAt != null &&
+                _currentUtcTime().isBefore(status.paymentDueAt!)) ||
+            (status.reachByAt != null &&
+                _currentUtcTime().isBefore(status.reachByAt!)));
     if (!needsCountdown) {
       _countdownUiTimer?.cancel();
       _countdownUiTimer = null;
@@ -9066,9 +11448,12 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         return;
       }
       final currentStatus = _status;
-      final stillNeeded = currentStatus != null &&
-          ((currentStatus.paymentDueAt != null && DateTime.now().isBefore(currentStatus.paymentDueAt!)) ||
-              (currentStatus.reachByAt != null && DateTime.now().isBefore(currentStatus.reachByAt!)));
+      final stillNeeded =
+          currentStatus != null &&
+          ((currentStatus.paymentDueAt != null &&
+                  _currentUtcTime().isBefore(currentStatus.paymentDueAt!)) ||
+              (currentStatus.reachByAt != null &&
+                  _currentUtcTime().isBefore(currentStatus.reachByAt!)));
       if (!stillNeeded) {
         _countdownUiTimer?.cancel();
         _countdownUiTimer = null;
@@ -9082,7 +11467,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       final previousStatus = _status;
       final latest = await _loadMatchingStatus();
       _ActiveBookingStatus? reviewCandidate;
-      if (latest == null && previousStatus?.bookingId != null && previousStatus!.bookingId > 0) {
+      if (latest == null &&
+          previousStatus?.bookingId != null &&
+          previousStatus!.bookingId > 0) {
         reviewCandidate = await _loadMatchingHistoryStatus();
       }
       if (!mounted) {
@@ -9110,7 +11497,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   Future<void> _refreshTrackingRoute({bool force = false}) async {
     final status = _status;
     final origin = status == null ? null : _providerTrackingLatLng(status);
-    final destination = status == null ? null : _destinationTrackingLatLng(status);
+    final destination = status == null
+        ? null
+        : _destinationTrackingLatLng(status);
     if (origin == null || destination == null) {
       if (mounted && _routeSnapshot != null) {
         setState(() => _routeSnapshot = null);
@@ -9183,12 +11572,16 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     required LatLng destination,
     required String apiKey,
   }) async {
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/directions/json', <String, String>{
-      'origin': '${origin.latitude},${origin.longitude}',
-      'destination': '${destination.latitude},${destination.longitude}',
-      'mode': 'driving',
-      'key': apiKey,
-    });
+    final uri = Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/directions/json',
+      <String, String>{
+        'origin': '${origin.latitude},${origin.longitude}',
+        'destination': '${destination.latitude},${destination.longitude}',
+        'mode': 'driving',
+        'key': apiKey,
+      },
+    );
     final response = await http.get(uri);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Could not load route right now.');
@@ -9202,11 +11595,19 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       throw Exception('No route found.');
     }
     final route = Map<String, dynamic>.from(routes.first as Map);
-    final polyline = Map<String, dynamic>.from((route['overview_polyline'] as Map?) ?? const {});
+    final polyline = Map<String, dynamic>.from(
+      (route['overview_polyline'] as Map?) ?? const {},
+    );
     final legs = (route['legs'] as List?) ?? const [];
-    final firstLeg = legs.isEmpty ? const <String, dynamic>{} : Map<String, dynamic>.from(legs.first as Map);
-    final distance = Map<String, dynamic>.from((firstLeg['distance'] as Map?) ?? const {});
-    final duration = Map<String, dynamic>.from((firstLeg['duration'] as Map?) ?? const {});
+    final firstLeg = legs.isEmpty
+        ? const <String, dynamic>{}
+        : Map<String, dynamic>.from(legs.first as Map);
+    final distance = Map<String, dynamic>.from(
+      (firstLeg['distance'] as Map?) ?? const {},
+    );
+    final duration = Map<String, dynamic>.from(
+      (firstLeg['duration'] as Map?) ?? const {},
+    );
     return _TrackingRouteSnapshot(
       polylinePoints: _decodeGooglePolyline('${polyline['points'] ?? ''}'),
       distanceLabel: '${distance['text'] ?? ''}'.trim(),
@@ -9254,12 +11655,15 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       return;
     }
     if (!_sixDigitOtpRegex.hasMatch(otp)) {
-      setState(() => _startOtpError = 'Enter the 6-digit OTP shared by labour.');
+      setState(
+        () => _startOtpError = 'Enter the 6-digit OTP shared by labour.',
+      );
       return;
     }
     setState(() {
       _verifyingStart = true;
       _startOtpError = null;
+      _statusBannerMessage = null;
     });
     try {
       await _UserAppApi.verifyBookingOtp(
@@ -9270,13 +11674,14 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       _startWorkOtpController.clear();
       await _reload();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Work is now in progress.')),
-        );
+        _showSheetStatusMessage('Work is now in progress.');
       }
     } on _UserAppApiException catch (error) {
       if (mounted) {
-        setState(() => _startOtpError = error.message);
+        setState(() {
+          _startOtpError = error.message;
+          _statusBannerMessage = null;
+        });
       }
     } finally {
       if (mounted) {
@@ -9290,18 +11695,25 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     if (status == null || status.bookingId <= 0 || _generatingCompleteOtp) {
       return;
     }
-    setState(() => _generatingCompleteOtp = true);
+    setState(() {
+      _generatingCompleteOtp = true;
+      _completeWorkOtpError = null;
+      _statusBannerMessage = null;
+    });
     try {
       final otp = await _UserAppApi.generateBookingOtp(
         bookingId: status.bookingId,
         purpose: 'COMPLETE_WORK',
       );
       if (mounted) {
-        setState(() => _completeWorkOtpCode = otp);
+        setState(() {
+          _completeWorkOtpCode = otp;
+          _completeWorkOtpError = null;
+        });
       }
     } on _UserAppApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        setState(() => _completeWorkOtpError = error.message);
       }
     } finally {
       if (mounted) {
@@ -9318,6 +11730,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     setState(() {
       _requestingMutualCancel = true;
       _mutualCancelOtpError = null;
+      _statusBannerMessage = null;
     });
     try {
       await _UserAppApi.generateBookingOtp(
@@ -9328,9 +11741,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         return;
       }
       setState(() => _mutualCancelRequested = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mutual cancel OTP sent to labour.')),
-      );
+      _showSheetStatusMessage('Mutual cancel OTP sent to labour.');
     } on _UserAppApiException catch (error) {
       if (mounted) {
         setState(() => _mutualCancelOtpError = error.message);
@@ -9349,12 +11760,15 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       return;
     }
     if (!_sixDigitOtpRegex.hasMatch(otp)) {
-      setState(() => _mutualCancelOtpError = 'Enter the 6-digit OTP shared by labour.');
+      setState(
+        () => _mutualCancelOtpError = 'Enter the 6-digit OTP shared by labour.',
+      );
       return;
     }
     setState(() {
       _verifyingMutualCancel = true;
       _mutualCancelOtpError = null;
+      _statusBannerMessage = null;
     });
     try {
       await _UserAppApi.verifyBookingOtp(
@@ -9365,9 +11779,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       _mutualCancelOtpController.clear();
       await _reload(promptForReview: true);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Booking cancelled mutually.')),
-        );
+        _showSheetStatusMessage('Booking cancelled mutually.');
       }
     } on _UserAppApiException catch (error) {
       if (mounted) {
@@ -9382,10 +11794,17 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
 
   Future<void> _cancelAfterReachDeadline() async {
     final status = _status;
-    if (status == null || status.bookingId <= 0 || !_canCancelAfterReachDeadline(status) || _cancellingNoShow) {
+    if (status == null ||
+        status.bookingId <= 0 ||
+        !_canCancelAfterReachDeadline(status) ||
+        _cancellingNoShow) {
       return;
     }
-    setState(() => _cancellingNoShow = true);
+    setState(() {
+      _cancellingNoShow = true;
+      _cancelActionError = null;
+      _statusBannerMessage = null;
+    });
     try {
       await _UserAppApi.cancelBookingByUser(
         bookingId: status.bookingId,
@@ -9393,25 +11812,31 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       );
       await _reload(promptForReview: true);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              status.bookingType.toUpperCase() == 'SERVICE'
-                  ? 'Booking cancelled because service provider did not reach in time.'
-                  : 'Booking cancelled because labour did not reach in time.',
-            ),
-          ),
+        _showSheetStatusMessage(
+          status.bookingType.toUpperCase() == 'SERVICE'
+              ? 'Booking cancelled because service provider did not reach in time.'
+              : 'Booking cancelled because labour did not reach in time.',
         );
       }
     } on _UserAppApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        setState(() => _cancelActionError = error.message);
       }
     } finally {
       if (mounted) {
         setState(() => _cancellingNoShow = false);
       }
     }
+  }
+
+  void _showSheetStatusMessage(String message, {bool isError = false}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _statusBannerMessage = message;
+      _statusBannerIsError = isError;
+    });
   }
 
   @override
@@ -9436,7 +11861,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               ? _emptyState(controller)
               : ListView(
                   controller: controller,
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: EdgeInsets.fromLTRB(
                     18,
                     12,
@@ -9458,15 +11884,27 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                     _header(status),
                     const SizedBox(height: 14),
                     if (_loading) const LinearProgressIndicator(minHeight: 3),
+                    if (_statusBannerMessage != null &&
+                        _statusBannerMessage!.trim().isNotEmpty) ...[
+                      if (_loading) const SizedBox(height: 12),
+                      _buildInlineStatusBanner(
+                        _statusBannerMessage!,
+                        isError: _statusBannerIsError,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     if (status.canMakePayment) _paymentPendingAction(status),
                     if (!status.canMakePayment &&
-                        status.bookingStatus.trim().toUpperCase() == 'PAYMENT_PENDING') ...[
+                        status.bookingStatus.trim().toUpperCase() ==
+                            'PAYMENT_PENDING') ...[
                       _paymentProcessingCard(status),
                       const SizedBox(height: 12),
                     ],
-                    if (!status.canMakePayment && status.bookingId <= 0) _waitingForAcceptanceCard(status),
+                    if (!status.canMakePayment && status.bookingId <= 0)
+                      _waitingForAcceptanceCard(status),
                     if (!status.canMakePayment && status.bookingId > 0) ...[
-                      if (status.bookingStatus.toUpperCase() == 'IN_PROGRESS') ...[
+                      if (status.bookingStatus.toUpperCase() ==
+                          'IN_PROGRESS') ...[
                         _completionOtpCard(status),
                         const SizedBox(height: 12),
                       ],
@@ -9476,7 +11914,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       const SizedBox(height: 12),
                       _arrivalOtpCard(status),
                       const SizedBox(height: 12),
-                      if (status.bookingStatus.toUpperCase() != 'IN_PROGRESS') ...[
+                      if (status.bookingStatus.toUpperCase() !=
+                          'IN_PROGRESS') ...[
                         _completionOtpCard(status),
                         const SizedBox(height: 12),
                       ],
@@ -9498,12 +11937,19 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         children: [
           const Text(
             'Waiting for labour response',
-            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+            style: TextStyle(
+              color: Color(0xFF22314D),
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Request ID: ${status.requestCode.trim().isEmpty ? '#${status.requestId}' : status.requestCode}',
-            style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: Color(0xFF66748C),
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -9527,7 +11973,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         Text(
           'No live booking right now.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+          style: TextStyle(
+            color: Color(0xFF22314D),
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
         ),
       ],
     );
@@ -9563,7 +12013,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   _providerTitle(status),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -9592,13 +12046,20 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         children: [
           const Text(
             'Confirm your booking',
-            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+            style: TextStyle(
+              color: Color(0xFF22314D),
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
           ),
           if (status.paymentDueAt != null) ...[
             const SizedBox(height: 6),
             Text(
               'Payment due by ${_timeOnly(status.paymentDueAt)}',
-              style: const TextStyle(color: Color(0xFFCB6E5B), fontWeight: FontWeight.w900),
+              style: const TextStyle(
+                color: Color(0xFFCB6E5B),
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -9616,7 +12077,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               backgroundColor: const Color(0xFFCB6E5B),
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
             ),
             child: _paying
                 ? const SizedBox(
@@ -9627,7 +12090,7 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : const Text('Make payment'),
+                : const Text('Go to payment'),
           ),
         ],
       ),
@@ -9643,7 +12106,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         children: [
           const Text(
             'Waiting for payment confirmation',
-            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 18),
+            style: TextStyle(
+              color: Color(0xFF22314D),
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -9658,7 +12125,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             const SizedBox(height: 10),
             Text(
               'Payment window ends by ${_timeOnly(status.paymentDueAt)}',
-              style: const TextStyle(color: Color(0xFFCB6E5B), fontWeight: FontWeight.w900),
+              style: const TextStyle(
+                color: Color(0xFFCB6E5B),
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -9673,21 +12143,31 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   }
 
   Widget _summaryDetailsCard(_ActiveBookingStatus status) {
-    final providerLabel = status.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Servicemen' : 'Labour';
+    final providerLabel = status.bookingType.trim().toUpperCase() == 'SERVICE'
+        ? 'Servicemen'
+        : 'Labour';
     final categoryLabel = status.categoryLabel.trim().isNotEmpty
         ? status.categoryLabel.trim()
-        : (status.subcategoryLabel.trim().isNotEmpty ? status.subcategoryLabel.trim() : _pricingModelLabel(status));
-    final subcategoryLabel = status.subcategoryLabel.trim().isNotEmpty &&
-            status.subcategoryLabel.trim().toLowerCase() != status.categoryLabel.trim().toLowerCase()
+        : (status.subcategoryLabel.trim().isNotEmpty
+              ? status.subcategoryLabel.trim()
+              : _pricingModelLabel(status));
+    final subcategoryLabel =
+        status.subcategoryLabel.trim().isNotEmpty &&
+            status.subcategoryLabel.trim() != status.categoryLabel.trim()
         ? status.subcategoryLabel.trim()
         : '';
     final amountLabel = status.totalAcceptedQuotedPriceAmount.trim().isNotEmpty
         ? status.totalAcceptedQuotedPriceAmount.trim()
-        : (status.quotedPriceAmount.trim().isNotEmpty ? status.quotedPriceAmount.trim() : 'As quoted');
+        : (status.quotedPriceAmount.trim().isNotEmpty
+              ? status.quotedPriceAmount.trim()
+              : 'As quoted');
     final phone = status.providerPhone.trim();
     final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     final canDialPhone =
-        phone.isNotEmpty && !phone.contains('*') && !phone.toLowerCase().contains('x') && digits.replaceAll('+', '').length >= 7;
+        phone.isNotEmpty &&
+        !phone.contains('*') &&
+        !phone.toLowerCase().contains('x') &&
+        digits.replaceAll('+', '').length >= 7;
     final amountColor = status.paymentStatus.trim().toUpperCase() == 'PAID'
         ? const Color(0xFF177245)
         : const Color(0xFFC67A1F);
@@ -9795,7 +12275,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   Text(
                     'Mobile',
                     style: TextStyle(
-                      color: canDialPhone ? const Color(0xFFBE6F5D) : const Color(0xFF8D8A86),
+                      color: canDialPhone
+                          ? const Color(0xFFBE6F5D)
+                          : const Color(0xFF8D8A86),
                       fontWeight: FontWeight.w700,
                       fontSize: 11.2,
                     ),
@@ -9804,33 +12286,46 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   InkWell(
                     onTap: canDialPhone
                         ? () => unawaited(
-                              launchUrl(
-                                Uri(scheme: 'tel', path: digits),
-                                mode: LaunchMode.externalApplication,
-                              ),
-                            )
+                            launchUrl(
+                              Uri(scheme: 'tel', path: digits),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                          )
                         : null,
                     borderRadius: BorderRadius.circular(999),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: canDialPhone ? const Color(0xFFFFF5F2) : const Color(0xFFF7F3F0),
+                        color: canDialPhone
+                            ? const Color(0xFFFFF5F2)
+                            : const Color(0xFFF7F3F0),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: canDialPhone ? const Color(0xFFE8B7AA) : const Color(0xFFE6D9D1),
+                          color: canDialPhone
+                              ? const Color(0xFFE8B7AA)
+                              : const Color(0xFFE6D9D1),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (canDialPhone) ...[
-                            const Icon(Icons.call_rounded, size: 13, color: Color(0xFFBE6F5D)),
+                            const Icon(
+                              Icons.call_rounded,
+                              size: 13,
+                              color: Color(0xFFBE6F5D),
+                            ),
                             const SizedBox(width: 4),
                           ],
                           Text(
                             phone.isEmpty ? '-' : phone,
                             style: TextStyle(
-                              color: canDialPhone ? const Color(0xFF22314D) : const Color(0xFF7D889A),
+                              color: canDialPhone
+                                  ? const Color(0xFF22314D)
+                                  : const Color(0xFF7D889A),
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
@@ -9867,11 +12362,18 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             children: [
               const Text(
                 'Live trip tracking',
-                style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+                style: TextStyle(
+                  color: Color(0xFF22314D),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
               ),
               if (routeDistanceLabel != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE9F7FF),
                     borderRadius: BorderRadius.circular(999),
@@ -9888,7 +12390,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                 ),
               if (routeEtaLabel != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFEFE7),
                     borderRadius: BorderRadius.circular(999),
@@ -9896,7 +12401,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   ),
                   child: Text(
                     'ETA $routeEtaLabel',
-                    style: const TextStyle(color: Color(0xFF9A432E), fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      color: Color(0xFF9A432E),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
             ],
@@ -9905,7 +12413,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             const SizedBox(height: 8),
             const Text(
               'Calculating route...',
-              style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Color(0xFF66748C),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -9923,7 +12434,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       IgnorePointer(
                         ignoring: true,
                         child: GoogleMap(
-                          initialCameraPosition: _trackingCameraPosition(status),
+                          initialCameraPosition: _trackingCameraPosition(
+                            status,
+                          ),
                           markers: _trackingMarkers(status),
                           circles: _trackingCircles(status),
                           polylines: _trackingPolylines(status),
@@ -9969,7 +12482,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                     child: Text(
                       'Waiting for live location.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        color: Color(0xFF66748C),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
           ),
@@ -9980,7 +12496,8 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
 
   Widget _arrivalOtpCard(_ActiveBookingStatus status) {
     final bookingStatus = status.bookingStatus.toUpperCase();
-    final canEnterOtp = bookingStatus == 'PAYMENT_COMPLETED' || bookingStatus == 'ARRIVED';
+    final canEnterOtp =
+        bookingStatus == 'PAYMENT_COMPLETED' || bookingStatus == 'ARRIVED';
     final alreadyStarted = bookingStatus == 'IN_PROGRESS';
     final cardTitle = alreadyStarted
         ? 'Work in progress'
@@ -9997,7 +12514,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         children: [
           Text(
             cardTitle,
-            style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+            style: const TextStyle(
+              color: Color(0xFF22314D),
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
           ),
           if (!alreadyStarted) ...[
             const SizedBox(height: 10),
@@ -10015,18 +12536,24 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   errorText: _startOtpError,
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: canEnterOtp && !_verifyingStart ? _verifyStartWorkOtp : null,
+              onPressed: canEnterOtp && !_verifyingStart
+                  ? _verifyStartWorkOtp
+                  : null,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF7AA81E),
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: Text(_verifyingStart ? 'Verifying...' : actionLabel),
             ),
@@ -10048,7 +12575,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         children: [
           const Text(
             'Completion OTP',
-            style: TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+            style: TextStyle(
+              color: Color(0xFF22314D),
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 8),
           if (_completeWorkOtpCode != null)
@@ -10062,7 +12593,12 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               child: Text(
                 _completeWorkOtpCode!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28, letterSpacing: 5),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 28,
+                  letterSpacing: 5,
+                ),
               ),
             )
           else
@@ -10074,10 +12610,29 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
               backgroundColor: const Color(0xFFCB6E5B),
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-            child: Text(_generatingCompleteOtp ? 'Generating...' : 'Generate completion OTP'),
+            child: Text(
+              _generatingCompleteOtp
+                  ? 'Generating...'
+                  : 'Generate completion OTP',
+            ),
           ),
+          if (_completeWorkOtpError != null &&
+              _completeWorkOtpError!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              _completeWorkOtpError!,
+              style: const TextStyle(
+                color: Color(0xFFD53F4B),
+                fontWeight: FontWeight.w800,
+                fontSize: 12.4,
+                height: 1.3,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -10088,7 +12643,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     final showNoShowCancel = bookingStatus == 'PAYMENT_COMPLETED';
     final showMutualCancel = bookingStatus == 'IN_PROGRESS';
     final canNoShowCancel = _canCancelAfterReachDeadline(status);
-    if (!showNoShowCancel && !showMutualCancel && !_mutualCancelRequested && _mutualCancelOtpError == null) {
+    if (!showNoShowCancel &&
+        !showMutualCancel &&
+        !_mutualCancelRequested &&
+        _mutualCancelOtpError == null) {
       return const SizedBox.shrink();
     }
     return Container(
@@ -10104,16 +12662,25 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   showMutualCancel
                       ? 'Mutual cancellation'
                       : (status.bookingType.toUpperCase() == 'SERVICE'
-                          ? 'Cancel if service provider does not reach'
-                          : 'Cancel if labour does not reach'),
-                  style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900, fontSize: 16),
+                            ? 'Cancel if service provider does not reach'
+                            : 'Cancel if labour does not reach'),
+                  style: const TextStyle(
+                    color: Color(0xFF22314D),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               if (showNoShowCancel)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
-                    color: canNoShowCancel ? const Color(0xFF1FA855) : const Color(0xFFF2A13D),
+                    color: canNoShowCancel
+                        ? const Color(0xFF1FA855)
+                        : const Color(0xFFF2A13D),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -10132,57 +12699,105 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
             Text(
               canNoShowCancel
                   ? (status.bookingType.toUpperCase() == 'SERVICE'
-                      ? 'Service provider did not reach in time.'
-                      : 'Labour did not reach in time.')
+                        ? 'Service provider did not reach in time.'
+                        : 'Labour did not reach in time.')
                   : 'This button unlocks after the full reach timer ends.',
-              style: const TextStyle(color: Color(0xFF66748C), fontWeight: FontWeight.w700, height: 1.35),
+              style: const TextStyle(
+                color: Color(0xFF66748C),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed: canNoShowCancel && !_cancellingNoShow ? _cancelAfterReachDeadline : null,
+              onPressed: canNoShowCancel && !_cancellingNoShow
+                  ? _cancelAfterReachDeadline
+                  : null,
               style: OutlinedButton.styleFrom(
-                foregroundColor: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFF8F8781),
+                foregroundColor: canNoShowCancel
+                    ? const Color(0xFFB03737)
+                    : const Color(0xFF8F8781),
                 disabledForegroundColor: const Color(0xFF8F8781),
                 minimumSize: const Size.fromHeight(46),
                 side: BorderSide(
-                  color: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFFD1C7C0),
+                  color: canNoShowCancel
+                      ? const Color(0xFFB03737)
+                      : const Color(0xFFD1C7C0),
                   width: canNoShowCancel ? 1.2 : 1,
                 ),
-                backgroundColor: canNoShowCancel ? const Color(0xFFFFF7F7) : const Color(0xFFE8E2DD),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                backgroundColor: canNoShowCancel
+                    ? const Color(0xFFFFF7F7)
+                    : const Color(0xFFE8E2DD),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    canNoShowCancel ? Icons.cancel_outlined : Icons.lock_clock_rounded,
+                    canNoShowCancel
+                        ? Icons.cancel_outlined
+                        : Icons.lock_clock_rounded,
                     size: 18,
-                    color: canNoShowCancel ? const Color(0xFFB03737) : const Color(0xFF8F8781),
+                    color: canNoShowCancel
+                        ? const Color(0xFFB03737)
+                        : const Color(0xFF8F8781),
                   ),
                   const SizedBox(width: 8),
-                  Text(_cancellingNoShow ? 'Cancelling...' : _cancelButtonLabel(status)),
+                  Text(
+                    _cancellingNoShow
+                        ? 'Cancelling...'
+                        : _cancelButtonLabel(status),
+                  ),
                 ],
               ),
             ),
+            if (_cancelActionError != null &&
+                _cancelActionError!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                _cancelActionError!,
+                style: const TextStyle(
+                  color: Color(0xFFD53F4B),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.4,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ],
           if (showMutualCancel) ...[
             const Text(
               'Paid charges will not be refunded after work starts.',
-              style: TextStyle(color: Color(0xFF9B433B), fontWeight: FontWeight.w800, height: 1.3),
+              style: TextStyle(
+                color: Color(0xFF9B433B),
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: !_requestingMutualCancel ? _requestMutualCancelOtp : null,
+              onPressed: !_requestingMutualCancel
+                  ? _requestMutualCancelOtp
+                  : null,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFB03737),
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(46),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              child: Text(_requestingMutualCancel ? 'Requesting...' : 'Request mutual cancel OTP'),
+              child: Text(
+                _requestingMutualCancel
+                    ? 'Requesting...'
+                    : 'Request mutual cancel OTP',
+              ),
             ),
           ],
-          if (showMutualCancel && (_mutualCancelRequested || _mutualCancelOtpError != null)) ...[
+          if (showMutualCancel &&
+              (_mutualCancelRequested || _mutualCancelOtpError != null)) ...[
             const SizedBox(height: 12),
             Builder(
               builder: (fieldContext) => TextField(
@@ -10198,20 +12813,29 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                   errorText: _mutualCancelOtpError,
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 10),
             FilledButton(
-                onPressed: _verifyingMutualCancel ? null : _verifyMutualCancelOtp,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFB03737),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(46),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              onPressed: _verifyingMutualCancel ? null : _verifyMutualCancelOtp,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFB03737),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Text(_verifyingMutualCancel ? 'Cancelling...' : 'Confirm mutual cancellation')),
+              ),
+              child: Text(
+                _verifyingMutualCancel
+                    ? 'Cancelling...'
+                    : 'Confirm mutual cancellation',
+              ),
+            ),
           ],
         ],
       ),
@@ -10233,11 +12857,53 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     );
   }
 
+  Widget _buildInlineStatusBanner(String message, {required bool isError}) {
+    final backgroundColor = isError
+        ? const Color(0xFFFFECEE)
+        : const Color(0xFFEAF7EE);
+    final borderColor = isError
+        ? const Color(0xFFF2B9C0)
+        : const Color(0xFFB9DFC4);
+    final textColor = isError
+        ? const Color(0xFFB43A49)
+        : const Color(0xFF1E7A43);
+    final icon = isError
+        ? Icons.error_outline_rounded
+        : Icons.check_circle_outline_rounded;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: textColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 12.8,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _canCancelAfterReachDeadline(_ActiveBookingStatus status) {
     final reachByAt = status.reachByAt;
     return status.bookingStatus.toUpperCase() == 'PAYMENT_COMPLETED' &&
         reachByAt != null &&
-        !DateTime.now().isBefore(reachByAt);
+        !_currentUtcTime().isBefore(reachByAt);
   }
 
   String _cancelButtonLabel(_ActiveBookingStatus status) {
@@ -10249,13 +12915,19 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     if (reachByAt == null) {
       return '--:--';
     }
-    final remaining = reachByAt.difference(DateTime.now());
+    final remaining = reachByAt.difference(_currentUtcTime());
     if (remaining.isNegative || remaining.inSeconds <= 0) {
       return '00:00';
     }
     final totalHours = remaining.inHours;
-    final minutes = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final minutes = remaining.inMinutes
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
+    final seconds = remaining.inSeconds
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
     if (totalHours > 0) {
       return '${totalHours.toString().padLeft(2, '0')}:$minutes:$seconds';
     }
@@ -10267,7 +12939,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     if (name.isNotEmpty) {
       return name;
     }
-    return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service provider' : 'Labour';
+    return status.bookingType.toUpperCase() == 'SERVICE'
+        ? 'Service provider'
+        : 'Labour';
   }
 
   String _pricingModelLabel(_ActiveBookingStatus status) {
@@ -10278,15 +12952,18 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     if (raw == 'FULL_DAY') {
       return 'Full Day';
     }
-    return status.bookingType.toUpperCase() == 'SERVICE' ? 'Service visit' : 'Labour booking';
+    return status.bookingType.toUpperCase() == 'SERVICE'
+        ? 'Service visit'
+        : 'Labour booking';
   }
 
   String _timeOnly(DateTime? value) {
-    if (value == null) {
+    final ist = _asIstDisplayTime(value);
+    if (ist == null) {
       return '';
     }
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
+    final hour = ist.hour.toString().padLeft(2, '0');
+    final minute = ist.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
 
@@ -10299,7 +12976,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     GoogleMapController? dialogMapController;
     Timer? dialogRefreshTimer;
 
-    Future<void> focusTrackingRoute({_ActiveBookingStatus? currentStatus}) async {
+    Future<void> focusTrackingRoute({
+      _ActiveBookingStatus? currentStatus,
+    }) async {
       final controller = dialogMapController;
       if (controller == null) {
         return;
@@ -10338,7 +13017,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
-          dialogRefreshTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+          dialogRefreshTimer ??= Timer.periodic(const Duration(seconds: 2), (
+            _,
+          ) {
             if (!dialogContext.mounted) {
               return;
             }
@@ -10347,15 +13028,26 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
           final liveStatus = _status ?? status;
           final providerLocation = _providerTrackingLatLng(liveStatus);
           final destinationLocation = _destinationTrackingLatLng(liveStatus);
-          final fallbackTarget = providerLocation ?? destinationLocation ?? const LatLng(26.8467, 80.9462);
+          final fallbackTarget =
+              providerLocation ??
+              destinationLocation ??
+              const LatLng(26.8467, 80.9462);
           final etaLabel = _trackingRouteEtaLabel() ?? '';
           final distanceLabel = _trackingRouteDistanceLabel(liveStatus) ?? '';
           final bookingStatus = liveStatus.bookingStatus.trim().toUpperCase();
-          final labourArrived = bookingStatus == 'ARRIVED' || bookingStatus == 'IN_PROGRESS' || bookingStatus == 'COMPLETED';
+          final labourArrived =
+              bookingStatus == 'ARRIVED' ||
+              bookingStatus == 'IN_PROGRESS' ||
+              bookingStatus == 'COMPLETED';
           final destinationName = _trackingDestinationName(liveStatus);
           return Dialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
             clipBehavior: Clip.antiAlias,
             child: SizedBox(
               height: MediaQuery.sizeOf(dialogContext).height * 0.78,
@@ -10368,7 +13060,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: <Color>[Color(0xFFD48E78), Color(0xFFC9785F), Color(0xFFB95E53)],
+                        colors: <Color>[
+                          Color(0xFFD48E78),
+                          Color(0xFFC9785F),
+                          Color(0xFFB95E53),
+                        ],
                       ),
                     ),
                     child: Column(
@@ -10378,7 +13074,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                           children: [
                             Expanded(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.18),
                                   borderRadius: BorderRadius.circular(999),
@@ -10386,7 +13085,11 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.place_rounded, color: Colors.white, size: 16),
+                                    const Icon(
+                                      Icons.place_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
@@ -10419,14 +13122,21 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                                   color: Colors.white.withValues(alpha: 0.14),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          labourArrived ? 'Labour has arrived' : 'Your labour is on the way',
+                          _trackingArrivalHeadline(
+                            liveStatus,
+                            arrived: labourArrived,
+                          ),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
@@ -10440,8 +13150,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                           labourArrived
                               ? 'Arrival confirmed'
                               : (etaLabel.trim().isNotEmpty
-                                  ? 'Arriving in $etaLabel'
-                                  : (distanceLabel.isNotEmpty ? distanceLabel : 'Live route updating')),
+                                    ? 'Arriving in $etaLabel'
+                                    : (distanceLabel.isNotEmpty
+                                          ? distanceLabel
+                                          : 'Live route updating')),
                           style: const TextStyle(
                             color: Color(0xFFFFF3EE),
                             fontWeight: FontWeight.w800,
@@ -10458,16 +13170,28 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                         GoogleMap(
                           onMapCreated: (controller) {
                             dialogMapController = controller;
-                            unawaited(focusTrackingRoute(currentStatus: liveStatus));
+                            unawaited(
+                              focusTrackingRoute(currentStatus: liveStatus),
+                            );
                           },
                           initialCameraPosition: CameraPosition(
-                            target: providerLocation != null && destinationLocation != null
+                            target:
+                                providerLocation != null &&
+                                    destinationLocation != null
                                 ? LatLng(
-                                    (providerLocation.latitude + destinationLocation.latitude) / 2,
-                                    (providerLocation.longitude + destinationLocation.longitude) / 2,
+                                    (providerLocation.latitude +
+                                            destinationLocation.latitude) /
+                                        2,
+                                    (providerLocation.longitude +
+                                            destinationLocation.longitude) /
+                                        2,
                                   )
                                 : fallbackTarget,
-                            zoom: providerLocation != null && destinationLocation != null ? 13 : 15.2,
+                            zoom:
+                                providerLocation != null &&
+                                    destinationLocation != null
+                                ? 13
+                                : 15.2,
                           ),
                           myLocationButtonEnabled: false,
                           zoomControlsEnabled: false,
@@ -10482,7 +13206,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: () => unawaited(focusTrackingRoute(currentStatus: liveStatus)),
+                              onTap: () => unawaited(
+                                focusTrackingRoute(currentStatus: liveStatus),
+                              ),
                               borderRadius: BorderRadius.circular(999),
                               child: Container(
                                 width: 44,
@@ -10492,7 +13218,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.18),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.18,
+                                      ),
                                       blurRadius: 12,
                                       offset: const Offset(0, 6),
                                     ),
@@ -10511,7 +13239,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                           left: 14,
                           bottom: 16,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.88),
                               borderRadius: BorderRadius.circular(16),
@@ -10546,15 +13277,29 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
+                                  _trackingArrivalHeadline(
+                                    status,
+                                    arrived: labourArrived,
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
                                   labourArrived
-                                      ? 'Labour has arrived'
+                                      ? 'Arrival confirmed'
                                       : (etaLabel.isNotEmpty
-                                          ? 'Arriving in $etaLabel'
-                                          : (distanceLabel.isNotEmpty ? distanceLabel : 'Live route updating')),
+                                            ? 'Arriving in $etaLabel'
+                                            : (distanceLabel.isNotEmpty
+                                                  ? distanceLabel
+                                                  : 'Live route updating')),
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 11.6,
+                                    fontSize: 11.4,
                                   ),
                                 ),
                               ],
@@ -10575,7 +13320,6 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       dialogRefreshTimer = null;
     });
   }
-
 
   LatLng? _providerTrackingLatLng(_ActiveBookingStatus status) {
     final lat = status.providerLatitude;
@@ -10614,7 +13358,10 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
   double? _providerTrackingRotation(_ActiveBookingStatus status) {
     final polylinePoints = _routeSnapshot?.polylinePoints ?? const <LatLng>[];
     if (polylinePoints.length >= 2) {
-      return _scooterMarkerRotationDegrees(polylinePoints.first, polylinePoints[1]);
+      return _scooterMarkerRotationDegrees(
+        polylinePoints.first,
+        polylinePoints[1],
+      );
     }
     final provider = _providerTrackingLatLng(status);
     final destination = _destinationTrackingLatLng(status);
@@ -10634,11 +13381,16 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
         Marker(
           markerId: const MarkerId('provider_live_location'),
           position: provider,
-          infoWindow: InfoWindow(title: _providerTitle(status), snippet: 'Live labour location'),
+          infoWindow: InfoWindow(
+            title: _providerTitle(status),
+            snippet: 'Live labour location',
+          ),
           flat: true,
-          anchor: const Offset(0.25, 0.60),
+          anchor: const Offset(0.5, 0.22),
           rotation: providerRotation ?? 0,
-          icon: _providerScooterMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          icon:
+              _providerScooterMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
     }
@@ -10665,7 +13417,9 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     return <Polyline>{
       Polyline(
         polylineId: const PolylineId('provider_to_destination'),
-        points: routePoints.length >= 2 ? routePoints : <LatLng>[provider, destination],
+        points: routePoints.length >= 2
+            ? routePoints
+            : <LatLng>[provider, destination],
         width: 5,
         color: const Color(0xFFCB6E5B),
         startCap: Cap.roundCap,
@@ -10680,9 +13434,16 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
       return const <Circle>{};
     }
     final bookingStatus = status.bookingStatus.trim().toUpperCase();
-    final arrived = bookingStatus == 'ARRIVED' || bookingStatus == 'IN_PROGRESS' || bookingStatus == 'COMPLETED';
-    final baseStroke = arrived ? const Color(0xFFD12F2F) : const Color(0xFFE25555);
-    final baseFill = arrived ? const Color(0x26D12F2F) : const Color(0x20E25555);
+    final arrived =
+        bookingStatus == 'ARRIVED' ||
+        bookingStatus == 'IN_PROGRESS' ||
+        bookingStatus == 'COMPLETED';
+    final baseStroke = arrived
+        ? const Color(0xFFD12F2F)
+        : const Color(0xFFE25555);
+    final baseFill = arrived
+        ? const Color(0x26D12F2F)
+        : const Color(0x20E25555);
     return <Circle>{
       Circle(
         circleId: const CircleId('destination_geofence_outer'),
@@ -10746,13 +13507,23 @@ class _ActiveBookingDetailsSheetState extends State<_ActiveBookingDetailsSheet> 
     }
     return 'Your selected location';
   }
+
+  String _trackingArrivalHeadline(
+    _ActiveBookingStatus status, {
+    required bool arrived,
+  }) {
+    final isService = status.bookingType.trim().toUpperCase() == 'SERVICE';
+    if (arrived) {
+      return isService ? 'Service has arrived' : 'Labour has arrived';
+    }
+    return isService
+        ? 'Your service is on the way'
+        : 'Your labour is on the way';
+  }
 }
 
 class _BookingReviewDialog extends StatefulWidget {
-  const _BookingReviewDialog({
-    required this.status,
-    required this.onSubmit,
-  });
+  const _BookingReviewDialog({required this.status, required this.onSubmit});
 
   final _ActiveBookingStatus status;
   final Future<void> Function(int rating, String comment) onSubmit;
@@ -10841,8 +13612,13 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
                   ),
                 ),
                 IconButton(
-                  onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, color: Color(0xFF6D7A91)),
+                  onPressed: _submitting
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFF6D7A91),
+                  ),
                 ),
               ],
             ),
@@ -10853,7 +13629,9 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
                 final star = index + 1;
                 final selected = star <= _selectedRating;
                 return InkWell(
-                  onTap: _submitting ? null : () => setState(() => _selectedRating = star),
+                  onTap: _submitting
+                      ? null
+                      : () => setState(() => _selectedRating = star),
                   borderRadius: BorderRadius.circular(999),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -10898,7 +13676,10 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(18),
-                  borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.3),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFCB6E5B),
+                    width: 1.3,
+                  ),
                 ),
               ),
             ),
@@ -10913,13 +13694,18 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
                         final messenger = ScaffoldMessenger.of(context);
                         setState(() => _submitting = true);
                         try {
-                          await widget.onSubmit(_selectedRating, _commentController.text.trim());
+                          await widget.onSubmit(
+                            _selectedRating,
+                            _commentController.text.trim(),
+                          );
                           if (!mounted) {
                             return;
                           }
                           navigator.pop(true);
                           messenger.showSnackBar(
-                            const SnackBar(content: Text('Thanks for sharing your rating.')),
+                            const SnackBar(
+                              content: Text('Thanks for sharing your rating.'),
+                            ),
                           );
                         } on _UserAppApiException catch (error) {
                           if (!mounted) {
@@ -10938,7 +13724,9 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
                   backgroundColor: const Color(0xFFCB6E5B),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
                 child: Text(
                   _submitting ? 'Submitting...' : 'Submit rating',
@@ -10990,7 +13778,9 @@ class _HomeLocationOptionTile extends StatelessWidget {
             color: selected ? const Color(0xFFFCEAE5) : const Color(0xFFF8F4EF),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? const Color(0xFFCB6E5B) : const Color(0xFFE9DED5),
+              color: selected
+                  ? const Color(0xFFCB6E5B)
+                  : const Color(0xFFE9DED5),
             ),
           ),
           child: Row(
@@ -11063,21 +13853,29 @@ class _HomeLocationSelectorSheet extends StatefulWidget {
   final List<_HomeLocationChoice> options;
   final _HomeLocationChoice? selectedLocation;
   final bool canManageAddresses;
-  final Future<List<_HomeLocationSearchSuggestion>> Function(String query) searchSuggestions;
-  final Future<_HomeLocationChoice?> Function(_HomeLocationSearchSuggestion suggestion) resolveSuggestion;
-  final bool Function(_HomeLocationChoice left, _HomeLocationChoice right) sameChoice;
+  final Future<List<_HomeLocationSearchSuggestion>> Function(String query)
+  searchSuggestions;
+  final Future<_HomeLocationChoice?> Function(
+    _HomeLocationSearchSuggestion suggestion,
+  )
+  resolveSuggestion;
+  final bool Function(_HomeLocationChoice left, _HomeLocationChoice right)
+  sameChoice;
 
   @override
-  State<_HomeLocationSelectorSheet> createState() => _HomeLocationSelectorSheetState();
+  State<_HomeLocationSelectorSheet> createState() =>
+      _HomeLocationSelectorSheetState();
 }
 
-class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> {
+class _HomeLocationSelectorSheetState
+    extends State<_HomeLocationSelectorSheet> {
   static const double _defaultMapZoom = 17;
   static const double _savedAddressTileHeight = 58;
   static const double _savedAddressTileGap = 8;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  List<_HomeLocationSearchSuggestion> _searchResults = const <_HomeLocationSearchSuggestion>[];
+  List<_HomeLocationSearchSuggestion> _searchResults =
+      const <_HomeLocationSearchSuggestion>[];
   bool _searching = false;
   String? _searchError;
   Timer? _searchDebounce;
@@ -11099,7 +13897,8 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
   }) {
     return _HomeLocationChoice(
       title: title ?? source?.title ?? 'Selected location',
-      subtitle: subtitle ??
+      subtitle:
+          subtitle ??
           source?.subtitle ??
           'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}',
       city: city ?? source?.city ?? '',
@@ -11112,8 +13911,11 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
   @override
   void initState() {
     super.initState();
-    final initialLocation = widget.selectedLocation ??
-        widget.options.where((option) => option.isCurrentLocation).firstOrNull ??
+    final initialLocation =
+        widget.selectedLocation ??
+        widget.options
+            .where((option) => option.isCurrentLocation)
+            .firstOrNull ??
         widget.options.firstOrNull;
     _previewLocation = initialLocation;
     _resolvedPreviewLocation = initialLocation;
@@ -11150,7 +13952,9 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
       _searchMode = false;
       _searching = false;
       _searchError = null;
-      _searchResults = clearQuery ? const <_HomeLocationSearchSuggestion>[] : _searchResults;
+      _searchResults = clearQuery
+          ? const <_HomeLocationSearchSuggestion>[]
+          : _searchResults;
       if (clearQuery) {
         _searchController.clear();
       }
@@ -11196,7 +14000,9 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
       }
       setState(() {
         _searchResults = results;
-        _searchError = results.isEmpty ? 'No matching place found for that search.' : null;
+        _searchError = results.isEmpty
+            ? 'No matching place found for that search.'
+            : null;
         _searching = false;
       });
     } catch (_) {
@@ -11211,7 +14017,9 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
     }
   }
 
-  Future<void> _selectSearchResult(_HomeLocationSearchSuggestion suggestion) async {
+  Future<void> _selectSearchResult(
+    _HomeLocationSearchSuggestion suggestion,
+  ) async {
     setState(() {
       _resolvingPreviewAddress = true;
       _searchError = null;
@@ -11244,7 +14052,11 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
         option.longitude,
         zoom: _defaultMapZoom,
       );
-      await _resolvePreviewLocation(option.latitude, option.longitude, fallback: option);
+      await _resolvePreviewLocation(
+        option.latitude,
+        option.longitude,
+        fallback: option,
+      );
     } catch (_) {
       if (!mounted) {
         return;
@@ -11276,7 +14088,9 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
   }
 
   Future<void> _goToCurrentLocation() async {
-    final currentLocation = widget.options.where((option) => option.isCurrentLocation).firstOrNull;
+    final currentLocation = widget.options
+        .where((option) => option.isCurrentLocation)
+        .firstOrNull;
     if (currentLocation == null) {
       setState(() {
         _searchError = 'Current location is not available right now.';
@@ -11316,16 +14130,20 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
       final placemark = placemarks.firstOrNull;
       final titleParts = <String>[
         if ((placemark?.name ?? '').trim().isNotEmpty) placemark!.name!.trim(),
-        if ((placemark?.subLocality ?? '').trim().isNotEmpty) placemark!.subLocality!.trim(),
-        if ((placemark?.locality ?? '').trim().isNotEmpty) placemark!.locality!.trim(),
+        if ((placemark?.subLocality ?? '').trim().isNotEmpty)
+          placemark!.subLocality!.trim(),
+        if ((placemark?.locality ?? '').trim().isNotEmpty)
+          placemark!.locality!.trim(),
       ];
       final subtitleParts = <String>[
-        if ((placemark?.thoroughfare ?? '').trim().isNotEmpty) placemark!.thoroughfare!.trim(),
+        if ((placemark?.thoroughfare ?? '').trim().isNotEmpty)
+          placemark!.thoroughfare!.trim(),
         if ((placemark?.subAdministrativeArea ?? '').trim().isNotEmpty)
           placemark!.subAdministrativeArea!.trim(),
         if ((placemark?.administrativeArea ?? '').trim().isNotEmpty)
           placemark!.administrativeArea!.trim(),
-        if ((placemark?.postalCode ?? '').trim().isNotEmpty) placemark!.postalCode!.trim(),
+        if ((placemark?.postalCode ?? '').trim().isNotEmpty)
+          placemark!.postalCode!.trim(),
       ];
       setState(() {
         _resolvedPreviewLocation = _mapPickedLocationFrom(
@@ -11335,9 +14153,14 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
               : titleParts.join(', '),
           subtitle: subtitleParts.isEmpty
               ? (fallback?.subtitle ??
-                  'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}')
+                    'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}')
               : subtitleParts.join(', '),
-          city: (placemark?.locality ?? placemark?.subAdministrativeArea ?? fallback?.city ?? '').trim(),
+          city:
+              (placemark?.locality ??
+                      placemark?.subAdministrativeArea ??
+                      fallback?.city ??
+                      '')
+                  .trim(),
           latitude: latitude,
           longitude: longitude,
         );
@@ -11351,7 +14174,8 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
         _resolvedPreviewLocation = _mapPickedLocationFrom(
           fallback,
           title: fallback?.title ?? 'Selected location',
-          subtitle: fallback?.subtitle ??
+          subtitle:
+              fallback?.subtitle ??
               'Lat ${latitude.toStringAsFixed(5)}, Lng ${longitude.toStringAsFixed(5)}',
           city: fallback?.city ?? '',
           latitude: latitude,
@@ -11390,7 +14214,9 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
       .where((option) => !option.isCurrentLocation && option.addressId != null)
       .toList(growable: false);
 
-  List<_HomeLocationChoice> _footerAddressOptions(_HomeLocationChoice previewLocation) {
+  List<_HomeLocationChoice> _footerAddressOptions(
+    _HomeLocationChoice previewLocation,
+  ) {
     final options = <_HomeLocationChoice>[
       _mapPickedLocationFrom(
         previewLocation,
@@ -11463,7 +14289,10 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
               children: [
                 IconButton(
                   onPressed: () => _exitSearchMode(clearQuery: true),
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF5A2A8D)),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Color(0xFF5A2A8D),
+                  ),
                 ),
                 Expanded(
                   child: TextField(
@@ -11498,7 +14327,11 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
                       _searchController.clear();
                       _onSearchChanged('');
                     },
-                    icon: const Icon(Icons.cancel_outlined, color: Color(0xFF7D4BA4), size: 30),
+                    icon: const Icon(
+                      Icons.cancel_outlined,
+                      color: Color(0xFF7D4BA4),
+                      size: 30,
+                    ),
                   ),
               ],
             ),
@@ -11516,7 +14349,8 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          _searchError ?? 'Type an area, street, landmark, or city to see matching places.',
+                          _searchError ??
+                              'Type an area, street, landmark, or city to see matching places.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Color(0xFF6E6480),
@@ -11558,14 +14392,19 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
           child: GoogleMap(
             onMapCreated: (controller) {
               _mapController = controller;
-              unawaited(_moveMapCamera(
-                previewLocation.latitude,
-                previewLocation.longitude,
-                zoom: _currentMapZoom,
-              ));
+              unawaited(
+                _moveMapCamera(
+                  previewLocation.latitude,
+                  previewLocation.longitude,
+                  zoom: _currentMapZoom,
+                ),
+              );
             },
             initialCameraPosition: CameraPosition(
-              target: LatLng(previewLocation.latitude, previewLocation.longitude),
+              target: LatLng(
+                previewLocation.latitude,
+                previewLocation.longitude,
+              ),
               zoom: _currentMapZoom,
             ),
             mapType: MapType.normal,
@@ -11585,8 +14424,10 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
               }
               final current = _resolvedPreviewLocation ?? _previewLocation;
               if (current != null) {
-                final latitudeChanged = (current.latitude - target.latitude).abs() > 0.000001;
-                final longitudeChanged = (current.longitude - target.longitude).abs() > 0.000001;
+                final latitudeChanged =
+                    (current.latitude - target.latitude).abs() > 0.000001;
+                final longitudeChanged =
+                    (current.longitude - target.longitude).abs() > 0.000001;
                 if (!latitudeChanged && !longitudeChanged) {
                   return;
                 }
@@ -11628,7 +14469,11 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: const Row(
                   children: [
-                    Icon(Icons.search_rounded, color: Color(0xFF7D4BA4), size: 23),
+                    Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF7D4BA4),
+                      size: 23,
+                    ),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -11673,9 +14518,7 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: const Color(0xFFE3DAEE),
-                  ),
+                  border: Border.all(color: const Color(0xFFE3DAEE)),
                 ),
                 child: const Icon(
                   Icons.my_location_rounded,
@@ -11703,88 +14546,104 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
                 SizedBox(
                   height: _savedAddressListHeightFor(footerOptions.length),
                   child: ListView.separated(
-                      padding: EdgeInsets.zero,
-                      itemCount: footerOptions.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final option = footerOptions[index];
-                        final isSelected = widget.sameChoice(previewLocation, option);
-                        return Material(
-                          color: isSelected ? const Color(0xFFF6E7E2) : const Color(0xFFF7F6FA),
+                    padding: EdgeInsets.zero,
+                    itemCount: footerOptions.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final option = footerOptions[index];
+                      final isSelected = widget.sameChoice(
+                        previewLocation,
+                        option,
+                      );
+                      return Material(
+                        color: isSelected
+                            ? const Color(0xFFF6E7E2)
+                            : const Color(0xFFF7F6FA),
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          onTap: () =>
+                              unawaited(_selectSavedAddressOption(option)),
                           borderRadius: BorderRadius.circular(16),
-                          child: InkWell(
-                            onTap: () => unawaited(_selectSavedAddressOption(option)),
-                            borderRadius: BorderRadius.circular(16),
-                            child: Ink(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? const Color(0xFFD48E78)
-                                      : const Color(0xFFE6E1EF),
-                                ),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFFD48E78)
+                                    : const Color(0xFFE6E1EF),
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 34,
-                                      height: 34,
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? const Color(0xFFD48E78) : Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Icon(
-                                        Icons.location_on_rounded,
-                                        color: isSelected ? Colors.white : const Color(0xFFD48E78),
-                                        size: 20,
-                                      ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                10,
+                                12,
+                                10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFFD48E78)
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            option.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Color(0xFF2E185C),
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 13.2,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            option.subtitle,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Color(0xFF6F6A7A),
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 11.6,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                    child: Icon(
+                                      Icons.location_on_rounded,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : const Color(0xFFD48E78),
+                                      size: 20,
                                     ),
-                                    if (isSelected)
-                                      const Icon(
-                                        Icons.check_circle_rounded,
-                                        color: Color(0xFFD48E78),
-                                        size: 20,
-                                      ),
-                                  ],
-                                ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          option.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Color(0xFF2E185C),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13.2,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          option.subtitle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Color(0xFF6F6A7A),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 11.6,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      color: Color(0xFFD48E78),
+                                      size: 20,
+                                    ),
+                                ],
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
+                ),
                 if (_resolvingPreviewAddress) ...[
                   const SizedBox(height: 10),
                   const Text(
@@ -11804,11 +14663,16 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
                       backgroundColor: const Color(0xFFD48E78),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                     ),
                     child: const Text(
                       'Select Address',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -11835,8 +14699,13 @@ class _HomeLocationSelectorSheetState extends State<_HomeLocationSelectorSheet> 
         child: previewLocation == null
             ? const Center(child: CircularProgressIndicator())
             : (_searchMode
-                ? _buildSearchResultsView(safeTop, safeBottom)
-                : _buildMapConfirmView(context, previewLocation, safeTop, safeBottom)),
+                  ? _buildSearchResultsView(safeTop, safeBottom)
+                  : _buildMapConfirmView(
+                      context,
+                      previewLocation,
+                      safeTop,
+                      safeBottom,
+                    )),
       ),
     );
   }
@@ -11933,7 +14802,9 @@ class _CurvedBodyTransition extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasForeground = foreground != null;
-    final transitionHeight = hasForeground ? foregroundHeight + 34 : (compact ? 54.0 : 84.0);
+    final transitionHeight = hasForeground
+        ? foregroundHeight + 34
+        : (compact ? 54.0 : 84.0);
     final waveHeight = compact ? 44.0 : 72.0;
 
     return SizedBox(
@@ -11946,12 +14817,7 @@ class _CurvedBodyTransition extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    colors.first,
-                    colors[1],
-                    colors[2],
-                    colors[2],
-                  ],
+                  colors: [colors.first, colors[1], colors[2], colors[2]],
                   stops: const [0, 0.36, 0.84, 1],
                 ),
               ),
@@ -11979,12 +14845,7 @@ class _CurvedBodyTransition extends StatelessWidget {
             ),
           ),
           if (hasForeground)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 8,
-              child: foreground!,
-            ),
+            Positioned(left: 0, right: 0, bottom: 8, child: foreground!),
         ],
       ),
     );

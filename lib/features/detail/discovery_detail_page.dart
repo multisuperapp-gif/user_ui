@@ -24,7 +24,8 @@ class _DiscoveryDetailPage extends StatefulWidget {
     int? labourCategoryId,
     int? serviceCategoryId,
     int? serviceSubcategoryId,
-  ) onPrimaryAction;
+  )
+  onPrimaryAction;
 
   @override
   State<_DiscoveryDetailPage> createState() => _DiscoveryDetailPageState();
@@ -38,6 +39,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   bool _labourBookedLocally = false;
   bool _primaryActionBusy = false;
   bool _showServiceSelectionError = false;
+  String? _primaryActionError;
 
   @override
   void initState() {
@@ -55,23 +57,29 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
       _isAuthenticated = widget.isAuthenticated;
     }
     if (oldWidget.item.backendLabourId != widget.item.backendLabourId ||
-        oldWidget.item.labourCategoryPricing != widget.item.labourCategoryPricing) {
+        oldWidget.item.labourCategoryPricing !=
+            widget.item.labourCategoryPricing) {
       _labourBookedLocally = false;
       _selectedLabourCategoryId = _defaultSelectedLabourCategoryId;
       _selectedLabourBookingPeriod = null;
+      _primaryActionError = null;
     }
     if (oldWidget.item.serviceItems != widget.item.serviceItems ||
         oldWidget.item.serviceTileLabel != widget.item.serviceTileLabel ||
-        oldWidget.item.backendServiceProviderId != widget.item.backendServiceProviderId) {
+        oldWidget.item.backendServiceProviderId !=
+            widget.item.backendServiceProviderId) {
       _selectedServiceItemLabel = _defaultSelectedServiceItemLabel;
       _showServiceSelectionError = false;
+      _primaryActionError = null;
     }
   }
 
   int? get _defaultSelectedLabourCategoryId {
     final preferredCategoryId = widget.item.backendCategoryId;
     if (preferredCategoryId != null &&
-        _labourCategoryOptions.any((pricing) => pricing.categoryId == preferredCategoryId)) {
+        _labourCategoryOptions.any(
+          (pricing) => pricing.categoryId == preferredCategoryId,
+        )) {
       return preferredCategoryId;
     }
     return _labourCategoryOptions.firstOrNull?.categoryId;
@@ -100,7 +108,9 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   }
 
   double? get _distanceKm {
-    final match = RegExp(r'([0-9]+(?:\.[0-9]+)?)').firstMatch(widget.item.distance);
+    final match = RegExp(
+      r'([0-9]+(?:\.[0-9]+)?)',
+    ).firstMatch(widget.item.distance);
     if (match == null) {
       return null;
     }
@@ -166,20 +176,19 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   }
 
   bool get _isNearbyLabour =>
-      widget.mode == _HomeMode.labour && (_distanceKm != null && _distanceKm! <= 1.0);
+      widget.mode == _HomeMode.labour &&
+      (_distanceKm != null && _distanceKm! <= 1.0);
 
   Widget _buildLabourDistanceAndRatingRow(_DiscoveryItem item) {
-    final distanceColor = _isNearbyLabour ? const Color(0xFF18A957) : const Color(0xFF5C8FD8);
+    final distanceColor = _isNearbyLabour
+        ? const Color(0xFF18A957)
+        : const Color(0xFF5C8FD8);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(
-              Icons.place_rounded,
-              size: 16,
-              color: distanceColor,
-            ),
+            Icon(Icons.place_rounded, size: 16, color: distanceColor),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -203,9 +212,13 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
             children: [
               for (var index = 0; index < 5; index++)
                 Icon(
-                  index < _filledRatingStars ? Icons.star_rounded : Icons.star_border_rounded,
+                  index < _filledRatingStars
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
                   size: 14,
-                  color: index < _filledRatingStars ? _bandedRatingColor : const Color(0xFFD3D8E2),
+                  color: index < _filledRatingStars
+                      ? _bandedRatingColor
+                      : const Color(0xFFD3D8E2),
                 ),
               const SizedBox(width: 2),
               Text(
@@ -224,7 +237,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
   }
 
   bool get _labourUnavailable =>
-      widget.mode == _HomeMode.labour && (widget.item.isDisabled || _labourBookedLocally);
+      widget.mode == _HomeMode.labour &&
+      (widget.item.isDisabled || _labourBookedLocally);
 
   bool get _serviceUnavailable =>
       widget.mode == _HomeMode.service && widget.item.isDisabled;
@@ -240,7 +254,10 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         final normalizedLabel = pricing.label
             .split(',')
             .map((part) => part.trim())
-            .firstWhere((part) => part.isNotEmpty, orElse: () => pricing.label.trim());
+            .firstWhere(
+              (part) => part.isNotEmpty,
+              orElse: () => pricing.label.trim(),
+            );
         normalized.add(
           _LabourCategoryPricing(
             categoryId: pricing.categoryId,
@@ -258,7 +275,10 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         label: widget.item.subtitle
             .split(',')
             .map((part) => part.trim())
-            .firstWhere((part) => part.isNotEmpty, orElse: () => widget.item.subtitle.trim()),
+            .firstWhere(
+              (part) => part.isNotEmpty,
+              orElse: () => widget.item.subtitle.trim(),
+            ),
         halfDayPrice: widget.item.labourHalfDayPrice,
         fullDayPrice: widget.item.labourFullDayPrice,
       ),
@@ -282,8 +302,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     final fallback = widget.item.serviceTileLabel.trim().isNotEmpty
         ? widget.item.serviceTileLabel.trim()
         : widget.item.subtitle.trim().isNotEmpty
-            ? widget.item.subtitle.trim()
-            : widget.item.title.trim();
+        ? widget.item.subtitle.trim()
+        : widget.item.title.trim();
     if (fallback.isNotEmpty && !options.contains(fallback)) {
       options.insert(0, fallback);
     }
@@ -322,7 +342,9 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     if (widget.item.serviceOptions.length > 1) {
       return 'Select subcategory';
     }
-    return widget.item.price.isEmpty ? 'Visit charge on request' : widget.item.price;
+    return widget.item.price.isEmpty
+        ? 'Visit charge on request'
+        : widget.item.price;
   }
 
   String _serviceTilePriceLabelFor(String label) {
@@ -357,7 +379,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
           final label = widget.item.disabledLabel.trim();
           return label.isEmpty ? 'Offline' : label;
         }
-        if (widget.item.serviceOptions.length > 1 && _selectedServiceOption == null) {
+        if (widget.item.serviceOptions.length > 1 &&
+            _selectedServiceOption == null) {
           return 'Select subcategory';
         }
         return _isAuthenticated ? 'Book service' : 'Login to book service';
@@ -392,15 +415,24 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
         elevation: 0,
         title: Text(
           item.title,
-          style: const TextStyle(color: Color(0xFF22314D), fontWeight: FontWeight.w900),
+          style: const TextStyle(
+            color: Color(0xFF22314D),
+            fontWeight: FontWeight.w900,
+          ),
         ),
         actions: [
           IconButton(
-            onPressed: mode == _HomeMode.shop ? widget.onWishlistToggle : widget.onFavouriteToggle,
+            onPressed: mode == _HomeMode.shop
+                ? widget.onWishlistToggle
+                : widget.onFavouriteToggle,
             icon: Icon(
               mode == _HomeMode.shop
-                  ? (widget.isWishlisted ? Icons.bookmark_rounded : Icons.bookmark_border_rounded)
-                  : (widget.isFavourited ? Icons.favorite_rounded : Icons.favorite_border_rounded),
+                  ? (widget.isWishlisted
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded)
+                  : (widget.isFavourited
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded),
               color: mode == _HomeMode.shop
                   ? const Color(0xFF4DAF50)
                   : const Color(0xFFCB6E5B),
@@ -456,9 +488,22 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               runSpacing: 10,
               children: [
                 if (item.hasRating)
-                  _MetaPill(icon: Icons.star_rounded, value: item.rating, color: _ratingColor(item.rating)),
-                _MetaPill(icon: Icons.place_rounded, value: _distanceLabel, color: const Color(0xFF5C8FD8)),
-                if (item.price.isNotEmpty) _MetaPill(icon: Icons.currency_rupee_rounded, value: item.price, color: item.accent),
+                  _MetaPill(
+                    icon: Icons.star_rounded,
+                    value: item.rating,
+                    color: _ratingColor(item.rating),
+                  ),
+                _MetaPill(
+                  icon: Icons.place_rounded,
+                  value: _distanceLabel,
+                  color: const Color(0xFF5C8FD8),
+                ),
+                if (item.price.isNotEmpty)
+                  _MetaPill(
+                    icon: Icons.currency_rupee_rounded,
+                    value: item.price,
+                    color: item.accent,
+                  ),
               ],
             ),
           ],
@@ -555,10 +600,16 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                   if (mode != _HomeMode.service) ...[
                     if (item.hasRating) _detailRow('Rating', item.rating),
                     _detailRow('Distance', item.distance),
-                    _detailRow('Price', item.price.isEmpty ? 'As per profile' : item.price),
+                    _detailRow(
+                      'Price',
+                      item.price.isEmpty ? 'As per profile' : item.price,
+                    ),
                   ],
                   _detailRow('Experience', '5+ years'),
-                  _detailRow('Booking success', item.extra.isEmpty ? '124 successful' : item.extra),
+                  _detailRow(
+                    'Booking success',
+                    item.extra.isEmpty ? '124 successful' : item.extra,
+                  ),
                   _detailRow('Mobile no.', item.maskedPhone),
                 ],
               ),
@@ -610,12 +661,15 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               ),
             ),
           ],
-          SizedBox(height: mode == _HomeMode.labour || mode == _HomeMode.service ? 12 : 18),
+          SizedBox(
+            height: mode == _HomeMode.labour || mode == _HomeMode.service
+                ? 12
+                : 18,
+          ),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _labourUnavailable
-                  || _serviceUnavailable
+              onPressed: _labourUnavailable || _serviceUnavailable
                   ? null
                   : () async {
                       if (_primaryActionBusy) {
@@ -629,26 +683,35 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                         await _openLoginBeforeBooking();
                         return;
                       }
-                      if (mode == _HomeMode.labour && _selectedLabourBookingPeriod == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select Half Day or Full Day to book labour.')),
-                        );
+                      if (mode == _HomeMode.labour &&
+                          _selectedLabourBookingPeriod == null) {
+                        setState(() {
+                          _primaryActionError =
+                              'Please select Half Day or Full Day to book labour.';
+                        });
                         return;
                       }
-                      if (mode == _HomeMode.labour && _selectedLabourCategoryId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select the work category to book labour.')),
-                        );
+                      if (mode == _HomeMode.labour &&
+                          _selectedLabourCategoryId == null) {
+                        setState(() {
+                          _primaryActionError =
+                              'Please select the work category to book labour.';
+                        });
                         return;
                       }
-                      if (mode == _HomeMode.service && _selectedServiceOption == null) {
-                        setState(() => _showServiceSelectionError = true);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select a service subcategory before booking.')),
-                        );
+                      if (mode == _HomeMode.service &&
+                          _selectedServiceOption == null) {
+                        setState(() {
+                          _showServiceSelectionError = true;
+                          _primaryActionError =
+                              'Please select a service subcategory before booking.';
+                        });
                         return;
                       }
-                      setState(() => _primaryActionBusy = true);
+                      setState(() {
+                        _primaryActionBusy = true;
+                        _primaryActionError = null;
+                      });
                       try {
                         final bookingLocked = await widget.onPrimaryAction(
                           _selectedLabourBookingPeriod,
@@ -657,9 +720,12 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                           _selectedServiceOption?.subcategoryId,
                         );
                         await _refreshAuthStateFromSession();
-                        if (mounted && mode == _HomeMode.labour && bookingLocked) {
+                        if (mounted &&
+                            mode == _HomeMode.labour &&
+                            bookingLocked) {
                           setState(() {
                             _labourBookedLocally = true;
+                            _primaryActionError = null;
                           });
                         }
                       } finally {
@@ -672,7 +738,10 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                 backgroundColor: const Color(0xFFCB6E5B),
                 foregroundColor: Colors.white,
                 padding: EdgeInsets.symmetric(
-                  vertical: mode == _HomeMode.labour || mode == _HomeMode.service ? 14 : 18,
+                  vertical:
+                      mode == _HomeMode.labour || mode == _HomeMode.service
+                      ? 14
+                      : 18,
                 ),
                 shape: const RoundedRectangleBorder(),
               ),
@@ -686,14 +755,32 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                       ),
                     )
                   : Text(
-                      mode != _HomeMode.labour || _selectedLabourBookingPeriod == null
+                      mode != _HomeMode.labour ||
+                              _selectedLabourBookingPeriod == null
                           ? _primaryAction
                           : 'Book $_selectedLabourBookingPeriod labour',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
                     ),
             ),
           ),
-          if ((mode == _HomeMode.labour || mode == _HomeMode.service) && _description.isNotEmpty) ...[
+          if (_primaryActionError != null &&
+              _primaryActionError!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              _primaryActionError!,
+              style: const TextStyle(
+                color: Color(0xFFD53F4B),
+                fontSize: 12.4,
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
+            ),
+          ],
+          if ((mode == _HomeMode.labour || mode == _HomeMode.service) &&
+              _description.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -783,17 +870,16 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                       ),
                     ),
                   ),
-                  _LabourPortraitImage(
-                    item: item,
-                    fit: BoxFit.cover,
-                    scale: 1,
-                    alignment: Alignment.topCenter,
-                  ),
+                  _ServiceProfilePortrait(item: item),
                   if (item.isDisabled)
                     Positioned(
                       left: -4,
                       bottom: 48,
-                      child: _LabourAvailabilityRibbon(label: item.disabledLabel.trim().isEmpty ? 'Offline' : item.disabledLabel),
+                      child: _LabourAvailabilityRibbon(
+                        label: item.disabledLabel.trim().isEmpty
+                            ? 'Offline'
+                            : item.disabledLabel,
+                      ),
                     ),
                 ],
               ),
@@ -870,7 +956,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                           ),
                           InkWell(
                             borderRadius: BorderRadius.circular(999),
-                            onTap: _showPhoneUnmaskInfo,
+                            onTapDown: (details) =>
+                                _showPhoneUnmaskInfo(details.globalPosition),
                             child: Container(
                               width: 22,
                               height: 22,
@@ -900,25 +987,34 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
 
   (IconData, Color) _serviceCategoryVisual(String label) {
     final normalized = label.trim().toLowerCase();
-    if (normalized.contains('2 wheeler') || normalized.contains('two wheeler')) {
+    if (normalized.contains('2 wheeler') ||
+        normalized.contains('two wheeler')) {
       return (Icons.two_wheeler_rounded, const Color(0xFF4F83E1));
     }
-    if (normalized.contains('3 wheeler') || normalized.contains('three wheeler')) {
+    if (normalized.contains('3 wheeler') ||
+        normalized.contains('three wheeler')) {
       return (Icons.electric_rickshaw_rounded, const Color(0xFFF09E3E));
     }
-    if (normalized.contains('4 wheeler') || normalized.contains('four wheeler')) {
+    if (normalized.contains('4 wheeler') ||
+        normalized.contains('four wheeler')) {
       return (Icons.directions_car_filled_rounded, const Color(0xFFE06764));
     }
-    if (normalized.contains('plumb') || normalized.contains('leak') || normalized.contains('drain')) {
+    if (normalized.contains('plumb') ||
+        normalized.contains('leak') ||
+        normalized.contains('drain')) {
       return (Icons.plumbing_rounded, const Color(0xFF4B89E7));
     }
-    if (normalized.contains('elect') || normalized.contains('wiring') || normalized.contains('fan')) {
+    if (normalized.contains('elect') ||
+        normalized.contains('wiring') ||
+        normalized.contains('fan')) {
       return (Icons.electrical_services_rounded, const Color(0xFFF0AA29));
     }
     if (normalized.contains('ac') || normalized.contains('cool')) {
       return (Icons.ac_unit_rounded, const Color(0xFF5D95EA));
     }
-    if (normalized.contains('fridge') || normalized.contains('washing') || normalized.contains('kitchen')) {
+    if (normalized.contains('fridge') ||
+        normalized.contains('washing') ||
+        normalized.contains('kitchen')) {
       return (Icons.kitchen_rounded, const Color(0xFFD87BA4));
     }
     return (Icons.miscellaneous_services_rounded, const Color(0xFFCB6E5B));
@@ -926,155 +1022,148 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
 
   Widget _serviceCategorySelector() {
     final options = _serviceCategoryOptions;
-    final showError = _showServiceSelectionError && _selectedServiceOption == null;
+    final showError =
+        _showServiceSelectionError && _selectedServiceOption == null;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fullWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0;
-        final tileWidth = options.length == 1
+        final fullWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 320.0;
+        const spacing = 10.0;
+        final columnCount = options.length <= 1 ? 1 : 2;
+        final tileWidth = columnCount == 1
             ? fullWidth
-            : ((fullWidth - 14) / 2).clamp(144.0, fullWidth);
+            : (fullWidth - spacing) / 2;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              children: options.map((label) {
-                final selected = label == _selectedServiceItemLabel;
-                final (icon, accent) = _serviceCategoryVisual(label);
-                final borderColor = selected
-                    ? accent
-                    : showError
+              spacing: spacing,
+              runSpacing: 10,
+              children: options
+                  .map((label) {
+                    final selected = label == _selectedServiceItemLabel;
+                    final (_, accent) = _serviceCategoryVisual(label);
+                    final priceLabel = _serviceTilePriceLabelFor(label);
+                    final borderColor = selected
+                        ? accent
+                        : showError
                         ? const Color(0xFFD53F4B)
                         : const Color(0xFFE7DBD4);
-                final background = selected
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          accent.withValues(alpha: 0.14),
-                          accent.withValues(alpha: 0.05),
-                          Colors.white,
-                        ],
-                      )
-                    : showError
-                        ? const LinearGradient(
+                    final background = selected
+                        ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                             colors: [
-                              Color(0xFFFFF0F1),
-                              Color(0xFFFFFBFB),
+                              accent.withValues(alpha: 0.14),
+                              accent.withValues(alpha: 0.05),
+                              Colors.white,
                             ],
+                          )
+                        : showError
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFFF0F1), Color(0xFFFFFBFB)],
                           )
                         : const LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFFFFBF7),
-                              Color(0xFFFFFFFF),
-                            ],
+                            colors: [Color(0xFFFFFBF7), Color(0xFFFFFFFF)],
                           );
-                return InkWell(
-                  onTap: () => setState(() {
-                    _selectedServiceItemLabel = label;
-                    _showServiceSelectionError = false;
-                  }),
-                  borderRadius: BorderRadius.circular(24),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    width: tileWidth,
-                    constraints: const BoxConstraints(minHeight: 94),
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                    decoration: BoxDecoration(
-                      gradient: background,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: borderColor,
-                        width: selected || showError ? 1.9 : 1.1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (selected ? accent : const Color(0xFF1E2430))
-                              .withValues(alpha: selected ? 0.16 : 0.05),
-                          blurRadius: selected ? 20 : 12,
-                          offset: const Offset(0, 9),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? accent.withValues(alpha: 0.16)
-                                    : accent.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                icon,
-                                size: 19,
-                                color: selected ? accent : accent.withValues(alpha: 0.92),
-                              ),
+                    return SizedBox(
+                      width: tileWidth,
+                      child: InkWell(
+                        onTap: () => setState(() {
+                          _selectedServiceItemLabel = label;
+                          _showServiceSelectionError = false;
+                          _primaryActionError = null;
+                        }),
+                        borderRadius: BorderRadius.circular(18),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                          decoration: BoxDecoration(
+                            gradient: background,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: borderColor,
+                              width: selected || showError ? 1.9 : 1.1,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                label,
-                                maxLines: 2,
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    (selected
+                                            ? accent
+                                            : const Color(0xFF1E2430))
+                                        .withValues(
+                                          alpha: selected ? 0.14 : 0.05,
+                                        ),
+                                blurRadius: selected ? 18 : 10,
+                                offset: const Offset(0, 7),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: selected
+                                            ? const Color(0xFF2A2433)
+                                            : showError
+                                            ? const Color(0xFF9F2434)
+                                            : const Color(0xFF22314D),
+                                        fontSize: 13.2,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    selected
+                                        ? Icons.radio_button_checked_rounded
+                                        : Icons.radio_button_off_rounded,
+                                    color: selected
+                                        ? accent
+                                        : showError
+                                        ? const Color(0xFFD53F4B)
+                                        : const Color(0xFFC7B7AE),
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                priceLabel,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: selected
-                                      ? const Color(0xFF2A2433)
+                                      ? accent
                                       : showError
-                                          ? const Color(0xFF9F2434)
-                                          : const Color(0xFF22314D),
-                                  fontSize: 14.2,
+                                      ? const Color(0xFFD53F4B)
+                                      : const Color(0xFF6B768A),
+                                  fontSize: 11.4,
                                   fontWeight: FontWeight.w900,
-                                  height: 1.08,
+                                  height: 1.0,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? accent.withValues(alpha: 0.12)
-                                  : const Color(0xFFF4EEE8),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              _serviceTilePriceLabelFor(label),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: selected
-                                    ? accent
-                                    : showError
-                                        ? const Color(0xFFD53F4B)
-                                        : const Color(0xFF6B768A),
-                                fontSize: 11.4,
-                                fontWeight: FontWeight.w900,
-                                height: 1,
-                              ),
-                            ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(growable: false),
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
             ),
             if (showError) ...[
               const SizedBox(height: 10),
@@ -1138,7 +1227,9 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                     Positioned(
                       left: -4,
                       bottom: 48,
-                      child: _LabourAvailabilityRibbon(label: _labourUnavailableLabel),
+                      child: _LabourAvailabilityRibbon(
+                        label: _labourUnavailableLabel,
+                      ),
                     ),
                 ],
               ),
@@ -1206,7 +1297,8 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
                           ),
                           InkWell(
                             borderRadius: BorderRadius.circular(999),
-                            onTap: _showPhoneUnmaskInfo,
+                            onTapDown: (details) =>
+                                _showPhoneUnmaskInfo(details.globalPosition),
                             child: Container(
                               width: 22,
                               height: 22,
@@ -1234,10 +1326,7 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     );
   }
 
-  Widget _labourInfoLine({
-    required String label,
-    required String value,
-  }) {
+  Widget _labourInfoLine({required String label, required String value}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1267,11 +1356,41 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     );
   }
 
-  void _showPhoneUnmaskInfo() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Full mobile number will be visible only after the labour is booked and payment is completed.'),
+  Future<void> _showPhoneUnmaskInfo(Offset globalPosition) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) {
+      return;
+    }
+    await showMenu<void>(
+      context: context,
+      color: const Color(0xFF22314D),
+      elevation: 10,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx - 180,
+        globalPosition.dy + 12,
+        overlay.size.width - globalPosition.dx - 12,
+        overlay.size.height - globalPosition.dy,
       ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: const [
+        PopupMenuItem<void>(
+          enabled: false,
+          padding: EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: SizedBox(
+            width: 220,
+            child: Text(
+              'Full mobile number will be visible only after the labour is booked and payment is completed.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12.6,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1303,74 +1422,97 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: options.map((pricing) {
-                  final categorySelected = pricing.categoryId == _selectedLabourCategoryId;
-                  final halfSelected = categorySelected && _selectedLabourBookingPeriod == 'Half Day';
-                  final fullSelected = categorySelected && _selectedLabourBookingPeriod == 'Full Day';
-                  final halfUnavailable = _priceLabelOrUnavailable(pricing.halfDayPrice) == 'Not available';
-                  final fullUnavailable = _priceLabelOrUnavailable(pricing.fullDayPrice) == 'Not available';
-                  return SizedBox(
-                    width: tileWidth,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: categorySelected ? const Color(0xFFFFF5EF) : const Color(0xFFFFFAF7),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: categorySelected ? const Color(0xFFCB6E5B) : const Color(0xFFE8DCD6),
-                          width: categorySelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                children: options
+                    .map((pricing) {
+                      final categorySelected =
+                          pricing.categoryId == _selectedLabourCategoryId;
+                      final halfSelected =
+                          categorySelected &&
+                          _selectedLabourBookingPeriod == 'Half Day';
+                      final fullSelected =
+                          categorySelected &&
+                          _selectedLabourBookingPeriod == 'Full Day';
+                      final halfUnavailable =
+                          _priceLabelOrUnavailable(pricing.halfDayPrice) ==
+                          'Not available';
+                      final fullUnavailable =
+                          _priceLabelOrUnavailable(pricing.fullDayPrice) ==
+                          'Not available';
+                      return SizedBox(
+                        width: tileWidth,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: categorySelected
+                                ? const Color(0xFFFFF5EF)
+                                : const Color(0xFFFFFAF7),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: categorySelected
+                                  ? const Color(0xFFCB6E5B)
+                                  : const Color(0xFFE8DCD6),
+                              width: categorySelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  pricing.label,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFF22314D),
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.15,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      pricing.label,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Color(0xFF22314D),
+                                        fontWeight: FontWeight.w900,
+                                        height: 1.15,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  if (categorySelected)
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 6, top: 1),
+                                      child: Icon(
+                                        Icons.check_circle_rounded,
+                                        color: Color(0xFFCB6E5B),
+                                        size: 18,
+                                      ),
+                                    ),
+                                ],
                               ),
-                              if (categorySelected)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 6, top: 1),
-                                  child: Icon(Icons.check_circle_rounded, color: Color(0xFFCB6E5B), size: 18),
+                              const SizedBox(height: 10),
+                              _labourCategoryPriceTile(
+                                categoryId: pricing.categoryId,
+                                label: 'Half Day',
+                                value: _priceLabelOrUnavailable(
+                                  pricing.halfDayPrice,
                                 ),
+                                icon: Icons.wb_twilight_rounded,
+                                color: const Color(0xFFF2A13D),
+                                selected: halfSelected,
+                                unavailable: halfUnavailable,
+                              ),
+                              const SizedBox(height: 8),
+                              _labourCategoryPriceTile(
+                                categoryId: pricing.categoryId,
+                                label: 'Full Day',
+                                value: _priceLabelOrUnavailable(
+                                  pricing.fullDayPrice,
+                                ),
+                                icon: Icons.wb_sunny_rounded,
+                                color: const Color(0xFFCB6E5B),
+                                selected: fullSelected,
+                                unavailable: fullUnavailable,
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          _labourCategoryPriceTile(
-                            categoryId: pricing.categoryId,
-                            label: 'Half Day',
-                            value: _priceLabelOrUnavailable(pricing.halfDayPrice),
-                            icon: Icons.wb_twilight_rounded,
-                            color: const Color(0xFFF2A13D),
-                            selected: halfSelected,
-                            unavailable: halfUnavailable,
-                          ),
-                          const SizedBox(height: 8),
-                          _labourCategoryPriceTile(
-                            categoryId: pricing.categoryId,
-                            label: 'Full Day',
-                            value: _priceLabelOrUnavailable(pricing.fullDayPrice),
-                            icon: Icons.wb_sunny_rounded,
-                            color: const Color(0xFFCB6E5B),
-                            selected: fullSelected,
-                            unavailable: fullUnavailable,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(growable: false),
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
               );
             },
           ),
@@ -1392,9 +1534,10 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
       onTap: _labourUnavailable || unavailable
           ? null
           : () => setState(() {
-                _selectedLabourCategoryId = categoryId;
-                _selectedLabourBookingPeriod = label;
-              }),
+              _selectedLabourCategoryId = categoryId;
+              _selectedLabourBookingPeriod = label;
+              _primaryActionError = null;
+            }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -1461,5 +1604,4 @@ class _DiscoveryDetailPageState extends State<_DiscoveryDetailPage> {
     }
     return trimmed;
   }
-
 }

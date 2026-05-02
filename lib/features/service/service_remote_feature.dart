@@ -82,6 +82,7 @@ class _RemoteServiceBookingRequestStatus {
     required this.canMakePayment,
     required this.requestedProviderCount,
     required this.acceptedProviderCount,
+    required this.acceptedProviders,
     required this.pendingProviderCount,
   });
 
@@ -99,6 +100,7 @@ class _RemoteServiceBookingRequestStatus {
   final bool canMakePayment;
   final int requestedProviderCount;
   final int acceptedProviderCount;
+  final List<_RemoteAcceptedProvider> acceptedProviders;
   final int pendingProviderCount;
 }
 

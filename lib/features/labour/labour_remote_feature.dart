@@ -1,10 +1,21 @@
 part of '../../main.dart';
 
-class _RemoteLabourCategory {
-  const _RemoteLabourCategory({
-    required this.label,
-    this.backendCategoryId,
+class _RemoteAcceptedProvider {
+  const _RemoteAcceptedProvider({
+    required this.candidateId,
+    required this.providerEntityId,
+    required this.providerName,
+    required this.quotedPriceAmount,
   });
+
+  final int candidateId;
+  final int? providerEntityId;
+  final String providerName;
+  final String quotedPriceAmount;
+}
+
+class _RemoteLabourCategory {
+  const _RemoteLabourCategory({required this.label, this.backendCategoryId});
 
   final String label;
   final int? backendCategoryId;
@@ -61,6 +72,7 @@ class _RemoteLabourBookingRequestStatus {
     required this.distanceLabel,
     required this.requestedProviderCount,
     required this.acceptedProviderCount,
+    required this.acceptedProviders,
     required this.pendingProviderCount,
     required this.bookingId,
     required this.bookingCode,
@@ -80,6 +92,7 @@ class _RemoteLabourBookingRequestStatus {
   final String distanceLabel;
   final int requestedProviderCount;
   final int acceptedProviderCount;
+  final List<_RemoteAcceptedProvider> acceptedProviders;
   final int pendingProviderCount;
   final int bookingId;
   final String bookingCode;

@@ -104,18 +104,22 @@ class _ProfilePageState extends State<_ProfilePage> {
     return 'image/jpeg';
   }
 
-  bool _isPhotoTooLarge(Uint8List bytes) => bytes.length > _maxProfilePhotoBytes;
+  bool _isPhotoTooLarge(Uint8List bytes) =>
+      bytes.length > _maxProfilePhotoBytes;
 
   void _showProfilePhotoError(String message) {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _profilePhotoDataUriFromBytes(Uint8List bytes, {String mimeType = 'image/png'}) {
+  String _profilePhotoDataUriFromBytes(
+    Uint8List bytes, {
+    String mimeType = 'image/png',
+  }) {
     return 'data:$mimeType;base64,${base64Encode(bytes)}';
   }
 
@@ -133,14 +137,18 @@ class _ProfilePageState extends State<_ProfilePage> {
       if (picked == null) {
         return;
       }
-      final cropped = await _cropProfilePhotoDraft(picked.bytes, onError: onError);
+      final cropped = await _cropProfilePhotoDraft(
+        picked.bytes,
+        onError: onError,
+      );
       if (cropped == null) {
         return;
       }
       setDraftPhotoDataUri(cropped.dataUri);
       setDraftPhotoBytes(cropped.bytes);
     } catch (_) {
-      final message = 'Could not open this image. Please choose a JPG, PNG, or WEBP photo up to 5 MB.';
+      final message =
+          'Could not open this image. Please choose a JPG, PNG, or WEBP photo up to 5 MB.';
       if (onError != null) {
         onError(message);
       } else {
@@ -153,9 +161,7 @@ class _ProfilePageState extends State<_ProfilePage> {
     ValueSetter<String>? onError,
   }) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-    );
+    final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked == null) {
       return null;
     }
@@ -170,7 +176,10 @@ class _ProfilePageState extends State<_ProfilePage> {
       return null;
     }
     return (
-      dataUri: _profilePhotoDataUriFromBytes(bytes, mimeType: _profilePhotoMimeType(picked.path)),
+      dataUri: _profilePhotoDataUriFromBytes(
+        bytes,
+        mimeType: _profilePhotoMimeType(picked.path),
+      ),
       bytes: bytes,
     );
   }
@@ -210,12 +219,18 @@ class _ProfilePageState extends State<_ProfilePage> {
   }
 
   Future<void> _openEditProfileSheet() async {
-    final nameController = TextEditingController(text: _profile?.fullName.trim().isNotEmpty == true ? _profile!.fullName : '');
+    final nameController = TextEditingController(
+      text: _profile?.fullName.trim().isNotEmpty == true
+          ? _profile!.fullName
+          : '',
+    );
     String draftPhotoDataUri = _profile?.profilePhotoDataUri ?? '';
     Uint8List? draftPhotoBytes = _profilePhotoBytes;
     String draftPhotoUrl = _profilePhotoUrl;
     String selectedGender = _profile?.gender.trim() ?? '';
-    DateTime? selectedDob = _profile?.dob == null ? null : DateUtils.dateOnly(_profile!.dob!);
+    DateTime? selectedDob = _profile?.dob == null
+        ? null
+        : DateUtils.dateOnly(_profile!.dob!);
     bool saving = false;
     String? photoError;
 
@@ -248,7 +263,9 @@ class _ProfilePageState extends State<_ProfilePage> {
                 if (!mounted) {
                   return;
                 }
-                await _LocalSessionStore.saveProfileCache(jsonEncode(updated.toJson()));
+                await _LocalSessionStore.saveProfileCache(
+                  jsonEncode(updated.toJson()),
+                );
                 setState(() {
                   _profile = updated;
                 });
@@ -320,18 +337,21 @@ class _ProfilePageState extends State<_ProfilePage> {
                             InkWell(
                               onTap: () => _pickAndApplyDraftPhoto(
                                 saving: saving,
-                                setDraftPhotoDataUri: (value) => setSheetState(() {
-                                  draftPhotoDataUri = value;
-                                  photoError = null;
-                                }),
-                                setDraftPhotoBytes: (value) => setSheetState(() {
-                                  draftPhotoBytes = value;
-                                  photoError = null;
-                                  if (value != null) {
-                                    draftPhotoUrl = '';
-                                  }
-                                }),
-                                onError: (message) => setSheetState(() => photoError = message),
+                                setDraftPhotoDataUri: (value) =>
+                                    setSheetState(() {
+                                      draftPhotoDataUri = value;
+                                      photoError = null;
+                                    }),
+                                setDraftPhotoBytes: (value) =>
+                                    setSheetState(() {
+                                      draftPhotoBytes = value;
+                                      photoError = null;
+                                      if (value != null) {
+                                        draftPhotoUrl = '';
+                                      }
+                                    }),
+                                onError: (message) =>
+                                    setSheetState(() => photoError = message),
                               ),
                               customBorder: const CircleBorder(),
                               child: Container(
@@ -343,18 +363,25 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: draftPhotoBytes != null
-                                    ? Image.memory(draftPhotoBytes!, fit: BoxFit.cover)
+                                    ? Image.memory(
+                                        draftPhotoBytes!,
+                                        fit: BoxFit.cover,
+                                      )
                                     : draftPhotoUrl.trim().isNotEmpty
-                                        ? Image.network(
-                                            draftPhotoUrl,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) => const Icon(
-                                              Icons.add_a_photo_rounded,
-                                              size: 34,
-                                              color: Color(0xFF324360),
-                                            ),
-                                          )
-                                        : const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360)),
+                                    ? Image.network(
+                                        draftPhotoUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => const Icon(
+                                          Icons.add_a_photo_rounded,
+                                          size: 34,
+                                          color: Color(0xFF324360),
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.add_a_photo_rounded,
+                                        size: 34,
+                                        color: Color(0xFF324360),
+                                      ),
                               ),
                             ),
                             Positioned(
@@ -367,22 +394,30 @@ class _ProfilePageState extends State<_ProfilePage> {
                                   customBorder: const CircleBorder(),
                                   onTap: () => _pickAndApplyDraftPhoto(
                                     saving: saving,
-                                    setDraftPhotoDataUri: (value) => setSheetState(() {
-                                      draftPhotoDataUri = value;
-                                      photoError = null;
-                                    }),
-                                    setDraftPhotoBytes: (value) => setSheetState(() {
-                                      draftPhotoBytes = value;
-                                      photoError = null;
-                                      if (value != null) {
-                                        draftPhotoUrl = '';
-                                      }
-                                    }),
-                                    onError: (message) => setSheetState(() => photoError = message),
+                                    setDraftPhotoDataUri: (value) =>
+                                        setSheetState(() {
+                                          draftPhotoDataUri = value;
+                                          photoError = null;
+                                        }),
+                                    setDraftPhotoBytes: (value) =>
+                                        setSheetState(() {
+                                          draftPhotoBytes = value;
+                                          photoError = null;
+                                          if (value != null) {
+                                            draftPhotoUrl = '';
+                                          }
+                                        }),
+                                    onError: (message) => setSheetState(
+                                      () => photoError = message,
+                                    ),
                                   ),
                                   child: const Padding(
                                     padding: EdgeInsets.all(9),
-                                    child: Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                                    child: Icon(
+                                      Icons.camera_alt_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -407,7 +442,8 @@ class _ProfilePageState extends State<_ProfilePage> {
                           ),
                         ),
                       ],
-                      if (draftPhotoDataUri.isNotEmpty || draftPhotoUrl.trim().isNotEmpty)
+                      if (draftPhotoDataUri.isNotEmpty ||
+                          draftPhotoUrl.trim().isNotEmpty)
                         Center(
                           child: Wrap(
                             spacing: 8,
@@ -418,10 +454,14 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 onPressed: saving || draftPhotoBytes == null
                                     ? null
                                     : () async {
-                                        final cropped = await _cropProfilePhotoDraft(
-                                          draftPhotoBytes!,
-                                          onError: (message) => setSheetState(() => photoError = message),
-                                        );
+                                        final cropped =
+                                            await _cropProfilePhotoDraft(
+                                              draftPhotoBytes!,
+                                              onError: (message) =>
+                                                  setSheetState(
+                                                    () => photoError = message,
+                                                  ),
+                                            );
                                         if (cropped == null) {
                                           return;
                                         }
@@ -439,29 +479,36 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 onPressed: saving
                                     ? null
                                     : () => _pickAndApplyDraftPhoto(
-                                          saving: saving,
-                                          setDraftPhotoDataUri: (value) => setSheetState(() {
-                                            draftPhotoDataUri = value;
-                                            photoError = null;
-                                          }),
-                                          setDraftPhotoBytes: (value) => setSheetState(() {
-                                            draftPhotoBytes = value;
-                                            photoError = null;
-                                          }),
-                                          onError: (message) => setSheetState(() => photoError = message),
+                                        saving: saving,
+                                        setDraftPhotoDataUri: (value) =>
+                                            setSheetState(() {
+                                              draftPhotoDataUri = value;
+                                              photoError = null;
+                                            }),
+                                        setDraftPhotoBytes: (value) =>
+                                            setSheetState(() {
+                                              draftPhotoBytes = value;
+                                              photoError = null;
+                                            }),
+                                        onError: (message) => setSheetState(
+                                          () => photoError = message,
                                         ),
-                                icon: const Icon(Icons.upload_rounded, size: 18),
+                                      ),
+                                icon: const Icon(
+                                  Icons.upload_rounded,
+                                  size: 18,
+                                ),
                                 label: const Text('Upload photo'),
                               ),
                               TextButton(
                                 onPressed: saving
                                     ? null
                                     : () => setSheetState(() {
-                                          draftPhotoDataUri = '';
-                                          draftPhotoBytes = null;
-                                          draftPhotoUrl = '';
-                                          photoError = null;
-                                        }),
+                                        draftPhotoDataUri = '';
+                                        draftPhotoBytes = null;
+                                        draftPhotoUrl = '';
+                                        photoError = null;
+                                      }),
                                 child: const Text('Remove photo'),
                               ),
                             ],
@@ -493,27 +540,35 @@ class _ProfilePageState extends State<_ProfilePage> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: _genderOptions.map((option) {
-                          final selected = selectedGender.toLowerCase() == option.toLowerCase();
-                          return ChoiceChip(
-                            label: Text(option),
-                            selected: selected,
-                            onSelected: saving
-                                ? null
-                                : (_) => setSheetState(() {
-                                      selectedGender = option;
-                                    }),
-                            selectedColor: const Color(0xFFF7D7CF),
-                            backgroundColor: const Color(0xFFF7F2EC),
-                            labelStyle: TextStyle(
-                              color: selected ? const Color(0xFF9F4F40) : const Color(0xFF66748C),
-                              fontWeight: FontWeight.w800,
-                            ),
-                            side: BorderSide(
-                              color: selected ? const Color(0xFFCB6E5B) : const Color(0xFFE4D8D0),
-                            ),
-                          );
-                        }).toList(growable: false),
+                        children: _genderOptions
+                            .map((option) {
+                              final selected =
+                                  selectedGender.toLowerCase() ==
+                                  option.toLowerCase();
+                              return ChoiceChip(
+                                label: Text(option),
+                                selected: selected,
+                                onSelected: saving
+                                    ? null
+                                    : (_) => setSheetState(() {
+                                        selectedGender = option;
+                                      }),
+                                selectedColor: const Color(0xFFF7D7CF),
+                                backgroundColor: const Color(0xFFF7F2EC),
+                                labelStyle: TextStyle(
+                                  color: selected
+                                      ? const Color(0xFF9F4F40)
+                                      : const Color(0xFF66748C),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                side: BorderSide(
+                                  color: selected
+                                      ? const Color(0xFFCB6E5B)
+                                      : const Color(0xFFE4D8D0),
+                                ),
+                              );
+                            })
+                            .toList(growable: false),
                       ),
                       const SizedBox(height: 16),
                       InkWell(
@@ -524,7 +579,13 @@ class _ProfilePageState extends State<_ProfilePage> {
                                 final now = DateTime.now();
                                 final picked = await showDatePicker(
                                   context: context,
-                                  initialDate: selectedDob ?? DateTime(now.year - 20, now.month, now.day),
+                                  initialDate:
+                                      selectedDob ??
+                                      DateTime(
+                                        now.year - 20,
+                                        now.month,
+                                        now.day,
+                                      ),
                                   firstDate: DateTime(1950),
                                   lastDate: now,
                                 );
@@ -537,7 +598,10 @@ class _ProfilePageState extends State<_ProfilePage> {
                               },
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 15,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF7F2EC),
                             borderRadius: BorderRadius.circular(18),
@@ -567,7 +631,10 @@ class _ProfilePageState extends State<_ProfilePage> {
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.calendar_month_rounded, color: Color(0xFF66748C)),
+                              const Icon(
+                                Icons.calendar_month_rounded,
+                                color: Color(0xFF66748C),
+                              ),
                             ],
                           ),
                         ),
@@ -589,7 +656,10 @@ class _ProfilePageState extends State<_ProfilePage> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : const Text(
                                   'Save profile',
@@ -611,7 +681,9 @@ class _ProfilePageState extends State<_ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = _profile?.fullName.trim().isNotEmpty == true ? _profile!.fullName : 'MSA User';
+    final displayName = _profile?.fullName.trim().isNotEmpty == true
+        ? _profile!.fullName
+        : 'MSA User';
     final photoBytes = _profilePhotoBytes;
     final photoUrl = _profilePhotoUrl.trim();
     return Scaffold(
@@ -647,16 +719,20 @@ class _ProfilePageState extends State<_ProfilePage> {
                             child: photoBytes != null
                                 ? Image.memory(photoBytes, fit: BoxFit.cover)
                                 : photoUrl.isNotEmpty
-                                    ? Image.network(
-                                        photoUrl,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) => const Icon(
-                                          Icons.add_a_photo_rounded,
-                                          size: 34,
-                                          color: Color(0xFF324360),
-                                        ),
-                                      )
-                                    : const Icon(Icons.add_a_photo_rounded, size: 34, color: Color(0xFF324360)),
+                                ? Image.network(
+                                    photoUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(
+                                      Icons.add_a_photo_rounded,
+                                      size: 34,
+                                      color: Color(0xFF324360),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.add_a_photo_rounded,
+                                    size: 34,
+                                    color: Color(0xFF324360),
+                                  ),
                           ),
                           Positioned(
                             right: 0,
@@ -666,10 +742,16 @@ class _ProfilePageState extends State<_ProfilePage> {
                               shape: const CircleBorder(),
                               child: InkWell(
                                 customBorder: const CircleBorder(),
-                                onTap: _savingProfile ? null : _openEditProfileSheet,
+                                onTap: _savingProfile
+                                    ? null
+                                    : _openEditProfileSheet,
                                 child: const Padding(
                                   padding: EdgeInsets.all(8),
-                                  child: Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                                  child: Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
@@ -683,7 +765,9 @@ class _ProfilePageState extends State<_ProfilePage> {
                         child: Text(
                           'Tap the camera to upload your profile photo',
                           style: TextStyle(
-                            color: const Color(0xFF8A766A).withValues(alpha: 0.9),
+                            color: const Color(
+                              0xFF8A766A,
+                            ).withValues(alpha: 0.9),
                             fontWeight: FontWeight.w700,
                             fontSize: 12.4,
                           ),
@@ -717,7 +801,9 @@ class _ProfilePageState extends State<_ProfilePage> {
                             borderRadius: BorderRadius.circular(999),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(999),
-                              onTap: _savingProfile ? null : _openEditProfileSheet,
+                              onTap: _savingProfile
+                                  ? null
+                                  : _openEditProfileSheet,
                               child: const Padding(
                                 padding: EdgeInsets.all(8),
                                 child: Icon(
@@ -732,12 +818,15 @@ class _ProfilePageState extends State<_ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    if ((_profile?.gender.trim().isNotEmpty ?? false) || _profile?.dob != null)
+                    if ((_profile?.gender.trim().isNotEmpty ?? false) ||
+                        _profile?.dob != null)
                       Center(
                         child: Text(
                           [
-                            if (_profile?.gender.trim().isNotEmpty ?? false) _profile!.gender.trim(),
-                            if (_profile?.dob != null) _formatDobLabel(_profile!.dob),
+                            if (_profile?.gender.trim().isNotEmpty ?? false)
+                              _profile!.gender.trim(),
+                            if (_profile?.dob != null)
+                              _formatDobLabel(_profile!.dob),
                           ].join(' • '),
                           style: const TextStyle(
                             color: Color(0xFF8A766A),
@@ -768,7 +857,10 @@ class _ProfilePageState extends State<_ProfilePage> {
                         );
                       },
                     ),
-                    const _DrawerAction(icon: Icons.star_border_rounded, label: 'Ratings & reviews'),
+                    const _DrawerAction(
+                      icon: Icons.star_border_rounded,
+                      label: 'Ratings & reviews',
+                    ),
                     _DrawerAction(
                       icon: Icons.location_on_outlined,
                       label: 'Saved addresses',
@@ -792,9 +884,18 @@ class _ProfilePageState extends State<_ProfilePage> {
                         );
                       },
                     ),
-                    const _DrawerAction(icon: Icons.favorite_border_rounded, label: 'Favourite labour'),
-                    const _DrawerAction(icon: Icons.bookmark_border_rounded, label: 'Wishlist items'),
-                    const _DrawerAction(icon: Icons.support_agent_rounded, label: 'Help & support'),
+                    const _DrawerAction(
+                      icon: Icons.favorite_border_rounded,
+                      label: 'Favourite labour',
+                    ),
+                    const _DrawerAction(
+                      icon: Icons.bookmark_border_rounded,
+                      label: 'Wishlist items',
+                    ),
+                    const _DrawerAction(
+                      icon: Icons.support_agent_rounded,
+                      label: 'Help & support',
+                    ),
                     _DrawerAction(
                       icon: Icons.logout_rounded,
                       label: 'Logout',
@@ -810,8 +911,8 @@ class _ProfilePageState extends State<_ProfilePage> {
               ),
             ],
           ),
-          ),
         ),
+      ),
     );
   }
 }
@@ -873,7 +974,8 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     if (_loading || _historyLoadingMore || !_historyHasMore) {
       return;
     }
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 220) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 220) {
       unawaited(_loadMoreHistory());
     }
   }
@@ -900,7 +1002,9 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
         return;
       }
       final updated = List<_ActiveBookingStatus>.from(_activeStatuses);
-      final index = updated.indexWhere((item) => item.requestId == latestStatus.requestId);
+      final index = updated.indexWhere(
+        (item) => item.requestId == latestStatus.requestId,
+      );
       if (index >= 0) {
         updated[index] = latestStatus;
       } else {
@@ -944,7 +1048,10 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     });
     try {
       final activeStatuses = await _UserAppApi.fetchActiveBookingStatuses();
-      final historyStatuses = await _UserAppApi.fetchBookingHistoryStatuses(page: 0, size: _historyPageSize);
+      final historyStatuses = await _UserAppApi.fetchBookingHistoryStatuses(
+        page: 0,
+        size: _historyPageSize,
+      );
       if (!mounted) {
         return;
       }
@@ -988,9 +1095,15 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
         return;
       }
       setState(() {
-        final existingRequestIds = _historyStatuses.map((item) => item.requestId).toSet();
+        final existingRequestIds = _historyStatuses
+            .map((item) => item.requestId)
+            .toSet();
         final merged = List<_ActiveBookingStatus>.from(_historyStatuses)
-          ..addAll(nextItems.where((item) => !existingRequestIds.contains(item.requestId)));
+          ..addAll(
+            nextItems.where(
+              (item) => !existingRequestIds.contains(item.requestId),
+            ),
+          );
         _historyStatuses = merged;
         _historyPage = nextPage;
         _historyHasMore = nextItems.length >= _historyPageSize;
@@ -1023,13 +1136,15 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
           if (_selectedBookingStatusFilter == 'All') {
             return true;
           }
-          return status == _historyStatusCodeFromFilter(_selectedBookingStatusFilter);
+          return status ==
+              _historyStatusCodeFromFilter(_selectedBookingStatusFilter);
         })
         .where((item) {
           if (_selectedPaymentStatusFilter == 'All') {
             return true;
           }
-          return item.paymentStatus.trim().toUpperCase() == _selectedPaymentStatusFilter.toUpperCase();
+          return item.paymentStatus.trim().toUpperCase() ==
+              _selectedPaymentStatusFilter.toUpperCase();
         })
         .where((item) {
           if (_selectedBookingTypeFilter == 'All') {
@@ -1055,7 +1170,12 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
         .map(_normalizedHistoryStatus)
         .where(_visibleHistoryStatuses.contains)
         .toSet();
-    const ordered = <String>['COMPLETED', 'CANCELLED', 'NO_SHOW', 'PAYMENT_FAILED'];
+    const ordered = <String>[
+      'COMPLETED',
+      'CANCELLED',
+      'NO_SHOW',
+      'PAYMENT_FAILED',
+    ];
     return <String>[
       'All',
       ...ordered.where(available.contains).map(_historyStatusFilterLabel),
@@ -1108,13 +1228,16 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     if (bookingStatus == 'COMPLETED') {
       return 'COMPLETED';
     }
-    if (bookingStatus == 'CANCELLED' && item.paymentStatus.trim().toUpperCase() == 'FAILED') {
+    if (bookingStatus == 'CANCELLED' &&
+        item.paymentStatus.trim().toUpperCase() == 'FAILED') {
       return 'PAYMENT_FAILED';
     }
     if (bookingStatus == 'CANCELLED') {
       return 'CANCELLED';
     }
-    return bookingStatus.isNotEmpty ? bookingStatus : item.requestStatus.trim().toUpperCase();
+    return bookingStatus.isNotEmpty
+        ? bookingStatus
+        : item.requestStatus.trim().toUpperCase();
   }
 
   String _historyStatusFilterLabel(String value) {
@@ -1160,13 +1283,14 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
   }
 
   List<String> get _historyPeriodOptions {
-    final now = DateTime.now();
-    final years = _historyStatuses
-        .map((item) => item.createdAt?.year)
-        .whereType<int>()
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final now = _currentIstTime();
+    final years =
+        _historyStatuses
+            .map((item) => _asIstDisplayTime(item.createdAt)?.year)
+            .whereType<int>()
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
     if (!years.contains(now.year)) {
       years.insert(0, now.year);
     }
@@ -1183,11 +1307,12 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     if (_selectedHistoryPeriodFilter == _historyPeriodAllTime) {
       return true;
     }
-    if (createdAt == null) {
+    final createdValue = _asIstDisplayTime(createdAt);
+    if (createdValue == null) {
       return false;
     }
-    final created = DateUtils.dateOnly(createdAt);
-    final today = DateUtils.dateOnly(DateTime.now());
+    final created = DateUtils.dateOnly(createdValue);
+    final today = DateUtils.dateOnly(_currentIstTime());
     switch (_selectedHistoryPeriodFilter) {
       case _historyPeriodLastWeek:
         final start = today.subtract(const Duration(days: 7));
@@ -1208,7 +1333,9 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     if (item.providerName.trim().isNotEmpty) {
       return item.providerName;
     }
-    return item.bookingType.toUpperCase() == 'SERVICE' ? 'Service booking' : 'Labour booking';
+    return item.bookingType.toUpperCase() == 'SERVICE'
+        ? 'Service booking'
+        : 'Labour booking';
   }
 
   Future<void> _makePayment() async {
@@ -1221,15 +1348,18 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
     });
     try {
       if (status.bookingType.toUpperCase() == 'SERVICE') {
-        final payment = await _UserAppApi.initiateServiceBookingPayment(status.requestId);
-        if (!mounted) {
-          return;
-        }
-        final paymentResult = await _PaymentFlow.start(
-          context,
-          paymentCode: payment.paymentCode,
-          title: 'Confirm service booking',
-        );
+        final paymentFlow =
+            await _PaymentFlow.prepareAndStart<
+              _RemoteServiceBookingPaymentResult
+            >(
+              context,
+              prepare: () =>
+                  _UserAppApi.initiateServiceBookingPayment(status.requestId),
+              paymentCode: (payment) => payment.paymentCode,
+              title: 'Confirm service booking',
+            );
+        final payment = paymentFlow.prepared;
+        final paymentResult = paymentFlow.result;
         if (!mounted) {
           return;
         }
@@ -1246,15 +1376,16 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
         await _load();
         return;
       }
-      final payment = await _UserAppApi.initiateLabourBookingPayment(status.requestId);
-      if (!mounted) {
-        return;
-      }
-      final paymentResult = await _PaymentFlow.start(
-        context,
-        paymentCode: payment.paymentCode,
-        title: 'Confirm labour booking',
-      );
+      final paymentFlow =
+          await _PaymentFlow.prepareAndStart<_RemoteLabourBookingPaymentResult>(
+            context,
+            prepare: () =>
+                _UserAppApi.initiateLabourBookingPayment(status.requestId),
+            paymentCode: (payment) => payment.paymentCode,
+            title: 'Confirm labour booking',
+          );
+      final payment = paymentFlow.prepared;
+      final paymentResult = paymentFlow.result;
       if (!mounted) {
         return;
       }
@@ -1271,9 +1402,9 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
       await _load();
     } on _UserAppApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } finally {
       if (mounted) {
@@ -1320,7 +1451,8 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                     _AsyncStateCard(
                       icon: Icons.local_shipping_outlined,
                       title: 'Loading my booking',
-                      message: 'Checking your latest and previous booking requests.',
+                      message:
+                          'Checking your latest and previous booking requests.',
                       loading: true,
                     ),
                   ],
@@ -1345,7 +1477,8 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                     _AsyncStateCard(
                       icon: Icons.inbox_outlined,
                       title: 'No booking yet',
-                      message: 'Once you create a labour or service booking, it will appear here.',
+                      message:
+                          'Once you create a labour or service booking, it will appear here.',
                     ),
                   ],
                 )
@@ -1355,7 +1488,9 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                   children: [
                     if (_status != null) ...[
                       Text(
-                        _activeStatuses.length == 1 ? 'Live booking' : 'Live bookings',
+                        _activeStatuses.length == 1
+                            ? 'Live booking'
+                            : 'Live bookings',
                         style: const TextStyle(
                           color: Color(0xFF22314D),
                           fontWeight: FontWeight.w900,
@@ -1370,7 +1505,9 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final active = _activeStatuses[index];
-                          final selected = _status != null && active.requestId == _status!.requestId;
+                          final selected =
+                              _status != null &&
+                              active.requestId == _status!.requestId;
                           return _ProfileLiveBookingListCard(
                             status: active,
                             selected: selected,
@@ -1383,8 +1520,8 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                             statusText: active.canMakePayment
                                 ? 'Accepted. Confirm booking by making booking charges.'
                                 : active.bookingStatus.trim().isNotEmpty
-                                    ? _titleCase(active.bookingStatus)
-                                    : _titleCase(active.requestStatus),
+                                ? _titleCase(active.bookingStatus)
+                                : _titleCase(active.requestStatus),
                           );
                         },
                       ),
@@ -1410,84 +1547,115 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                          PopupMenuButton<String>(
-                            initialValue: _selectedBookingStatusFilter,
-                            onSelected: (value) => setState(() => _selectedBookingStatusFilter = value),
-                            itemBuilder: (context) => _bookingStatusOptions
-                                .map((value) => PopupMenuItem<String>(value: value, child: Text(value)))
-                                .toList(growable: false),
-                            child: _BookingFilterChip(
-                              icon: Icons.sell_outlined,
-                              label: _selectedBookingStatusFilter == 'All'
-                                  ? 'Status'
-                                  : _selectedBookingStatusFilter,
-                              active: _selectedBookingStatusFilter != 'All',
+                            PopupMenuButton<String>(
+                              initialValue: _selectedBookingStatusFilter,
+                              onSelected: (value) => setState(
+                                () => _selectedBookingStatusFilter = value,
+                              ),
+                              itemBuilder: (context) => _bookingStatusOptions
+                                  .map(
+                                    (value) => PopupMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              child: _BookingFilterChip(
+                                icon: Icons.sell_outlined,
+                                label: _selectedBookingStatusFilter == 'All'
+                                    ? 'Status'
+                                    : _selectedBookingStatusFilter,
+                                active: _selectedBookingStatusFilter != 'All',
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          PopupMenuButton<String>(
-                            initialValue: _selectedBookingTypeFilter,
-                            onSelected: (value) => setState(() => _selectedBookingTypeFilter = value),
-                            itemBuilder: (context) => _bookingTypeOptions
-                                .map((value) => PopupMenuItem<String>(value: value, child: Text(value)))
-                                .toList(growable: false),
-                            child: _BookingFilterChip(
-                              icon: Icons.category_outlined,
-                              label: _selectedBookingTypeFilter == 'All'
-                                  ? 'Booking type'
-                                  : _selectedBookingTypeFilter,
-                              active: _selectedBookingTypeFilter != 'All',
+                            const SizedBox(width: 8),
+                            PopupMenuButton<String>(
+                              initialValue: _selectedBookingTypeFilter,
+                              onSelected: (value) => setState(
+                                () => _selectedBookingTypeFilter = value,
+                              ),
+                              itemBuilder: (context) => _bookingTypeOptions
+                                  .map(
+                                    (value) => PopupMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              child: _BookingFilterChip(
+                                icon: Icons.category_outlined,
+                                label: _selectedBookingTypeFilter == 'All'
+                                    ? 'Booking type'
+                                    : _selectedBookingTypeFilter,
+                                active: _selectedBookingTypeFilter != 'All',
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          PopupMenuButton<String>(
-                            initialValue: _selectedPaymentStatusFilter,
-                            onSelected: (value) => setState(() => _selectedPaymentStatusFilter = value),
-                            itemBuilder: (context) => _paymentStatusOptions
-                                .map((value) => PopupMenuItem<String>(value: value, child: Text(value)))
-                                .toList(growable: false),
-                            child: _BookingFilterChip(
-                              icon: Icons.payments_outlined,
-                              label: _selectedPaymentStatusFilter == 'All'
-                                  ? 'Payment'
-                                  : _selectedPaymentStatusFilter,
-                              active: _selectedPaymentStatusFilter != 'All',
+                            const SizedBox(width: 8),
+                            PopupMenuButton<String>(
+                              initialValue: _selectedPaymentStatusFilter,
+                              onSelected: (value) => setState(
+                                () => _selectedPaymentStatusFilter = value,
+                              ),
+                              itemBuilder: (context) => _paymentStatusOptions
+                                  .map(
+                                    (value) => PopupMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              child: _BookingFilterChip(
+                                icon: Icons.payments_outlined,
+                                label: _selectedPaymentStatusFilter == 'All'
+                                    ? 'Payment'
+                                    : _selectedPaymentStatusFilter,
+                                active: _selectedPaymentStatusFilter != 'All',
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          PopupMenuButton<String>(
-                            initialValue: _selectedHistoryPeriodFilter,
-                            onSelected: (value) => setState(() => _selectedHistoryPeriodFilter = value),
-                            itemBuilder: (context) => _historyPeriodOptions
-                                .map((value) => PopupMenuItem<String>(value: value, child: Text(value)))
-                                .toList(growable: false),
-                            child: _BookingFilterChip(
-                              icon: Icons.calendar_today_rounded,
-                              label: _selectedHistoryPeriodFilter,
-                              active: _selectedHistoryPeriodFilter != _historyPeriodAllTime,
+                            const SizedBox(width: 8),
+                            PopupMenuButton<String>(
+                              initialValue: _selectedHistoryPeriodFilter,
+                              onSelected: (value) => setState(
+                                () => _selectedHistoryPeriodFilter = value,
+                              ),
+                              itemBuilder: (context) => _historyPeriodOptions
+                                  .map(
+                                    (value) => PopupMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                              child: _BookingFilterChip(
+                                icon: Icons.calendar_today_rounded,
+                                label: _selectedHistoryPeriodFilter,
+                                active:
+                                    _selectedHistoryPeriodFilter !=
+                                    _historyPeriodAllTime,
+                              ),
                             ),
-                          ),
-                          if (_selectedHistoryPeriodFilter != _historyPeriodAllTime ||
-                              _selectedBookingStatusFilter != 'All' ||
-                              _selectedBookingTypeFilter != 'All' ||
-                              _selectedPaymentStatusFilter != 'All')
-                            ...[
+                            if (_selectedHistoryPeriodFilter !=
+                                    _historyPeriodAllTime ||
+                                _selectedBookingStatusFilter != 'All' ||
+                                _selectedBookingTypeFilter != 'All' ||
+                                _selectedPaymentStatusFilter != 'All') ...[
                               const SizedBox(width: 8),
                               InkWell(
                                 borderRadius: BorderRadius.circular(16),
                                 onTap: () => setState(() {
-                                  _selectedHistoryPeriodFilter = _historyPeriodAllTime;
+                                  _selectedHistoryPeriodFilter =
+                                      _historyPeriodAllTime;
                                   _selectedBookingStatusFilter = 'All';
                                   _selectedBookingTypeFilter = 'All';
                                   _selectedPaymentStatusFilter = 'All';
                                 }),
                                 child: const _BookingFilterChip(
-                                icon: Icons.close_rounded,
-                                label: 'Clear filters',
-                                active: true,
-                                showChevron: false,
-                                accent: Color(0xFFCB6E5B),
-                              ),
+                                  icon: Icons.close_rounded,
+                                  label: 'Clear filters',
+                                  active: true,
+                                  showChevron: false,
+                                  accent: Color(0xFFCB6E5B),
+                                ),
                               ),
                             ],
                           ],
@@ -1499,21 +1667,20 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                       const _AsyncStateCard(
                         icon: Icons.history_rounded,
                         title: 'No matching booking history',
-                        message: 'Try changing the filters or create a new booking to see it here.',
+                        message:
+                            'Try changing the filters or create a new booking to see it here.',
                       )
                     else
-                      ..._filteredHistoryStatuses.map(
-                        (item) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _ProfileBookingHistoryCard(
-                              key: ValueKey<String>('history-${item.requestId}'),
-                              item: item,
-                              title: _historyTitleFor(item),
-                            ),
-                          );
-                        },
-                      ),
+                      ..._filteredHistoryStatuses.map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _ProfileBookingHistoryCard(
+                            key: ValueKey<String>('history-${item.requestId}'),
+                            item: item,
+                            title: _historyTitleFor(item),
+                          ),
+                        );
+                      }),
                     if (_historyLoadingMore) ...[
                       const SizedBox(height: 10),
                       const Center(
@@ -1524,7 +1691,9 @@ class _MyBookingsPageState extends State<_MyBookingsPage> {
                             height: 22,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.4,
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFCB6E5B)),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFFCB6E5B),
+                              ),
                             ),
                           ),
                         ),
@@ -1558,9 +1727,15 @@ class _BookingFilterChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: active ? accent.withValues(alpha: 0.08) : const Color(0xFFFCFAF7),
+        color: active
+            ? accent.withValues(alpha: 0.08)
+            : const Color(0xFFFCFAF7),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: active ? accent.withValues(alpha: 0.32) : const Color(0xFFE4D8D0)),
+        border: Border.all(
+          color: active
+              ? accent.withValues(alpha: 0.32)
+              : const Color(0xFFE4D8D0),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1616,10 +1791,7 @@ class _ProfileBookingInfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                color: valueColor,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(color: valueColor, fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -1648,14 +1820,16 @@ class _ProfileLiveBookingListCard extends StatelessWidget {
     final bookingTitle = status.providerName.trim().isNotEmpty
         ? status.providerName
         : status.bookingType.toUpperCase() == 'SERVICE'
-            ? 'Service provider'
-            : 'Labour';
+        ? 'Service provider'
+        : 'Labour';
     return _ActiveBookingOverviewCard(
       key: ValueKey<int>(status.requestId),
       status: status,
       title: bookingTitle,
       statusLabel: statusText,
-      paymentLabel: status.paymentStatus.trim().isEmpty ? 'Unpaid' : _titleCase(status.paymentStatus),
+      paymentLabel: status.paymentStatus.trim().isEmpty
+          ? 'Unpaid'
+          : _titleCase(status.paymentStatus),
       selected: selected,
       initiallyExpanded: selected,
       onExpansionChanged: (expanded) {
@@ -1682,10 +1856,12 @@ class _ProfileBookingHistoryCard extends StatefulWidget {
   final String title;
 
   @override
-  State<_ProfileBookingHistoryCard> createState() => _ProfileBookingHistoryCardState();
+  State<_ProfileBookingHistoryCard> createState() =>
+      _ProfileBookingHistoryCardState();
 }
 
-class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> {
+class _ProfileBookingHistoryCardState
+    extends State<_ProfileBookingHistoryCard> {
   final TextEditingController _reviewController = TextEditingController();
   final FocusNode _reviewFocusNode = FocusNode();
   int _pendingRating = 0;
@@ -1752,11 +1928,15 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
   }
 
   String _bookingTypeLabel(_ActiveBookingStatus item) {
-    return item.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Service' : 'Labour';
+    return item.bookingType.trim().toUpperCase() == 'SERVICE'
+        ? 'Service'
+        : 'Labour';
   }
 
   String _providerLabel(_ActiveBookingStatus item) {
-    return item.bookingType.trim().toUpperCase() == 'SERVICE' ? 'Servicemen' : 'Labour';
+    return item.bookingType.trim().toUpperCase() == 'SERVICE'
+        ? 'Servicemen'
+        : 'Labour';
   }
 
   String _categoryLabel(_ActiveBookingStatus item) {
@@ -1797,7 +1977,9 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
       return _titleCase(explicit.replaceAll('_', ' '));
     }
     final bookingStatus = item.bookingStatus.trim();
-    return bookingStatus.isEmpty ? _titleCase(item.requestStatus) : _titleCase(bookingStatus);
+    return bookingStatus.isEmpty
+        ? _titleCase(item.requestStatus)
+        : _titleCase(bookingStatus);
   }
 
   String _maskedHistoryPhone(String phone) {
@@ -1909,7 +2091,10 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
         bookingStatus == 'CANCELLED';
   }
 
-  Future<void> _submitReview({required int rating, required String comment}) async {
+  Future<void> _submitReview({
+    required int rating,
+    required String comment,
+  }) async {
     final item = widget.item;
     if (rating <= 0 || _submittingReview) {
       return;
@@ -1945,9 +2130,9 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
         return;
       }
       setState(() => _submittingReview = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
       if (!mounted) {
         return;
@@ -1965,15 +2150,17 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
     });
     await _submitReview(
       rating: rating,
-      comment: _submittedReviewComment.isNotEmpty ? _submittedReviewComment : _reviewController.text.trim(),
+      comment: _submittedReviewComment.isNotEmpty
+          ? _submittedReviewComment
+          : _reviewController.text.trim(),
     );
   }
 
   String _formatCreatedAt(DateTime? value) {
-    if (value == null) {
+    final ist = _asIstDisplayTime(value);
+    if (ist == null) {
       return '-';
     }
-    final local = value.toLocal();
     final months = <String>[
       'Jan',
       'Feb',
@@ -1988,10 +2175,10 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
       'Nov',
       'Dec',
     ];
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final meridiem = local.hour >= 12 ? 'PM' : 'AM';
-    return '${local.day} ${months[local.month - 1]} ${local.year}, $hour:$minute $meridiem';
+    final hour = ist.hour % 12 == 0 ? 12 : ist.hour % 12;
+    final minute = ist.minute.toString().padLeft(2, '0');
+    final meridiem = ist.hour >= 12 ? 'PM' : 'AM';
+    return '${ist.day} ${months[ist.month - 1]} ${ist.year}, $hour:$minute $meridiem IST';
   }
 
   @override
@@ -2007,7 +2194,8 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
     final canSubmitReview = _canSubmitReview(item);
     final submittedRating = _submittedRating;
     final submittedReviewComment = _submittedReviewComment.trim();
-    final effectiveReviewRating = submittedRating ?? (_pendingRating > 0 ? _pendingRating : null);
+    final effectiveReviewRating =
+        submittedRating ?? (_pendingRating > 0 ? _pendingRating : null);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -2039,7 +2227,9 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
               children: [
                 Expanded(
                   child: Text(
-                    item.bookingCode.trim().isNotEmpty ? item.bookingCode : item.requestCode,
+                    item.bookingCode.trim().isNotEmpty
+                        ? item.bookingCode
+                        : item.requestCode,
                     style: const TextStyle(
                       color: Color(0xFFBE6F5D),
                       fontWeight: FontWeight.w900,
@@ -2177,7 +2367,10 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                           ),
                           const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF7F3F0),
                               borderRadius: BorderRadius.circular(999),
@@ -2201,7 +2394,9 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                   const SizedBox(height: 12),
                   _ProfileBookingInfoRow(
                     label: 'Booking status',
-                    value: item.bookingStatus.trim().isEmpty ? statusLabel : _titleCase(item.bookingStatus),
+                    value: item.bookingStatus.trim().isEmpty
+                        ? statusLabel
+                        : _titleCase(item.bookingStatus),
                     valueColor: _bookingStatusColor(item),
                   ),
                   _ProfileBookingInfoRow(
@@ -2218,7 +2413,9 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                   if (submittedRating != null) ...[
                     Builder(
                       builder: (context) {
-                        final (ratingLabel, ratingColor) = _ratingTone(submittedRating);
+                        final (ratingLabel, ratingColor) = _ratingTone(
+                          submittedRating,
+                        );
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Row(
@@ -2242,15 +2439,28 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                                       spacing: 2,
                                       children: List.generate(5, (index) {
                                         final star = index + 1;
-                                        final selected = index < submittedRating;
-                                        final (_, tappedColor) = _ratingTone(star);
+                                        final selected =
+                                            index < submittedRating;
+                                        final (_, tappedColor) = _ratingTone(
+                                          star,
+                                        );
                                         return InkWell(
-                                          onTap: _submittingReview ? null : () => _submitRatingOnly(star),
-                                          borderRadius: BorderRadius.circular(999),
+                                          onTap: _submittingReview
+                                              ? null
+                                              : () => _submitRatingOnly(star),
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
                                           child: Icon(
-                                            selected ? Icons.star_rounded : Icons.star_border_rounded,
+                                            selected
+                                                ? Icons.star_rounded
+                                                : Icons.star_border_rounded,
                                             size: 18,
-                                            color: selected ? tappedColor : tappedColor.withValues(alpha: 0.38),
+                                            color: selected
+                                                ? tappedColor
+                                                : tappedColor.withValues(
+                                                    alpha: 0.38,
+                                                  ),
                                           ),
                                         );
                                       }),
@@ -2290,21 +2500,29 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                             ),
                           ),
                           Expanded(
-                                child: Wrap(
-                                  spacing: 4,
-                                  children: List.generate(5, (index) {
-                                    final star = index + 1;
-                                    final (_, ratingColor) = _ratingTone(star);
-                                    final selected = star <= _pendingRating;
-                                    return InkWell(
-                                  onTap: _submittingReview ? null : () => _submitRatingOnly(star),
+                            child: Wrap(
+                              spacing: 4,
+                              children: List.generate(5, (index) {
+                                final star = index + 1;
+                                final (_, ratingColor) = _ratingTone(star);
+                                final selected = star <= _pendingRating;
+                                return InkWell(
+                                  onTap: _submittingReview
+                                      ? null
+                                      : () => _submitRatingOnly(star),
                                   borderRadius: BorderRadius.circular(999),
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
+                                    ),
                                     child: Icon(
-                                      selected ? Icons.star_rounded : Icons.star_border_rounded,
+                                      selected
+                                          ? Icons.star_rounded
+                                          : Icons.star_border_rounded,
                                       size: 22,
-                                      color: selected ? ratingColor : const Color(0xFFD1C4B8),
+                                      color: selected
+                                          ? ratingColor
+                                          : const Color(0xFFD1C4B8),
                                     ),
                                   ),
                                 );
@@ -2339,7 +2557,9 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                                   children: [
                                     Expanded(
                                       child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 180),
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
                                         height: _reviewExpanded ? 78 : 40,
                                         curve: Curves.easeOut,
                                         child: TextField(
@@ -2348,8 +2568,10 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                                           enabled: !_submittingReview,
                                           maxLines: null,
                                           expands: true,
-                                          textCapitalization: TextCapitalization.sentences,
-                                          onTapOutside: (_) => _reviewFocusNode.unfocus(),
+                                          textCapitalization:
+                                              TextCapitalization.sentences,
+                                          onTapOutside: (_) =>
+                                              _reviewFocusNode.unfocus(),
                                           decoration: InputDecoration(
                                             hintText: 'Write review',
                                             hintStyle: const TextStyle(
@@ -2360,18 +2582,32 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                                             isDense: true,
                                             filled: true,
                                             fillColor: const Color(0xFFFDFCFA),
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 10,
+                                                ),
                                             border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(14),
-                                              borderSide: const BorderSide(color: Color(0xFFE5D9D0)),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              borderSide: const BorderSide(
+                                                color: Color(0xFFE5D9D0),
+                                              ),
                                             ),
                                             enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(14),
-                                              borderSide: const BorderSide(color: Color(0xFFE5D9D0)),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              borderSide: const BorderSide(
+                                                color: Color(0xFFE5D9D0),
+                                              ),
                                             ),
                                             focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(14),
-                                              borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              borderSide: const BorderSide(
+                                                color: Color(0xFFCB6E5B),
+                                                width: 1.2,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -2381,22 +2617,33 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
                                     SizedBox(
                                       height: 36,
                                       child: ElevatedButton(
-                                        onPressed: (effectiveReviewRating == null || _submittingReview)
+                                        onPressed:
+                                            (effectiveReviewRating == null ||
+                                                _submittingReview)
                                             ? null
                                             : () => _submitReview(
-                                                  rating: effectiveReviewRating,
-                                                  comment: _reviewController.text.trim(),
-                                                ),
+                                                rating: effectiveReviewRating,
+                                                comment: _reviewController.text
+                                                    .trim(),
+                                              ),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFCB6E5B),
+                                          backgroundColor: const Color(
+                                            0xFFCB6E5B,
+                                          ),
                                           foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                           ),
                                         ),
                                         child: Text(
-                                          _submittingReview ? 'Saving...' : 'Submit',
+                                          _submittingReview
+                                              ? 'Saving...'
+                                              : 'Submit',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w800,
                                             fontSize: 11.8,
@@ -2442,11 +2689,7 @@ class _ProfileBookingHistoryCardState extends State<_ProfileBookingHistoryCard> 
 }
 
 class _DrawerAction extends StatelessWidget {
-  const _DrawerAction({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _DrawerAction({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;

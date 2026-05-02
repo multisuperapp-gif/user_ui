@@ -128,7 +128,10 @@ Map<String, dynamic>? _decodeJwtPayload(String token) {
   }
 }
 
-bool _isJwtExpired(String? token, {Duration clockSkew = const Duration(seconds: 30)}) {
+bool _isJwtExpired(
+  String? token, {
+  Duration clockSkew = const Duration(seconds: 30),
+}) {
   final trimmed = token?.trim() ?? '';
   if (trimmed.isEmpty) {
     return true;
@@ -138,7 +141,10 @@ bool _isJwtExpired(String? token, {Duration clockSkew = const Duration(seconds: 
   if (expSeconds == null || expSeconds <= 0) {
     return false;
   }
-  final expiry = DateTime.fromMillisecondsSinceEpoch(expSeconds * 1000, isUtc: true);
+  final expiry = DateTime.fromMillisecondsSinceEpoch(
+    expSeconds * 1000,
+    isUtc: true,
+  );
   return DateTime.now().toUtc().isAfter(expiry.subtract(clockSkew));
 }
 
@@ -233,10 +239,7 @@ Offset _clampCropOffset({
   final maxDx = math.max(baseLeft, -baseLeft);
   final minDy = math.min(baseTop, -baseTop);
   final maxDy = math.max(baseTop, -baseTop);
-  return Offset(
-    offset.dx.clamp(minDx, maxDx),
-    offset.dy.clamp(minDy, maxDy),
-  );
+  return Offset(offset.dx.clamp(minDx, maxDx), offset.dy.clamp(minDy, maxDy));
 }
 
 _CropMetrics _buildCropMetrics({
@@ -285,10 +288,19 @@ Future<_CroppedImageData> _cropImageBytes({
   required _CropMetrics metrics,
 }) async {
   final safeScale = metrics.scale <= 0 ? 1.0 : metrics.scale;
-  final srcLeft = (-metrics.left / safeScale).clamp(0.0, image.width.toDouble());
+  final srcLeft = (-metrics.left / safeScale).clamp(
+    0.0,
+    image.width.toDouble(),
+  );
   final srcTop = (-metrics.top / safeScale).clamp(0.0, image.height.toDouble());
-  final srcWidth = (metrics.viewportWidth / safeScale).clamp(1.0, image.width - srcLeft);
-  final srcHeight = (metrics.viewportHeight / safeScale).clamp(1.0, image.height - srcTop);
+  final srcWidth = (metrics.viewportWidth / safeScale).clamp(
+    1.0,
+    image.width - srcLeft,
+  );
+  final srcHeight = (metrics.viewportHeight / safeScale).clamp(
+    1.0,
+    image.height - srcTop,
+  );
 
   final outputWidth = srcWidth.round();
   final outputHeight = srcHeight.round();
@@ -314,244 +326,139 @@ Future<BitmapDescriptor> _buildScooterMapMarker({
   Color accentColor = const Color(0xFFCB6E5B),
   Color iconColor = Colors.white,
 }) async {
-  const double width = 56;
-  const double height = 42;
+  const double width = 48;
+  const double height = 72;
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
-  final double sx = width / 800;
-  final double sy = height / 500;
+  final centerX = width / 2;
+  const frontWheelY = 16.0;
+  const rearWheelY = 57.0;
+  const wheelRadius = 8.0;
 
-  Offset pt(double x, double y) => Offset(x * sx, y * sy);
-
-  final averageScale = (sx + sy) / 2;
-  final bodyPaint = Paint()
-    ..color = accentColor
-    ..style = PaintingStyle.fill;
-  final brightBodyPaint = Paint()
-    ..color = const Color(0xFFFF7447)
-    ..style = PaintingStyle.fill;
-  final framePaint = Paint()
-    ..color = const Color(0xFF333333)
-    ..style = PaintingStyle.fill;
-  final wheelFillPaint = Paint()
-    ..color = const Color(0xFFE0E0E0)
-    ..style = PaintingStyle.fill;
-  final wheelStrokePaint = Paint()
-    ..color = const Color(0xFF222222)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 18 * averageScale;
-  final hubPaint = Paint()
-    ..color = const Color(0xFF555555)
-    ..style = PaintingStyle.fill;
-  final archPaint = Paint()
-    ..color = accentColor
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 12 * averageScale
-    ..strokeCap = StrokeCap.round;
-  final trimPaint = Paint()
-    ..color = const Color(0xFF111111)
-    ..style = PaintingStyle.fill;
-  final forkPaint = Paint()
-    ..color = const Color(0xFFCCCCCC)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 10 * averageScale
-    ..strokeCap = StrokeCap.round;
   final shadowPaint = Paint()
-    ..color = Colors.black.withValues(alpha: 0.16)
+    ..color = Colors.black.withValues(alpha: 0.18)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+  final tyrePaint = Paint()
+    ..color = const Color(0xFF1F232B)
     ..style = PaintingStyle.fill;
-  final skinPaint = Paint()
-    ..color = const Color(0xFFF4C2C2)
+  final rimPaint = Paint()
+    ..color = const Color(0xFFE8EDF4)
     ..style = PaintingStyle.fill;
-  final lampPaint = Paint()
-    ..color = const Color(0xFFFFDB58)
+  final hubPaint = Paint()
+    ..color = const Color(0xFF5C6574)
     ..style = PaintingStyle.fill;
-  final beamPaint = Paint()
-    ..color = Colors.white.withValues(alpha: 0.22)
+  final bodyPaint = Paint()
+    ..shader = ui.Gradient.linear(
+      Offset(width * 0.2, 0),
+      Offset(width * 0.8, height),
+      <Color>[accentColor, const Color(0xFFFF8A5B)],
+    )
+    ..style = PaintingStyle.fill;
+  final outlinePaint = Paint()
+    ..color = const Color(0xFF22314D)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.2;
+  final seatPaint = Paint()
+    ..color = const Color(0xFF20242B)
+    ..style = PaintingStyle.fill;
+  final trimPaint = Paint()
+    ..color = Colors.white.withValues(alpha: 0.88)
+    ..style = PaintingStyle.fill;
+  final lightPaint = Paint()
+    ..color = const Color(0xFFFFE082)
+    ..style = PaintingStyle.fill;
+  final lightGlowPaint = Paint()
+    ..color = const Color(0xFFFFF3BF).withValues(alpha: 0.55)
     ..style = PaintingStyle.fill;
 
-  void drawWheel(double cx, double cy) {
-    final center = pt(cx, cy);
-    final radius = 50 * averageScale;
-    canvas.drawCircle(center.translate(0, 4 * sy), radius * 0.96, shadowPaint);
-    canvas.drawCircle(center, radius, wheelFillPaint);
-    canvas.drawCircle(center, radius, wheelStrokePaint);
-    canvas.drawCircle(center, 12 * averageScale, hubPaint);
+  void drawWheel(double y) {
+    final wheelCenter = Offset(centerX, y);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: wheelCenter.translate(0, 2),
+        width: 19,
+        height: 11,
+      ),
+      shadowPaint,
+    );
+    canvas.drawCircle(wheelCenter, wheelRadius, tyrePaint);
+    canvas.drawCircle(wheelCenter, wheelRadius - 2.7, rimPaint);
+    canvas.drawCircle(wheelCenter, 2.2, hubPaint);
   }
 
-  drawWheel(250, 380);
-  drawWheel(550, 380);
+  drawWheel(frontWheelY);
+  drawWheel(rearWheelY);
 
-  final rearArch = Path()
-    ..moveTo(pt(190, 380).dx, pt(190, 380).dy)
-    ..arcToPoint(pt(310, 380), radius: Radius.circular(60 * averageScale), clockwise: false);
-  final frontArch = Path()
-    ..moveTo(pt(490, 380).dx, pt(490, 380).dy)
-    ..arcToPoint(pt(610, 380), radius: Radius.circular(60 * averageScale), clockwise: false);
-  canvas.drawPath(rearArch, archPaint);
-  canvas.drawPath(frontArch, archPaint);
-
-  final rearBody = Path()
-    ..moveTo(pt(220, 380).dx, pt(220, 380).dy)
-    ..quadraticBezierTo(pt(220, 280).dx, pt(220, 280).dy, pt(280, 280).dx, pt(280, 280).dy)
-    ..lineTo(pt(400, 280).dx, pt(400, 280).dy)
-    ..lineTo(pt(450, 380).dx, pt(450, 380).dy)
-    ..close();
-  canvas.drawShadow(rearBody, Colors.black.withValues(alpha: 0.18), 5 * averageScale, false);
-  canvas.drawPath(rearBody, bodyPaint);
-  canvas.drawRect(Rect.fromLTRB(pt(250, 350).dx, pt(250, 350).dy, pt(350, 380).dx, pt(350, 380).dy), framePaint);
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(
-      Rect.fromLTRB(pt(360, 360).dx, pt(360, 360).dy, pt(500, 375).dx, pt(500, 375).dy),
-      Radius.circular(5 * averageScale),
-    ),
-    Paint()..color = const Color(0xFF222222),
+  final bodyRect = RRect.fromRectAndRadius(
+    Rect.fromCenter(center: Offset(centerX, 38), width: 18, height: 38),
+    const Radius.circular(12),
   );
+  canvas.drawShadow(
+    Path()..addRRect(bodyRect),
+    Colors.black.withValues(alpha: 0.16),
+    4,
+    false,
+  );
+  canvas.drawRRect(bodyRect, bodyPaint);
+  canvas.drawRRect(bodyRect, outlinePaint);
 
-  final frontBody = Path()
-    ..moveTo(pt(480, 380).dx, pt(480, 380).dy)
-    ..lineTo(pt(520, 230).dx, pt(520, 230).dy)
-    ..lineTo(pt(560, 230).dx, pt(560, 230).dy)
-    ..lineTo(pt(580, 380).dx, pt(580, 380).dy)
+  final frontShield = Path()
+    ..moveTo(centerX - 10, 22)
+    ..quadraticBezierTo(centerX - 13, 12, centerX, 6)
+    ..quadraticBezierTo(centerX + 13, 12, centerX + 10, 22)
+    ..quadraticBezierTo(centerX + 7, 28, centerX, 28)
+    ..quadraticBezierTo(centerX - 7, 28, centerX - 10, 22)
     ..close();
-  canvas.drawPath(frontBody, bodyPaint);
+  canvas.drawPath(frontShield, bodyPaint);
+  canvas.drawPath(frontShield, outlinePaint);
+
+  final rearBody = RRect.fromRectAndRadius(
+    Rect.fromCenter(center: Offset(centerX, 53), width: 16, height: 18),
+    const Radius.circular(8),
+  );
+  canvas.drawRRect(rearBody, bodyPaint);
+  canvas.drawRRect(rearBody, outlinePaint);
+
+  final seatRect = RRect.fromRectAndRadius(
+    Rect.fromCenter(center: Offset(centerX, 42), width: 9.5, height: 18),
+    const Radius.circular(5),
+  );
+  canvas.drawRRect(seatRect, seatPaint);
 
   canvas.drawRRect(
     RRect.fromRectAndRadius(
-      Rect.fromLTRB(pt(250, 270).dx, pt(250, 270).dy, pt(370, 295).dx, pt(370, 295).dy),
-      Radius.circular(10 * averageScale),
+      Rect.fromCenter(center: Offset(centerX, 30), width: 8, height: 12),
+      const Radius.circular(4),
     ),
     trimPaint,
   );
 
-  final backBoxRect = Rect.fromLTRB(pt(130, 140).dx, pt(130, 140).dy, pt(250, 270).dx, pt(250, 270).dy);
-  canvas.drawShadow(
-    Path()..addRRect(RRect.fromRectAndRadius(backBoxRect, Radius.circular(10 * averageScale))),
-    Colors.black.withValues(alpha: 0.16),
-    4 * averageScale,
-    false,
-  );
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(backBoxRect, Radius.circular(10 * averageScale)),
-    brightBodyPaint,
-  );
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(backBoxRect, Radius.circular(10 * averageScale)),
-    Paint()
-      ..color = accentColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5 * averageScale,
+  canvas.drawCircle(Offset(centerX, 8), 5.5, lightGlowPaint);
+  canvas.drawCircle(Offset(centerX, 9), 3.2, lightPaint);
+
+  canvas.drawLine(
+    Offset(centerX - 9, 18),
+    Offset(centerX + 9, 18),
+    outlinePaint
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.8,
   );
 
   if (iconColor.a > 0) {
     final markPaint = Paint()
       ..color = iconColor
       ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(pt(150, 184).dx, pt(150, 184).dy, pt(191, 194).dx, pt(191, 194).dy),
-        Radius.circular(3 * averageScale),
-      ),
-      markPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(pt(170, 200).dx, pt(170, 200).dy, pt(210, 210).dx, pt(210, 210).dy),
-        Radius.circular(3 * averageScale),
-      ),
-      markPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(pt(186, 216).dx, pt(186, 216).dy, pt(226, 226).dx, pt(226, 226).dy),
-        Radius.circular(3 * averageScale),
-      ),
-      markPaint,
-    );
+    final path = Path()
+      ..moveTo(centerX - 2, 32)
+      ..lineTo(centerX + 2, 32)
+      ..lineTo(centerX + 2, 38)
+      ..lineTo(centerX + 5, 38)
+      ..lineTo(centerX, 44)
+      ..lineTo(centerX - 5, 38)
+      ..lineTo(centerX - 2, 38)
+      ..close();
+    canvas.drawPath(path, markPaint);
   }
-
-  canvas.drawRect(Rect.fromLTRB(pt(150, 270).dx, pt(150, 270).dy, pt(230, 285).dx, pt(230, 285).dy), framePaint);
-  canvas.drawLine(
-    pt(250, 200),
-    pt(310, 200),
-    Paint()
-      ..color = const Color(0xFF222222)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4 * averageScale
-      ..strokeCap = StrokeCap.round,
-  );
-
-  final deckPath = Path()
-    ..moveTo(pt(320, 270).dx, pt(320, 270).dy)
-    ..lineTo(pt(420, 270).dx, pt(420, 270).dy)
-    ..lineTo(pt(450, 350).dx, pt(450, 350).dy)
-    ..lineTo(pt(410, 350).dx, pt(410, 350).dy)
-    ..lineTo(pt(370, 290).dx, pt(370, 290).dy)
-    ..close();
-  canvas.drawPath(deckPath, framePaint);
-  canvas.drawOval(Rect.fromCenter(center: pt(435, 355), width: 50 * sx, height: 24 * sy), trimPaint);
-
-  final riderTorso = Path()
-    ..moveTo(pt(290, 270).dx, pt(290, 270).dy)
-    ..lineTo(pt(330, 140).dx, pt(330, 140).dy)
-    ..lineTo(pt(420, 160).dx, pt(420, 160).dy)
-    ..lineTo(pt(370, 270).dx, pt(370, 270).dy)
-    ..close();
-  canvas.drawPath(riderTorso, bodyPaint);
-
-  final riderLeg = Path()
-    ..moveTo(pt(290, 270).dx, pt(290, 270).dy)
-    ..lineTo(pt(330, 140).dx, pt(330, 140).dy)
-    ..lineTo(pt(360, 145).dx, pt(360, 145).dy)
-    ..lineTo(pt(340, 270).dx, pt(340, 270).dy)
-    ..close();
-  canvas.drawPath(riderLeg, brightBodyPaint);
-  canvas.drawRect(Rect.fromLTRB(pt(360, 125).dx, pt(360, 125).dy, pt(385, 145).dx, pt(385, 145).dy), skinPaint);
-
-  final headPath = Path()
-    ..moveTo(pt(330, 130).dx, pt(330, 130).dy)
-    ..cubicTo(pt(330, 60).dx, pt(330, 60).dy, pt(420, 70).dx, pt(420, 70).dy, pt(410, 130).dx, pt(410, 130).dy)
-    ..close();
-  final helmetPath = Path()
-    ..moveTo(pt(375, 100).dx, pt(375, 100).dy)
-    ..cubicTo(pt(375, 100).dx, pt(375, 100).dy, pt(425, 100).dx, pt(425, 100).dy, pt(415, 130).dx, pt(415, 130).dy)
-    ..lineTo(pt(375, 130).dx, pt(375, 130).dy)
-    ..quadraticBezierTo(pt(365, 130).dx, pt(365, 130).dy, pt(375, 100).dx, pt(375, 100).dy)
-    ..close();
-  canvas.drawPath(headPath, bodyPaint);
-  canvas.drawPath(helmetPath, trimPaint);
-
-  canvas.drawPath(
-    Path()
-      ..moveTo(pt(370, 160).dx, pt(370, 160).dy)
-      ..lineTo(pt(460, 210).dx, pt(460, 210).dy)
-      ..lineTo(pt(490, 200).dx, pt(490, 200).dy),
-    Paint()
-      ..color = accentColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 24 * averageScale
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round,
-  );
-  canvas.drawCircle(pt(495, 195), 12 * averageScale, skinPaint);
-
-  canvas.drawLine(pt(540, 230), pt(500, 190), forkPaint);
-  canvas.drawLine(
-    pt(510, 200),
-    pt(480, 190),
-    Paint()
-      ..color = const Color(0xFF111111)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 14 * averageScale
-      ..strokeCap = StrokeCap.round,
-  );
-
-  canvas.drawCircle(pt(560, 230), 15 * averageScale, lampPaint);
-  final beamPath = Path()
-    ..moveTo(pt(570, 230).dx, pt(570, 230).dy)
-    ..lineTo(pt(650, 190).dx, pt(650, 190).dy)
-    ..lineTo(pt(650, 270).dx, pt(650, 270).dy)
-    ..close();
-  canvas.drawPath(beamPath, beamPaint);
 
   final picture = recorder.endRecording();
   final image = await picture.toImage(width.toInt(), height.toInt());
@@ -573,15 +480,15 @@ double _bearingBetweenLatLng(LatLng from, LatLng to) {
   final toLat = to.latitude * math.pi / 180.0;
   final deltaLng = (to.longitude - from.longitude) * math.pi / 180.0;
   final y = math.sin(deltaLng) * math.cos(toLat);
-  final x = math.cos(fromLat) * math.sin(toLat) -
+  final x =
+      math.cos(fromLat) * math.sin(toLat) -
       math.sin(fromLat) * math.cos(toLat) * math.cos(deltaLng);
   final bearing = math.atan2(y, x) * 180.0 / math.pi;
   return _normalizeMapRotation(bearing);
 }
 
 double _scooterMarkerRotationDegrees(LatLng from, LatLng to) {
-  // The scooter asset faces right/east by default, so shift map bearing by 90 deg.
-  return _normalizeMapRotation(_bearingBetweenLatLng(from, to) - 90.0);
+  return _normalizeMapRotation(_bearingBetweenLatLng(from, to));
 }
 
 Future<_CroppedImageData?> _openSquareCropperDialog(
@@ -608,14 +515,20 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
         return StatefulBuilder(
           builder: (context, setState) {
             return Dialog(
-              insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 24,
+              ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final screenSize = MediaQuery.sizeOf(context);
                   final maxDialogWidth = constraints.maxWidth.isFinite
                       ? constraints.maxWidth - 28
                       : screenSize.width - 64;
-                  final viewportSize = math.min(math.max(220.0, maxDialogWidth), 320.0);
+                  final viewportSize = math.min(
+                    math.max(220.0, maxDialogWidth),
+                    320.0,
+                  );
                   final metrics = _buildCropMetrics(
                     viewportWidth: viewportSize,
                     viewportHeight: viewportSize,
@@ -673,7 +586,9 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF3F5F9),
                                     border: Border.all(
-                                      color: accentColor.withValues(alpha: 0.35),
+                                      color: accentColor.withValues(
+                                        alpha: 0.35,
+                                      ),
                                       width: 2,
                                     ),
                                   ),
@@ -698,7 +613,11 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
                           const SizedBox(height: 14),
                           Row(
                             children: [
-                              Icon(Icons.zoom_in_rounded, size: 18, color: accentColor),
+                              Icon(
+                                Icons.zoom_in_rounded,
+                                size: 18,
+                                color: accentColor,
+                              ),
                               Expanded(
                                 child: Slider(
                                   value: zoom,
@@ -710,11 +629,21 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
                                       zoom = value;
                                       offset = _clampCropOffset(
                                         offset: offset,
-                                        renderWidth: decodedImage.width *
-                                            math.max(viewportSize / decodedImage.width, viewportSize / decodedImage.height) *
+                                        renderWidth:
+                                            decodedImage.width *
+                                            math.max(
+                                              viewportSize / decodedImage.width,
+                                              viewportSize /
+                                                  decodedImage.height,
+                                            ) *
                                             zoom,
-                                        renderHeight: decodedImage.height *
-                                            math.max(viewportSize / decodedImage.width, viewportSize / decodedImage.height) *
+                                        renderHeight:
+                                            decodedImage.height *
+                                            math.max(
+                                              viewportSize / decodedImage.width,
+                                              viewportSize /
+                                                  decodedImage.height,
+                                            ) *
                                             zoom,
                                         viewportWidth: viewportSize,
                                         viewportHeight: viewportSize,
@@ -741,7 +670,8 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               TextButton(
-                                onPressed: () => Navigator.of(dialogContext).pop(),
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(),
                                 child: const Text('Cancel'),
                               ),
                               const SizedBox(width: 8),
@@ -761,18 +691,23 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
                                           if (!dialogContext.mounted) {
                                             return;
                                           }
-                                          Navigator.of(dialogContext).pop(cropped);
+                                          Navigator.of(
+                                            dialogContext,
+                                          ).pop(cropped);
                                         } catch (_) {
                                           if (!dialogContext.mounted) {
                                             return;
                                           }
                                           setState(() {
                                             isCropping = false;
-                                            cropError = 'Unable to crop this image. Try another JPG or PNG photo.';
+                                            cropError =
+                                                'Unable to crop this image. Try another JPG or PNG photo.';
                                           });
                                         }
                                       },
-                                child: Text(isCropping ? 'Cropping...' : 'Use crop'),
+                                child: Text(
+                                  isCropping ? 'Cropping...' : 'Use crop',
+                                ),
                               ),
                             ],
                           ),
@@ -791,7 +726,6 @@ Future<_CroppedImageData?> _openSquareCropperDialog(
     decodedImage.dispose();
   }
 }
-
 
 class MsaUserApp extends StatelessWidget {
   const MsaUserApp({super.key});
@@ -859,10 +793,7 @@ class MsaUserApp extends StatelessWidget {
           insetPadding: const EdgeInsets.fromLTRB(20, 0, 20, 260),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(
-              color: Color(0xFFF0C7BD),
-              width: 1.2,
-            ),
+            side: const BorderSide(color: Color(0xFFF0C7BD), width: 1.2),
           ),
         ),
       ),

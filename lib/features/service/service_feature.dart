@@ -27,7 +27,10 @@ class _AllServiceSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFBEAF2),
                       borderRadius: BorderRadius.circular(999),
@@ -71,10 +74,7 @@ class _AllServiceSection extends StatelessWidget {
                     height: 4,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFFDF7DA0),
-                          Color(0xFFF6B7CC),
-                        ],
+                        colors: [Color(0xFFDF7DA0), Color(0xFFF6B7CC)],
                       ),
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -112,10 +112,7 @@ class _AllServiceSection extends StatelessWidget {
 }
 
 class _ServiceDealMiniTile extends StatelessWidget {
-  const _ServiceDealMiniTile({
-    required this.item,
-    required this.onTap,
-  });
+  const _ServiceDealMiniTile({required this.item, required this.onTap});
 
   final _DiscoveryItem item;
   final VoidCallback onTap;
@@ -183,13 +180,18 @@ class _ServiceDealMiniTile extends StatelessWidget {
                     children: [
                       if (item.rating.trim().isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: _ratingColor(item.rating),
                             borderRadius: BorderRadius.circular(999),
                             boxShadow: [
                               BoxShadow(
-                                color: _ratingColor(item.rating).withValues(alpha: 0.24),
+                                color: _ratingColor(
+                                  item.rating,
+                                ).withValues(alpha: 0.24),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -198,7 +200,11 @@ class _ServiceDealMiniTile extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.star_rounded, size: 9, color: Colors.white),
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 9,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 2),
                               Text(
                                 item.rating,
@@ -216,7 +222,10 @@ class _ServiceDealMiniTile extends StatelessWidget {
                       if (item.distance.trim().isNotEmpty)
                         Container(
                           constraints: const BoxConstraints(maxWidth: 66),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(999),
@@ -341,15 +350,39 @@ class _ServiceProviderThumb extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.22),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                item.icon,
-                size: 30,
-                color: Colors.white,
-              ),
+              child: Icon(item.icon, size: 30, color: Colors.white),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ServiceProfilePortrait extends StatelessWidget {
+  const _ServiceProfilePortrait({required this.item});
+
+  final _DiscoveryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = item.profileImageUrl.trim();
+    if (imageUrl.isEmpty) {
+      return _ServiceProviderThumb(item: item);
+    }
+    return Image.network(
+      imageUrl,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      errorBuilder: (_, _, _) => _ServiceProviderThumb(item: item),
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) {
+          return child;
+        }
+        return _ServiceProviderThumb(item: item);
+      },
     );
   }
 }
@@ -369,7 +402,7 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (options.length <= 1) {
+    if (options.isEmpty) {
       return const SizedBox.shrink();
     }
     return Column(
@@ -383,19 +416,26 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               final option = options[index];
-              final selectedOption = selected == option || (!options.contains(selected) && option == 'All');
+              final selectedOption =
+                  selected == option ||
+                  (!options.contains(selected) && option == 'All');
               final visual = _serviceSubcategoryVisual(option);
               return GestureDetector(
                 onTap: () => onSelected(option),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
                   width: 92,
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: selectedOption ? visual.$2 : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: selectedOption ? visual.$2 : const Color(0xFFE7E0D9),
+                      color: selectedOption
+                          ? visual.$2
+                          : const Color(0xFFE7E0D9),
                       width: selectedOption ? 1.2 : 0.85,
                     ),
                     boxShadow: selectedOption
@@ -422,7 +462,9 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: selectedOption ? Colors.white : const Color(0xFF22314D),
+                          color: selectedOption
+                              ? Colors.white
+                              : const Color(0xFF22314D),
                           fontSize: 10.0,
                           fontWeight: FontWeight.w900,
                           height: 1,
@@ -439,7 +481,6 @@ class _ServiceSubcategoryFilter extends StatelessWidget {
     );
   }
 }
-
 
 (IconData, Color) _serviceSubcategoryVisual(String label) {
   switch (label) {

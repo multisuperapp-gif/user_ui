@@ -3,6 +3,7 @@ part of '../../main.dart';
 enum _HomeMode { all, labour, service, shop }
 
 enum _LabourViewMode { individual, group }
+
 enum _ShopBrowseMode { itemWise, shopWise }
 
 class _LabourCategoryPricing {
@@ -66,6 +67,8 @@ class _DiscoveryItem {
     this.labourRadiusKm,
     this.labourWorkLatitude,
     this.labourWorkLongitude,
+    this.serviceLatitude,
+    this.serviceLongitude,
     this.serviceItems = const [],
     this.serviceTileLabel = '',
     this.serviceOptions = const [],
@@ -100,6 +103,8 @@ class _DiscoveryItem {
   final double? labourRadiusKm;
   final double? labourWorkLatitude;
   final double? labourWorkLongitude;
+  final double? serviceLatitude;
+  final double? serviceLongitude;
   final List<String> serviceItems;
   final String serviceTileLabel;
   final List<_ServicePricingOption> serviceOptions;
@@ -139,6 +144,8 @@ class _DiscoveryItem {
     double? labourRadiusKm,
     double? labourWorkLatitude,
     double? labourWorkLongitude,
+    double? serviceLatitude,
+    double? serviceLongitude,
     List<String>? serviceItems,
     String? serviceTileLabel,
     List<_ServicePricingOption>? serviceOptions,
@@ -158,7 +165,8 @@ class _DiscoveryItem {
       backendVariantId: backendVariantId ?? this.backendVariantId,
       backendShopId: backendShopId ?? this.backendShopId,
       backendLabourId: backendLabourId ?? this.backendLabourId,
-      backendServiceProviderId: backendServiceProviderId ?? this.backendServiceProviderId,
+      backendServiceProviderId:
+          backendServiceProviderId ?? this.backendServiceProviderId,
       backendCategoryId: backendCategoryId ?? this.backendCategoryId,
       backendSubcategoryId: backendSubcategoryId ?? this.backendSubcategoryId,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
@@ -167,12 +175,15 @@ class _DiscoveryItem {
       disabledLabel: disabledLabel ?? this.disabledLabel,
       labourHalfDayPrice: labourHalfDayPrice ?? this.labourHalfDayPrice,
       labourFullDayPrice: labourFullDayPrice ?? this.labourFullDayPrice,
-      labourCategoryPricing: labourCategoryPricing ?? this.labourCategoryPricing,
+      labourCategoryPricing:
+          labourCategoryPricing ?? this.labourCategoryPricing,
       experienceYears: experienceYears ?? this.experienceYears,
       completedJobsCount: completedJobsCount ?? this.completedJobsCount,
       labourRadiusKm: labourRadiusKm ?? this.labourRadiusKm,
       labourWorkLatitude: labourWorkLatitude ?? this.labourWorkLatitude,
       labourWorkLongitude: labourWorkLongitude ?? this.labourWorkLongitude,
+      serviceLatitude: serviceLatitude ?? this.serviceLatitude,
+      serviceLongitude: serviceLongitude ?? this.serviceLongitude,
       serviceItems: serviceItems ?? this.serviceItems,
       serviceTileLabel: serviceTileLabel ?? this.serviceTileLabel,
       serviceOptions: serviceOptions ?? this.serviceOptions,

@@ -5,7 +5,8 @@ class _NotificationBootstrap {
   static StreamSubscription<String>? _tokenRefreshSubscription;
   static StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
   static StreamSubscription<RemoteMessage>? _messageOpenedSubscription;
-  static final StreamController<_NotificationEvent> _events = StreamController<_NotificationEvent>.broadcast();
+  static final StreamController<_NotificationEvent> _events =
+      StreamController<_NotificationEvent>.broadcast();
   static _NotificationEvent? _pendingOpenEvent;
 
   static Stream<_NotificationEvent> get events => _events.stream;
@@ -73,7 +74,9 @@ class _NotificationBootstrap {
         pushProvider: 'FCM',
       );
       await _ensureMessageListeners(messaging);
-      _tokenRefreshSubscription ??= messaging.onTokenRefresh.listen((freshToken) {
+      _tokenRefreshSubscription ??= messaging.onTokenRefresh.listen((
+        freshToken,
+      ) {
         unawaited(_registerRefreshedToken(freshToken));
       });
     } catch (_) {
@@ -94,7 +97,10 @@ class _NotificationBootstrap {
   }
 
   static String _compactOsVersion() {
-    final version = Platform.operatingSystemVersion.trim().replaceAll('\n', ' ');
+    final version = Platform.operatingSystemVersion.trim().replaceAll(
+      '\n',
+      ' ',
+    );
     if (version.length <= 50) {
       return version;
     }
@@ -119,19 +125,33 @@ class _NotificationBootstrap {
     );
   }
 
-  static Future<void> _ensureMessageListeners(FirebaseMessaging messaging) async {
-    _foregroundMessageSubscription ??= FirebaseMessaging.onMessage.listen((message) {
-      _events.add(_NotificationEvent.fromRemoteMessage(message, openedApp: false));
+  static Future<void> _ensureMessageListeners(
+    FirebaseMessaging messaging,
+  ) async {
+    _foregroundMessageSubscription ??= FirebaseMessaging.onMessage.listen((
+      message,
+    ) {
+      _events.add(
+        _NotificationEvent.fromRemoteMessage(message, openedApp: false),
+      );
     });
-    _messageOpenedSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      final event = _NotificationEvent.fromRemoteMessage(message, openedApp: true);
+    _messageOpenedSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen((
+      message,
+    ) {
+      final event = _NotificationEvent.fromRemoteMessage(
+        message,
+        openedApp: true,
+      );
       _pendingOpenEvent = event;
       _events.add(event);
     });
 
     final initialMessage = await messaging.getInitialMessage();
     if (initialMessage != null) {
-      final event = _NotificationEvent.fromRemoteMessage(initialMessage, openedApp: true);
+      final event = _NotificationEvent.fromRemoteMessage(
+        initialMessage,
+        openedApp: true,
+      );
       _pendingOpenEvent = event;
     }
   }
@@ -142,6 +162,7 @@ class _NotificationEvent {
     'BOOKING_ACCEPTED',
     'BOOKING_PAYMENT_SUCCESS',
     'BOOKING_PROVIDER_ARRIVED',
+    'BOOKING_PROVIDER_NO_SHOW',
     'BOOKING_WORK_STARTED',
     'BOOKING_COMPLETED',
     'BOOKING_CANCELLED',
@@ -159,7 +180,10 @@ class _NotificationEvent {
   final Map<String, String> data;
   final bool openedApp;
 
-  factory _NotificationEvent.fromRemoteMessage(RemoteMessage message, {required bool openedApp}) {
+  factory _NotificationEvent.fromRemoteMessage(
+    RemoteMessage message, {
+    required bool openedApp,
+  }) {
     final data = Map<String, String>.from(message.data);
     return _NotificationEvent(
       title: message.notification?.title?.trim() ?? data['title']?.trim() ?? '',
@@ -196,26 +220,16 @@ class _NotificationEvent {
 class _BookingUpdateSoundPlayer {
   static Uint8List? _bytes;
 
-  static bool shouldPlayForUserEvent(String type) {
-    switch (type.trim().toUpperCase()) {
-      case 'BOOKING_ACCEPTED':
-      case 'BOOKING_PAYMENT_SUCCESS':
-      case 'BOOKING_PROVIDER_ARRIVED':
-      case 'BOOKING_WORK_STARTED':
-      case 'BOOKING_CANCELLED':
-      case 'BOOKING_COMPLETED':
-        return true;
-      default:
-        return false;
-    }
-  }
-
   static Future<void> play() async {
-    final player = AudioPlayer(playerId: 'user-booking-update-${DateTime.now().microsecondsSinceEpoch}');
+    final player = AudioPlayer(
+      playerId: 'user-booking-update-${DateTime.now().microsecondsSinceEpoch}',
+    );
     StreamSubscription<void>? completionSubscription;
     final completion = Completer<void>();
     try {
-      _bytes ??= (await rootBundle.load('assets/audio/skins_theme_short.mp3')).buffer.asUint8List();
+      _bytes ??= (await rootBundle.load(
+        'assets/audio/skins_theme_short.mp3',
+      )).buffer.asUint8List();
       completionSubscription = player.onPlayerComplete.listen((_) {
         if (!completion.isCompleted) {
           completion.complete();
@@ -239,9 +253,7 @@ class _BookingUpdateSoundPlayer {
       await player.setPlayerMode(PlayerMode.mediaPlayer);
       await player.setReleaseMode(ReleaseMode.release);
       await player.setVolume(1.0);
-      await player.play(
-        BytesSource(_bytes!, mimeType: 'audio/mpeg'),
-      );
+      await player.play(BytesSource(_bytes!, mimeType: 'audio/mpeg'));
       await Future.any(<Future<void>>[
         completion.future,
         Future<void>.delayed(const Duration(seconds: 4)),

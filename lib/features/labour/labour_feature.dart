@@ -44,7 +44,10 @@ class _AllLabourSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF2D8),
                       borderRadius: BorderRadius.circular(999),
@@ -88,10 +91,7 @@ class _AllLabourSection extends StatelessWidget {
                     height: 4,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFFF2A13D),
-                          Color(0xFFFFD696),
-                        ],
+                        colors: [Color(0xFFF2A13D), Color(0xFFFFD696)],
                       ),
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -116,9 +116,7 @@ class _AllLabourSection extends StatelessWidget {
 }
 
 class _AllLabourLoadingSection extends StatelessWidget {
-  const _AllLabourLoadingSection({
-    required this.title,
-  });
+  const _AllLabourLoadingSection({required this.title});
 
   final String title;
 
@@ -151,7 +149,10 @@ class _AllLabourLoadingSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF2D8),
                       borderRadius: BorderRadius.circular(999),
@@ -159,7 +160,11 @@ class _AllLabourLoadingSection extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.engineering_rounded, size: 14, color: Color(0xFFF29F38)),
+                        Icon(
+                          Icons.engineering_rounded,
+                          size: 14,
+                          color: Color(0xFFF29F38),
+                        ),
                         SizedBox(width: 5),
                         Text(
                           'LABOUR PICKS',
@@ -243,21 +248,21 @@ class _LabourPortraitSection extends StatelessWidget {
           height: sectionHeight,
           child: ListView.separated(
             padding: const EdgeInsets.only(right: 18),
-          scrollDirection: Axis.horizontal,
-          itemCount: items.length,
-          separatorBuilder: (_, _) => SizedBox(width: cardGap),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return SizedBox(
-              width: cardWidth,
-              child: _LabourPortraitTile(
-                item: item,
-                isFavourited: isFavourited(item),
-                onFavouriteToggle: () => onFavouriteToggle(item),
-                onTap: () => onTap(item),
-                compactScale: compactScale,
-              ),
-            );
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, _) => SizedBox(width: cardGap),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SizedBox(
+                width: cardWidth,
+                child: _LabourPortraitTile(
+                  item: item,
+                  isFavourited: isFavourited(item),
+                  onFavouriteToggle: () => onFavouriteToggle(item),
+                  onTap: () => onTap(item),
+                  compactScale: compactScale,
+                ),
+              );
             },
           ),
         ),
@@ -319,16 +324,15 @@ class _LabourGridLoadingSection extends StatelessWidget {
           mainAxisExtent: 246,
         ),
         itemCount: 4,
-        itemBuilder: (context, index) => const _LabourPortraitSkeletonTile(compactScale: 0.62),
+        itemBuilder: (context, index) =>
+            const _LabourPortraitSkeletonTile(compactScale: 0.62),
       ),
     );
   }
 }
 
 class _LabourPortraitSkeletonTile extends StatelessWidget {
-  const _LabourPortraitSkeletonTile({
-    this.compactScale = 1,
-  });
+  const _LabourPortraitSkeletonTile({this.compactScale = 1});
 
   final double compactScale;
 
@@ -374,20 +378,11 @@ class _LabourPortraitSkeletonTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(imageRadius),
             ),
             SizedBox(height: primaryGap),
-            const _LoadingSheenBox(
-              height: 10,
-              width: 84,
-            ),
+            const _LoadingSheenBox(height: 10, width: 84),
             SizedBox(height: secondaryGap),
-            const _LoadingSheenBox(
-              height: 14,
-              width: 120,
-            ),
+            const _LoadingSheenBox(height: 14, width: 120),
             SizedBox(height: secondaryGap),
-            const _LoadingSheenBox(
-              height: 12,
-              width: 96,
-            ),
+            const _LoadingSheenBox(height: 12, width: 96),
             SizedBox(height: primaryGap),
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
@@ -405,11 +400,7 @@ class _LabourPortraitSkeletonTile extends StatelessWidget {
 }
 
 class _LoadingSheenBox extends StatefulWidget {
-  const _LoadingSheenBox({
-    required this.height,
-    this.width,
-    this.borderRadius,
-  });
+  const _LoadingSheenBox({required this.height, this.width, this.borderRadius});
 
   final double height;
   final double? width;
@@ -543,8 +534,9 @@ class _LabourPortraitTile extends StatelessWidget {
                             borderRadius: BorderRadius.circular(imageRadius),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFDF7DA0)
-                                    .withValues(alpha: compactScale < 1 ? 0.16 : 0.12),
+                                color: const Color(0xFFDF7DA0).withValues(
+                                  alpha: compactScale < 1 ? 0.16 : 0.12,
+                                ),
                                 blurRadius: compactScale < 1 ? 14 : 20,
                                 spreadRadius: compactScale < 1 ? 0.1 : 0.4,
                                 offset: Offset(0, compactScale < 1 ? 8 : 10),
@@ -557,7 +549,8 @@ class _LabourPortraitTile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (item.isDisabled && item.disabledLabel.trim().isNotEmpty)
+                      if (item.isDisabled &&
+                          item.disabledLabel.trim().isNotEmpty)
                         Positioned(
                           left: -8,
                           bottom: compactScale < 1 ? 54 : 72,
@@ -600,7 +593,9 @@ class _LabourPortraitTile extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(999),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: _ratingColor(item.rating).withValues(alpha: 0.26),
+                                      color: _ratingColor(
+                                        item.rating,
+                                      ).withValues(alpha: 0.26),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -627,7 +622,10 @@ class _LabourPortraitTile extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                            if (hasVisibleRating) const Spacer() else const SizedBox(),
+                            if (hasVisibleRating)
+                              const Spacer()
+                            else
+                              const SizedBox(),
                             Container(
                               padding: EdgeInsets.symmetric(
                                 horizontal: compactScale < 1 ? 6 : 8,
@@ -787,7 +785,6 @@ class _LabourPortraitTile extends StatelessWidget {
       ),
     );
   }
-
 }
 
 String _fullDayRate(_DiscoveryItem item) {
@@ -820,10 +817,7 @@ int _extractAmount(String value) {
 }
 
 class _LabourAvailabilityRibbon extends StatelessWidget {
-  const _LabourAvailabilityRibbon({
-    required this.label,
-    this.compact = false,
-  });
+  const _LabourAvailabilityRibbon({required this.label, this.compact = false});
 
   final String label;
   final bool compact;
@@ -833,7 +827,9 @@ class _LabourAvailabilityRibbon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = _isOffline ? const Color(0xFFD84A4A) : (_isBooked ? const Color(0xFF141414) : const Color(0xFFCB6E5B));
+    final background = _isOffline
+        ? const Color(0xFFD84A4A)
+        : (_isBooked ? const Color(0xFF141414) : const Color(0xFFCB6E5B));
     return Transform.rotate(
       angle: -0.79,
       child: Container(
@@ -844,10 +840,7 @@ class _LabourAvailabilityRibbon extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              background,
-              background.withValues(alpha: 0.88),
-            ],
+            colors: [background, background.withValues(alpha: 0.88)],
           ),
           boxShadow: [
             BoxShadow(
@@ -899,7 +892,8 @@ class _LabourPortraitImage extends StatelessWidget {
                 imageUrl,
                 fit: fit,
                 alignment: alignment,
-                errorBuilder: (_, _, _) => _LabourPortraitFallback(item: item, alignment: alignment),
+                errorBuilder: (_, _, _) =>
+                    _LabourPortraitFallback(item: item, alignment: alignment),
               )
             : _LabourPortraitFallback(item: item, alignment: alignment),
       ),
@@ -908,10 +902,7 @@ class _LabourPortraitImage extends StatelessWidget {
 }
 
 class _LabourPortraitFallback extends StatelessWidget {
-  const _LabourPortraitFallback({
-    required this.item,
-    required this.alignment,
-  });
+  const _LabourPortraitFallback({required this.item, required this.alignment});
 
   final _DiscoveryItem item;
   final AlignmentGeometry alignment;
@@ -936,11 +927,7 @@ class _LabourPortraitFallback extends StatelessWidget {
             bottom: -16,
             child: Opacity(
               opacity: 0.14,
-              child: Icon(
-                item.icon,
-                size: 136,
-                color: Colors.white,
-              ),
+              child: Icon(item.icon, size: 136, color: Colors.white),
             ),
           ),
           Positioned(
@@ -983,11 +970,7 @@ class _ImageBackedShopTile extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white,
-            ),
-          ),
+          DecoratedBox(decoration: BoxDecoration(color: Colors.white)),
           _TemporaryCatalogImage(
             item: item,
             fallback: _SceneThumb(
@@ -1065,7 +1048,10 @@ class _ImageBackedShopTile extends StatelessWidget {
                     ),
                     if (_hasVisibleRating(item.rating))
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: _ratingColor(item.rating),
                           borderRadius: BorderRadius.circular(999),
@@ -1073,7 +1059,11 @@ class _ImageBackedShopTile extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded, size: 9, color: Colors.white),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 9,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 2),
                             Text(
                               item.rating,
@@ -1175,12 +1165,18 @@ class _VerticalProfileCard extends StatelessWidget {
     final secondaryTitle = isServiceMode ? '' : item.subtitle;
     final servedCategories = isServiceMode
         ? item.serviceItems
-            .map((entry) => entry.trim())
-            .where((entry) => entry.isNotEmpty)
-            .take(3)
-            .toList(growable: false)
+              .map((entry) => entry.trim())
+              .where((entry) => entry.isNotEmpty)
+              .take(3)
+              .toList(growable: false)
         : const <String>[];
-    final selectedServiceLabel = isServiceMode ? item.serviceTileLabel.trim() : '';
+    final selectedServiceLabel = isServiceMode
+        ? item.serviceTileLabel.trim()
+        : '';
+    final selectedVisitCharge = isServiceMode ? item.price.trim() : '';
+    final selectedServiceAccent = isServiceMode
+        ? _serviceSubcategoryVisual(selectedServiceLabel).$2
+        : item.accent;
 
     Widget serviceMetaPill({
       required IconData icon,
@@ -1251,7 +1247,9 @@ class _VerticalProfileCard extends StatelessWidget {
                 ],
               ),
               child: Row(
-                crossAxisAlignment: isServiceMode ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                crossAxisAlignment: isServiceMode
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.center,
                 children: [
                   SizedBox(
                     width: 74,
@@ -1293,6 +1291,48 @@ class _VerticalProfileCard extends StatelessWidget {
                               ),
                             ),
                           ],
+                          if (isServiceMode &&
+                              selectedServiceLabel.isNotEmpty) ...[
+                            const SizedBox(height: 7),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selectedServiceAccent.withValues(
+                                  alpha: 0.10,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.local_offer_rounded,
+                                    size: 13,
+                                    color: selectedServiceAccent,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      selectedVisitCharge.isEmpty
+                                          ? selectedServiceLabel
+                                          : '$selectedServiceLabel  •  $selectedVisitCharge',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: selectedServiceAccent,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 11.2,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           if (isServiceMode && servedCategories.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Text(
@@ -1324,12 +1364,6 @@ class _VerticalProfileCard extends StatelessWidget {
                                     value: item.rating,
                                     color: _ratingColor(item.rating),
                                   ),
-                                if (selectedServiceLabel.isNotEmpty)
-                                  serviceMetaPill(
-                                    icon: Icons.local_offer_rounded,
-                                    value: selectedServiceLabel,
-                                    color: item.accent,
-                                  ),
                               ],
                             )
                           else
@@ -1349,7 +1383,7 @@ class _VerticalProfileCard extends StatelessWidget {
                                   child: _ServiceInlineMetaPill(
                                     icon: Icons.currency_rupee_rounded,
                                     value: item.price,
-                                    color: item.accent,
+                                    color: selectedServiceAccent,
                                   ),
                                 ),
                                 if (_hasVisibleRating(item.rating)) ...[
@@ -1376,7 +1410,9 @@ class _VerticalProfileCard extends StatelessWidget {
               top: 8,
               right: 8,
               child: _RoundActionIcon(
-                icon: isFavourited ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                icon: isFavourited
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
                 color: const Color(0xFFCB6E5B),
                 onTap: onFavouriteToggle,
                 size: 28,
@@ -1429,7 +1465,9 @@ class _LabourModeCard extends StatelessWidget {
               height: 46,
               width: 46,
               decoration: BoxDecoration(
-                color: selected ? selectedColor.withValues(alpha: 0.1) : const Color(0xFFF7F3EF),
+                color: selected
+                    ? selectedColor.withValues(alpha: 0.1)
+                    : const Color(0xFFF7F3EF),
                 shape: BoxShape.circle,
                 boxShadow: selected
                     ? [
@@ -1441,11 +1479,7 @@ class _LabourModeCard extends StatelessWidget {
                       ]
                     : const [],
               ),
-              child: Icon(
-                icon,
-                color: labelColor,
-                size: selected ? 28 : 26,
-              ),
+              child: Icon(icon, color: labelColor, size: selected ? 28 : 26),
             ),
             const SizedBox(height: 5),
             Text(
@@ -1482,12 +1516,14 @@ class _SingleLabourFilterBar extends StatefulWidget {
     required this.maxPrice,
     required this.onPeriodSelected,
     required this.onMaxPriceChanged,
+    required this.onQuickBook,
   });
 
   final String selectedPeriod;
   final String maxPrice;
   final ValueChanged<String> onPeriodSelected;
   final ValueChanged<String> onMaxPriceChanged;
+  final VoidCallback? onQuickBook;
 
   @override
   State<_SingleLabourFilterBar> createState() => _SingleLabourFilterBarState();
@@ -1495,6 +1531,7 @@ class _SingleLabourFilterBar extends StatefulWidget {
 
 class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
   late final TextEditingController _priceController;
+  bool _showBookingTypeError = false;
 
   @override
   void initState() {
@@ -1505,8 +1542,14 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
   @override
   void didUpdateWidget(covariant _SingleLabourFilterBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.maxPrice != widget.maxPrice && _priceController.text != widget.maxPrice) {
+    if (oldWidget.maxPrice != widget.maxPrice &&
+        _priceController.text != widget.maxPrice) {
       _priceController.text = widget.maxPrice;
+    }
+    if (oldWidget.selectedPeriod != widget.selectedPeriod &&
+        widget.selectedPeriod != 'All' &&
+        _showBookingTypeError) {
+      _showBookingTypeError = false;
     }
   }
 
@@ -1535,7 +1578,8 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                   ),
                 ),
               ),
-              if (widget.selectedPeriod != 'All' || widget.maxPrice.trim().isNotEmpty)
+              if (widget.selectedPeriod != 'All' ||
+                  widget.maxPrice.trim().isNotEmpty)
                 TextButton(
                   onPressed: () {
                     _priceController.clear();
@@ -1544,12 +1588,18 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                   },
                   style: TextButton.styleFrom(
                     minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: const Text(
                     'Clear',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
             ],
@@ -1559,13 +1609,20 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  initialValue: widget.selectedPeriod,
+                  initialValue: widget.selectedPeriod == 'All'
+                      ? null
+                      : widget.selectedPeriod,
                   decoration: InputDecoration(
-                    labelText: 'Booking type',
                     filled: true,
                     fillColor: Colors.white,
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    errorText: _showBookingTypeError
+                        ? 'Select booking type'
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE6D8CF)),
@@ -1576,11 +1633,46 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.4),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFCB6E5B),
+                        width: 1.4,
+                      ),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFD84A4A),
+                        width: 1.2,
+                      ),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFD84A4A),
+                        width: 1.4,
+                      ),
+                    ),
+                    errorStyle: const TextStyle(
+                      color: Color(0xFFD84A4A),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFCB6E5B)),
-                  items: const ['All', 'Half Day', 'Full Day']
+                  hint: Text(
+                    'Select booking type',
+                    style: TextStyle(
+                      color: _showBookingTypeError
+                          ? const Color(0xFFD84A4A)
+                          : const Color(0xFF7B6B64),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Color(0xFFCB6E5B),
+                  ),
+                  items: const ['Half Day', 'Full Day']
                       .map(
                         (period) => DropdownMenuItem<String>(
                           value: period,
@@ -1597,6 +1689,9 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                       .toList(growable: false),
                   onChanged: (value) {
                     if (value != null) {
+                      if (_showBookingTypeError) {
+                        setState(() => _showBookingTypeError = false);
+                      }
                       widget.onPeriodSelected(value);
                     }
                   },
@@ -1610,12 +1705,19 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                   scrollPadding: const EdgeInsets.only(bottom: 24),
                   onChanged: widget.onMaxPriceChanged,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.currency_rupee_rounded, color: Color(0xFFCB6E5B), size: 18),
-                    hintText: 'Max price range',
+                    prefixIcon: const Icon(
+                      Icons.currency_rupee_rounded,
+                      color: Color(0xFFCB6E5B),
+                      size: 18,
+                    ),
+                    hintText: 'Max price (optional)',
                     filled: true,
                     fillColor: Colors.white,
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFFE6D8CF)),
@@ -1626,13 +1728,46 @@ class _SingleLabourFilterBarState extends State<_SingleLabourFilterBar> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xFFCB6E5B), width: 1.4),
+                      borderSide: const BorderSide(
+                        color: Color(0xFFCB6E5B),
+                        width: 1.4,
+                      ),
                     ),
                     hintStyle: const TextStyle(fontSize: 13),
                   ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: widget.onQuickBook == null
+                  ? null
+                  : () {
+                      if (widget.selectedPeriod == 'All') {
+                        setState(() => _showBookingTypeError = true);
+                        return;
+                      }
+                      widget.onQuickBook!();
+                    },
+              style: FilledButton.styleFrom(
+                backgroundColor: _headerGradient(_HomeMode.labour).first,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: const Color(0xFFE5D8D1),
+                disabledForegroundColor: const Color(0xFF8D7A70),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: const Icon(Icons.flash_on_rounded, size: 18),
+              label: const Text(
+                'Quick Book',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
           ),
         ],
       ),
@@ -1720,7 +1855,9 @@ class _GroupBookingCard extends StatelessWidget {
     final hasSelectedCount = selectedCount > 0;
     final hasSelectedPrice = selectedMaxPrice.trim().isNotEmpty;
     final parsedBudget = int.tryParse(selectedMaxPrice.trim()) ?? 0;
-    final estimatedPrice = hasSelectedCount && hasSelectedPrice ? selectedCount * parsedBudget : 0;
+    final estimatedPrice = hasSelectedCount && hasSelectedPrice
+        ? selectedCount * parsedBudget
+        : 0;
     final bookingChargePercent = _amountFromLabel(bookingChargePerLabour);
     final bookingChargeAmount = hasSelectedCount && hasSelectedPrice
         ? selectedCount * parsedBudget * (bookingChargePercent / 100)
@@ -1793,7 +1930,9 @@ class _GroupBookingCard extends StatelessWidget {
               Expanded(
                 child: _GroupBookingInfoTile(
                   label: 'Estimated booking fees',
-                  value: hasSelectedCount && hasSelectedPrice ? _formatRupee(bookingChargeAmount) : 'Pending',
+                  value: hasSelectedCount && hasSelectedPrice
+                      ? _formatRupee(bookingChargeAmount)
+                      : 'Pending',
                   color: const Color(0xFFCB6E5B),
                   onInfoTap: () => _showEstimatedBookingFeeInfo(context),
                 ),
@@ -1812,10 +1951,14 @@ class _GroupBookingCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
               decoration: BoxDecoration(
-                color: needsLabourTypeSelection ? const Color(0xFFFFF4EA) : Colors.white,
+                color: needsLabourTypeSelection
+                    ? const Color(0xFFFFF4EA)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: needsLabourTypeSelection ? const Color(0xFFCB6E5B) : const Color(0xFFE6D8CF),
+                  color: needsLabourTypeSelection
+                      ? const Color(0xFFCB6E5B)
+                      : const Color(0xFFE6D8CF),
                   width: needsLabourTypeSelection ? 1.35 : 1,
                 ),
               ),
@@ -1823,7 +1966,9 @@ class _GroupBookingCard extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.engineering_rounded,
-                    color: needsLabourTypeSelection ? const Color(0xFFCB6E5B) : const Color(0xFF66748C),
+                    color: needsLabourTypeSelection
+                        ? const Color(0xFFCB6E5B)
+                        : const Color(0xFF66748C),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1831,16 +1976,22 @@ class _GroupBookingCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          needsLabourTypeSelection ? 'Select labour type *' : 'Labour type',
+                          needsLabourTypeSelection
+                              ? 'Select labour type *'
+                              : 'Labour type',
                           style: TextStyle(
-                            color: needsLabourTypeSelection ? const Color(0xFFCB6E5B) : const Color(0xFF66748C),
+                            color: needsLabourTypeSelection
+                                ? const Color(0xFFCB6E5B)
+                                : const Color(0xFF66748C),
                             fontWeight: FontWeight.w900,
                             fontSize: 12.5,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          needsLabourTypeSelection ? 'Required for group booking' : selectedLabourType,
+                          needsLabourTypeSelection
+                              ? 'Required for group booking'
+                              : selectedLabourType,
                           style: const TextStyle(
                             color: Color(0xFF22314D),
                             fontWeight: FontWeight.w900,
@@ -1850,7 +2001,10 @@ class _GroupBookingCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFCB6E5B)),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Color(0xFFCB6E5B),
+                  ),
                 ],
               ),
             ),
@@ -1879,25 +2033,35 @@ class _GroupBookingCard extends StatelessWidget {
                   label: 'No. of labour',
                   value: hasSelectedCount ? selectedCount.toString() : '',
                   hasError: showCountError,
-                  errorText: showCountError ? (countErrorText ?? 'Select count') : null,
+                  errorText: showCountError
+                      ? (countErrorText ?? 'Select count')
+                      : null,
                   suffix: 'labour',
                   icon: Icons.groups_rounded,
                   color: const Color(0xFFCB6E5B),
                   selectionOptions: [
-                    for (var count = 1; count <= maxSelectableCount; count++) '$count',
+                    for (var count = 1; count <= maxSelectableCount; count++)
+                      '$count',
                   ],
-                  onChanged: (value) => onCountSelected(int.tryParse(value) ?? 0),
+                  onChanged: (value) =>
+                      onCountSelected(int.tryParse(value) ?? 0),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           _GroupBookingAmountSummary(
-            estimatedPrice: hasSelectedPrice ? _formatRupee(estimatedPrice.toDouble()) : 'Enter max price',
-            bookingCharge: hasSelectedCount ? _formatRupee(bookingChargeAmount) : 'Select count',
-            bookingChargeHint: '$selectedCount x max price x $bookingChargePerLabour',
+            estimatedPrice: hasSelectedPrice
+                ? _formatRupee(estimatedPrice.toDouble())
+                : 'Enter max price',
+            bookingCharge: hasSelectedCount
+                ? _formatRupee(bookingChargeAmount)
+                : 'Select count',
+            bookingChargeHint:
+                '$selectedCount x max price x $bookingChargePerLabour',
             onEstimatedPriceInfoTap: () => _showEstimatedPriceInfo(context),
-            onEstimatedBookingFeeInfoTap: () => _showEstimatedBookingFeeInfo(context),
+            onEstimatedBookingFeeInfoTap: () =>
+                _showEstimatedBookingFeeInfo(context),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -1908,13 +2072,18 @@ class _GroupBookingCard extends StatelessWidget {
                 backgroundColor: const Color(0xFFCB6E5B),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: Text(
                 hasSelectedPrice && hasSelectedCount
                     ? 'Continue with group request'
                     : 'Select labour count and budget',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15.5,
+                ),
               ),
             ),
           ),
@@ -2105,7 +2274,8 @@ class _GroupBookingNumberField extends StatefulWidget {
   final String? errorText;
 
   @override
-  State<_GroupBookingNumberField> createState() => _GroupBookingNumberFieldState();
+  State<_GroupBookingNumberField> createState() =>
+      _GroupBookingNumberFieldState();
 }
 
 class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
@@ -2145,14 +2315,18 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor =
-        widget.hasError ? const Color(0xFFD84A4A) : widget.color.withValues(alpha: 0.55);
+    final borderColor = widget.hasError
+        ? const Color(0xFFD84A4A)
+        : widget.color.withValues(alpha: 0.55);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFCF7),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor, width: widget.hasError ? 2 : 1.6),
+        border: Border.all(
+          color: borderColor,
+          width: widget.hasError ? 2 : 1.6,
+        ),
         boxShadow: [
           BoxShadow(
             color: (widget.hasError ? const Color(0xFFD84A4A) : widget.color)
@@ -2190,7 +2364,8 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                   ),
                 ),
               ),
-              if (widget.dropdownValue != null && widget.dropdownOptions.isNotEmpty)
+              if (widget.dropdownValue != null &&
+                  widget.dropdownOptions.isNotEmpty)
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: widget.color.withValues(alpha: 0.12),
@@ -2199,12 +2374,16 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: DropdownButtonHideUnderline(
-	                      child: DropdownButton<String>(
-	                        value: widget.dropdownValue,
-	                        borderRadius: BorderRadius.circular(14),
-	                        dropdownColor: const Color(0xFFFFF1E4),
-	                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: widget.color, size: 18),
-	                        isDense: true,
+                      child: DropdownButton<String>(
+                        value: widget.dropdownValue,
+                        borderRadius: BorderRadius.circular(14),
+                        dropdownColor: const Color(0xFFFFF1E4),
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: widget.color,
+                          size: 18,
+                        ),
+                        isDense: true,
                         style: TextStyle(
                           color: widget.color,
                           fontSize: 11,
@@ -2212,19 +2391,22 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                         ),
                         items: widget.dropdownOptions
                             .map(
-	                              (option) => DropdownMenuItem<String>(
-	                                value: option,
-	                                child: Container(
-	                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-	                                  decoration: BoxDecoration(
-	                                    color: option == widget.dropdownValue
-	                                        ? widget.color.withValues(alpha: 0.14)
-	                                        : Colors.transparent,
-	                                    borderRadius: BorderRadius.circular(10),
-	                                  ),
-	                                  child: Text(option),
-	                                ),
-	                              ),
+                              (option) => DropdownMenuItem<String>(
+                                value: option,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: option == widget.dropdownValue
+                                        ? widget.color.withValues(alpha: 0.14)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(option),
+                                ),
+                              ),
                             )
                             .toList(),
                         onChanged: (value) {
@@ -2272,13 +2454,18 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                   child: widget.selectionOptions.isNotEmpty
                       ? DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: widget.selectionOptions.contains(widget.value)
+                            value:
+                                widget.selectionOptions.contains(widget.value)
                                 ? widget.value
                                 : widget.selectionOptions.first,
                             isExpanded: true,
                             isDense: true,
                             borderRadius: BorderRadius.circular(14),
-                            icon: Icon(Icons.keyboard_arrow_down_rounded, color: widget.color, size: 20),
+                            icon: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: widget.color,
+                              size: 20,
+                            ),
                             style: const TextStyle(
                               color: Color(0xFF22314D),
                               fontSize: 20,
@@ -2304,7 +2491,9 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                           controller: _controller,
                           keyboardType: TextInputType.number,
                           scrollPadding: const EdgeInsets.only(bottom: 24),
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           onChanged: widget.onChanged,
                           cursorColor: widget.color,
                           style: const TextStyle(
@@ -2313,21 +2502,22 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
                             fontWeight: FontWeight.w900,
                             height: 1,
                           ),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                            border: InputBorder.none,
-                            counterText: '',
-                          ).copyWith(
-                            hintText: _hintText,
-                            hintStyle: const TextStyle(
-                              color: Color(0xFFB6BCCD),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                          decoration:
+                              const InputDecoration(
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                border: InputBorder.none,
+                                counterText: '',
+                              ).copyWith(
+                                hintText: _hintText,
+                                hintStyle: const TextStyle(
+                                  color: Color(0xFFB6BCCD),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                         ),
-                    ),
+                ),
                 if (widget.suffix.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: 4),
@@ -2344,7 +2534,8 @@ class _GroupBookingNumberFieldState extends State<_GroupBookingNumberField> {
               ],
             ),
           ),
-          if (widget.hasError && (widget.errorText ?? '').trim().isNotEmpty) ...[
+          if (widget.hasError &&
+              (widget.errorText ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 7),
             Text(
               widget.errorText!,
@@ -2447,11 +2638,7 @@ class _GroupBookingInfoIconButton extends StatelessWidget {
           color: iconColor.withValues(alpha: 0.12),
           shape: BoxShape.circle,
         ),
-        child: Icon(
-          Icons.info_outline_rounded,
-          size: 13,
-          color: iconColor,
-        ),
+        child: Icon(Icons.info_outline_rounded, size: 13, color: iconColor),
       ),
     );
   }
